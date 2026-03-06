@@ -58,7 +58,7 @@ int main(void)
   printf("Alignment of max_align_t is %zu (%#zx)\n", a, a);
 
   size_t s = 2 * 1024 * 1024;
-  int step = 24;
+  //int step = 24;
 
   float m1 = -1.0f;
   float p1 = 1.0f;
@@ -111,23 +111,23 @@ int main(void)
 
   size_t sizes[] = {5, 7, 9, 13};
   options_t options[] = {
-      OPTION_USE_MUTEX,
-      OPTION_ARCH_ALIGNED,
-      OPTION_CACHE_ALIGNED,
-      OPTION_USE_GLOBAL_MUTEX | OPTION_ARCH_ALIGNED | OPTION_CACHE_ALIGNED};
+      MEMBLOCK_OPTION_USE_MUTEX,
+      MEMBLOCK_OPTION_ARCH_ALIGNED,
+      MEMBLOCK_OPTION_CACHE_ALIGNED,
+      MEMBLOCK_OPTION_USE_GLOBAL_MUTEX | MEMBLOCK_OPTION_ARCH_ALIGNED | MEMBLOCK_OPTION_CACHE_ALIGNED};
   numElements = sizeof(sizes) / sizeof(size_t);
 
   void *pBlocks[sizeof(sizes) / sizeof(size_t)];
 
-  char buf[65];
+  //char buf[65];
 
   for (size_t i = 0; i < numElements; i++)
   {
-    char *pBin = toBinary(options[i], buf);
-    printf("@%ld : %s\n", i, pBin);
-
-    void *pMem = allocBlock(sizes[i], options[i]);
+    //char *pBin = toBinary(options[i], buf);
+    //printf("@%ld : %s\n", i, pBin);
+    void *pMem = allocBlock(sizes[i], options[i], (void*)0);
     pBlocks[i] = pMem;
+
     blockInfo(pMem);
   }
 
