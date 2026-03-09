@@ -1,32 +1,45 @@
 #ifndef MY_MEM_BLOCK
 #define MY_MEM_BLOCK
 
-#include <inttypes.h>
-#include <stdio.h>
-#include <string.h>
-#include <assert.h>
-
-#ifndef USE_MUTEXES
-#define USE_MUTEXES 1
+#ifndef MEMBLOCK_USE_MUTEXES
+#define MEMBLOCK_USE_MUTEXES 1
 #endif
 
-#if USE_MUTEXES
+#ifndef MEMBLOCK_USE_ASSERTS
+#define MEMBLOCK_USE_ASSERTS 1
+#endif
+
+#if MEMBLOCK_IMPLEMENTATION
+
+#include <inttypes.h>
+#include <stdlib.h>
+#include <string.h>
+
+#if MEMBLOCK_USE_MUTEXES
 #include <pthread.h>
 #endif
 
-#ifndef MEMBLOCK_ALWAYS_SET_ERROR
-#define MEMBLOCK_ALWAYS_SET_ERROR 0
+#if MEMBLOCK_USE_ASSERTS
+#include <assert.h>
 #endif
 
-#define MEM_SIZE_KB (1 << 10)
-#define MEM_SIZE_MB (1 << 20)
+#ifndef MEMBLOCK_DECLARATION
+#define MEMBLOCK_DECLARATION 1
+#else
+#if !(MEMBLOCK_DECLARATION)
+#undef MEMBLOCK_DECLARATION
+#define MEMBLOCK_DECLARATION 1
+#endif
+#endif
 
-#define MEMBLOCK_CACHE_LINE_SIZE 64
+#endif
 
-#define MEMBLOCK_ALLOC_BLOCK_SIZE (1 << 12) //
+#if MEMBLOCK_DECLARATION
 
 // Reserve bytes by malloc
+#ifndef MEMBLOCK_MALLOC_RESERVE
 #define MEMBLOCK_MALLOC_RESERVE (16)
+#endif
 
 #define MEMBLOCK_SET_BLOCK_SIZE(OPTS, SIZE) ((OPTS) | (SIZE << 8))
 #define MEMBLOCK_GET_BLOCK_SIZE(OPTS) ((OPTS) >> 8)
@@ -51,11 +64,51 @@
 
 typedef uint64_t options_t;
 
-#if USE_MUTEXES
-pthread_mutex_t allocLock;
+#define MEMBLOCK_ERROR_NOT_ENOUGH 1
+#define MEMBLOCK_ERROR_ITEMSIZE 2
+#define MEMBLOCK_ERROR_BLOCKSIZE_FAIL 3
+#define MEMBLOCK_ERROR_MIN_ITEMS_FAIL 4
+
+#define MEMBLOCK_PTR_TO_DEFAULT_MUTEX_ATTRS (NULL)
+
+void memblockInit();
+void memblockDestroy();
+
+void *allocBlock(size_t itemSize, const options_t opts, int *pError);
+void *allocItem(void *pBlock, void *pInit);
+
+void *getStoredPointer(void *pBlock);
+int setStoredPointer(void *pBlock, void *ptrToStore);
+
+int freeItem(void *pBlock, void *pItem);
+void freeBlock(void *pBlock);
+
 #endif
 
+#ifndef MEMBLOCK_ALWAYS_SET_ERROR
+#define MEMBLOCK_ALWAYS_SET_ERROR 0
+#endif
+
+#ifndef MEMBLOCK_malloc
+#define MEMBLOCK_malloc(SZ) (malloc(SZ))
+#define MEMBLOCK_free(PTR) (free(PTR))
+#endif
+
+#ifndef MEMBLOCK_CACHE_LINE_SIZE
+#define MEMBLOCK_CACHE_LINE_SIZE 64
+#endif
+
+#ifndef MEMBLOCK_ALLOC_BLOCK_SIZE
+#define MEMBLOCK_ALLOC_BLOCK_SIZE (1 << 12)
+#endif
+
+#if MEMBLOCK_IMPLEMENTATION
+
 int memblockError = 0;
+#if MEMBLOCK_USE_MUTEXES
+pthread_mutex_t allocLock = PTHREAD_MUTEX_INITIALIZER;
+// pthread_mutexattr_t allocLockAttrs;
+#endif
 
 #define MEMBLOCK_INTERNAL_VOIDPTR_SIZE (sizeof(void *))
 #define MEMBLOCK_INTERNAL_OPTIONS_SIZE (sizeof(uint64_t))
@@ -83,10 +136,19 @@ int memblockError = 0;
         }                                                           \
     }
 
-#define MEMBLOCK_ERROR_NOT_ENOUGH 1
-#define MEMBLOCK_ERROR_ITEMSIZE 2
-#define MEMBLOCK_ERROR_BLOCKSIZE_FAIL 3
-#define MEMBLOCK_ERROR_MIN_ITEMS_FAIL 4
+void memblockInit()
+{
+#if MEMBLOCK_USE_MUTEXES
+    pthread_mutex_init(&allocLock, MEMBLOCK_PTR_TO_DEFAULT_MUTEX_ATTRS);
+#endif
+}
+
+void memblockDestroy()
+{
+#if MEMBLOCK_USE_MUTEXES
+    pthread_mutex_destroy(&allocLock);
+#endif
+}
 /*
 Block structure:
 - allocated memory
@@ -99,11 +161,18 @@ Block structure:
 */
 void *allocBlock(size_t itemSize, const options_t opts, int *pError)
 {
+#if MEMBLOCK_USE_ASSERTS
     // no support for 16-bit systems
     assert(sizeof(void *) >= 4);
+    assert(sizeof(void *) == sizeof(char *));
+    assert(sizeof(void *) == sizeof(uint64_t *));
     assert(sizeof(uint64_t) >= sizeof(void *));
-    assert(MEMBLOCK_ALLOC_BLOCK_SIZE > 64);
     assert(MEMBLOCK_CACHE_LINE_SIZE >= sizeof(void *));
+    assert(MEMBLOCK_CACHE_LINE_SIZE % sizeof(void *) == 0);
+    assert(MEMBLOCK_ALLOC_BLOCK_SIZE >= (2 * MEMBLOCK_CACHE_LINE_SIZE));
+    assert(MEMBLOCK_ALLOC_BLOCK_SIZE % MEMBLOCK_CACHE_LINE_SIZE == 0);
+    assert(MEMBLOCK_ALLOC_BLOCK_SIZE <= (0x1 << 26));
+#endif
 
     if (itemSize <= 0 || itemSize > MEMBLOCK_MAX_ITEM_SIZE)
     {
@@ -129,7 +198,7 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
     if (numMemBlocks > 0)
     {
         sizeAvail = numMemBlocks * MEMBLOCK_ALLOC_BLOCK_SIZE;
-        // 0 means 1, see above
+        // we decrement, such that we can allocate up to 256 memory blocks at once
         --numMemBlocks;
     }
 
@@ -159,11 +228,15 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
         headerSize += sizeof(void *);
     }
 
+#if MEMBLOCK_USE_MUTEXES
+    const size_t mutexOffset = headerSize;
     // Store mutex?
     if (opts & MEMBLOCK_OPTION_USE_MUTEX)
     {
         headerSize += sizeof(pthread_mutex_t);
     }
+
+#endif
 
     size_t realItemSize = itemSize;
 
@@ -184,7 +257,7 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
         }
     }
 
-    void *const pMem = malloc(sizeAvail);
+    void *const pMem = MEMBLOCK_malloc(sizeAvail);
 
     // TODO: try smaller sizes if allocation fails
 
@@ -192,7 +265,6 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
     {
         error = MEMBLOCK_ERROR_NOT_ENOUGH;
         goto error_point;
-        // return pMem;
     }
 
     const uint64_t val = (uint64_t)pMem;
@@ -246,7 +318,13 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
     }
 
     const size_t usageBitfieldSize = numBlocks * sizeof(uint64_t);
-    const size_t all = (sizeAvail - usageBitfieldSize) / realItemSize;
+    size_t all = (sizeAvail - usageBitfieldSize) / realItemSize;
+
+    if (all > 0xFFFF)
+    {
+        // Here we actually waste space!
+        all = 0xFFFF;
+    }
 
     // header: +options
     uint64_t myOpts = ((opts & 0xFF) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT);
@@ -261,6 +339,15 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
     memset(pBlockStart, 0, headerSize);
 
     *((uint64_t *)pBlockStart) = myOpts;
+
+#if MEMBLOCK_USE_MUTEXES
+    // Store mutex?
+    if (opts & MEMBLOCK_OPTION_USE_MUTEX)
+    {
+        pthread_mutex_t *pMutex = (pthread_mutex_t *)((char *)pBlockStart + mutexOffset);
+        pthread_mutex_init(pMutex, MEMBLOCK_PTR_TO_DEFAULT_MUTEX_ATTRS);
+    }
+#endif
 
     void *const pDataBlockStart = ((char *)pBlockStart) + headerSize;
 
@@ -307,46 +394,10 @@ error_point:
     return pMem;
 }
 
-void blockInfo(void *pBlock)
-{
-    if (pBlock != MEMBLOCK_NULLPTR)
-    {
-        void *pBlockStart = (*((void **)pBlock));
-        int d = (pBlockStart == pBlock) ? 1 : 0;
-        puts("\n---");
-        printf("BLOCK-START:same: %d (%p <- %p)\n", d, pBlockStart, pBlock);
-
-        if (d == 1)
-        {
-            pBlockStart = (char *)pBlockStart + sizeof(void *);
-        }
-        uint64_t opts = *((uint64_t *)pBlockStart);
-        uint64_t opts2 = opts >> 48;
-
-        size_t itemSize = (opts >> 32) & 0xFFFF;
-        printf("ITEM-SIZE: %ld\n", itemSize);
-        // printf("OPTS: %b\n", opts2);
-
-        d = ((opts2 & MEMBLOCK_OPTION_ARCH_ALIGNED) != 0) ? 1 : 0;
-        printf("ALIGN:arch: %d\n", d);
-
-        d = ((opts2 & MEMBLOCK_OPTION_CACHE_ALIGNED) != 0) ? 1 : 0;
-        printf("ALIGN:cache: %d\n", d);
-
-        d = ((opts2 & MEMBLOCK_OPTION_HAS_PTR) != 0) ? 1 : 0;
-        printf("PTR: %d\n", d);
-
-        d = ((opts2 & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX) != 0) ? 1 : 0;
-        printf("MUTEX:global: %d\n", d);
-
-        d = ((opts2 & MEMBLOCK_OPTION_USE_MUTEX) != 0) ? 1 : 0;
-        printf("MUTEX:single: %d\n", d);
-        puts("---\n");
-    }
-}
-
 /**
- *
+ * @param pBlock
+ * @param pInit
+ * @returns
  */
 void *allocItem(void *pBlock, void *pInit)
 {
@@ -354,27 +405,29 @@ void *allocItem(void *pBlock, void *pInit)
     {
         return MEMBLOCK_NULLPTR;
     }
+
     void *const pBlockStart = (*((void **)pBlock));
 
     options_t opts = *(uint64_t *)pBlockStart;
-    options_t opts2 = opts >> 48;
+    // options_t
+    opts = opts >> 48;
 
     char *pDataBlockStart = (char *)pBlockStart + sizeof(uint64_t);
 
-#if USE_MUTEXES
+#if MEMBLOCK_USE_MUTEXES
     pthread_mutex_t *pMutex = (pthread_mutex_t *)0;
 
-    if (opts2 & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX)
+    if (opts & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX)
     {
         pthread_mutex_lock(&allocLock);
     }
 
-    if (opts2 & MEMBLOCK_OPTION_HAS_PTR)
+    if (opts & MEMBLOCK_OPTION_HAS_PTR)
     {
         pDataBlockStart = (char *)pDataBlockStart + MEMBLOCK_INTERNAL_VOIDPTR_SIZE;
     }
 
-    if (opts2 & MEMBLOCK_OPTION_USE_MUTEX)
+    if (opts & MEMBLOCK_OPTION_USE_MUTEX)
     {
         pMutex = (pthread_mutex_t *)pDataBlockStart;
         pDataBlockStart = (char *)pDataBlockStart + sizeof(pthread_mutex_t);
@@ -385,11 +438,11 @@ void *allocItem(void *pBlock, void *pInit)
     // Need to read again to have actual info about used items
     opts = *(uint64_t *)pBlockStart;
 
-    size_t used = (opts) & 0xFFFFFFFF;
+    size_t used = opts & ((uint64_t)0xFFFFFFFF);
     const size_t all = used >> 16;
     used &= 0xFFFF;
 
-    void *pRes = (void *)0;
+    void *pRes = MEMBLOCK_NULLPTR;
 
     used++;
 
@@ -398,19 +451,21 @@ void *allocItem(void *pBlock, void *pInit)
         uint64_t *pMemBits = (uint64_t *)pDataBlockStart;
 
         // Search bit field
-        size_t i = 0, numBlocks = (all + 63) >> 6;
+        size_t bitfieldIdx = 0;
+        const size_t numBlocks = (all + 63) >> 6;
 
 #define MEMBLOCK_INTERNAL_ALLBITS_USED (~((uint64_t)0))
 
         // Skip fully used slots
-        for (; i < numBlocks && pMemBits[i] == MEMBLOCK_INTERNAL_ALLBITS_USED; i++)
+        for (; bitfieldIdx < numBlocks && pMemBits[bitfieldIdx] == MEMBLOCK_INTERNAL_ALLBITS_USED; bitfieldIdx++)
         {
         }
+#undef MEMBLOCK_INTERNAL_ALLBITS_USED
 
-        if (i < numBlocks)
+        if (bitfieldIdx < numBlocks)
         {
-            size_t itemIdx = i << 6;
-            uint64_t bits = pMemBits[i];
+            size_t itemIdx = bitfieldIdx << 6;
+            uint64_t bits = pMemBits[bitfieldIdx];
 
             while (bits & 0x1)
             {
@@ -418,9 +473,9 @@ void *allocItem(void *pBlock, void *pInit)
                 bits >>= 1;
             }
 
-            if (itemIdx < (i + 1) << 6)
+            if (itemIdx < (bitfieldIdx + 1) << 6)
             {
-                size_t itemSize = (opts >> 32) & 0xFFFF;
+                const size_t itemSize = (opts >> MEMBLOCK_INTERNAL_NUM_MEMBLOCKS_SHIFT) & 0xFFFF;
                 size_t realItemSize = itemSize;
 
                 CALC_REAL_ITEM_SIZE(realItemSize, opts)
@@ -430,8 +485,8 @@ void *allocItem(void *pBlock, void *pInit)
 
                 *(uint64_t *)pBlockStart = opts;
 
-                bits = 0x1 << (itemIdx & 0x3F);
-                pMemBits[i] |= bits;
+                bits = ((uint64_t)0x1) << (itemIdx & 0x3F);
+                pMemBits[bitfieldIdx] |= bits;
 
                 const size_t offset = (numBlocks * sizeof(uint64_t)) + (itemIdx * realItemSize);
 
@@ -458,6 +513,7 @@ void *allocItem(void *pBlock, void *pInit)
                     {
                         memcpy(pRes, pInit, itemSize);
                         i = itemSize;
+                        pResChar += i;
                     }
 
                     if (opts & MEMBLOCK_OPTION_CLEAR_MEM)
@@ -480,13 +536,13 @@ void *allocItem(void *pBlock, void *pInit)
         }
     }
 
-#if USE_MUTEXES
+#if MEMBLOCK_USE_MUTEXES
     if (pMutex)
     {
         pthread_mutex_unlock(pMutex);
     }
 
-    if (opts2 & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX)
+    if (opts & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX)
     {
         pthread_mutex_unlock(&allocLock);
     }
@@ -494,37 +550,188 @@ void *allocItem(void *pBlock, void *pInit)
     return pRes;
 }
 
+/**
+ * @param pBlock pointer to managed memory block
+ * @returns stored pointer
+ */
+void *getStoredPointer(void *pBlock)
+{
+    if (pBlock != MEMBLOCK_NULLPTR)
+    {
+        void **pPtr = (void **)pBlock;
+        void *const pBlockStart = *pPtr;
+
+        if ((char *)pBlockStart >= (char *)pBlock + sizeof(void *))
+        {
+            uint64_t opts = *(uint64_t *)pBlockStart;
+            opts >>= MEMBLOCK_INTERNAL_OPTIONS_SHIFT;
+
+            if (opts & MEMBLOCK_OPTION_HAS_PTR)
+            {
+                return (void *)((char *)pBlockStart + sizeof(uint64_t));
+            }
+        }
+    }
+
+    return MEMBLOCK_NULLPTR;
+}
+
+/**
+ * @param pBlock pointer to managed memory block
+ * @param ptrToStore pointer to store
+ * @returns 0 on success, 1 on error
+ */
+int setStoredPointer(void *pBlock, void *ptrToStore)
+{
+    if (pBlock != MEMBLOCK_NULLPTR)
+    {
+        void **pPtr = (void **)pBlock;
+        char *const pBlockStart = *pPtr;
+
+        if ((char *)pBlockStart >= (char *)pBlock + sizeof(void *))
+        {
+            uint64_t opts = *(uint64_t *)pBlockStart;
+            opts >>= MEMBLOCK_INTERNAL_OPTIONS_SHIFT;
+
+            if (opts & MEMBLOCK_OPTION_HAS_PTR)
+            {
+                pPtr = (void **)(pBlockStart + sizeof(uint64_t));
+                *pPtr = ptrToStore;
+
+                return 0;
+            }
+        }
+    }
+
+    return 1;
+}
+
+/**
+ * @param pBlock
+ * @param pItem
+ * @returns 0 on success, 1 on error
+ */
 int freeItem(void *pBlock, void *pItem)
 {
-    if ((pBlock != (void *)0) && (pItem != (void *)0))
+    if ((pBlock != MEMBLOCK_NULLPTR) && (pItem != MEMBLOCK_NULLPTR))
     {
-#if USE_MUTEXES
-        pthread_mutex_lock(&allocLock);
-#endif
-        // Find offset bit and unset it
-        // Clear if needed
+        void **pPtr = (void **)pBlock;
+        char *const pBlockStart = *pPtr;
+        uint64_t opts = *(uint64_t *)pBlockStart;
 
-#if USE_MUTEXES
-        pthread_mutex_unlock(&allocLock);
+        size_t offset = sizeof(uint64_t);
+
+#if MEMBLOCK_USE_MUTEXES
+        if (opts & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX)
+        {
+            pthread_mutex_lock(&allocLock);
+        }
+
+        if (opts & MEMBLOCK_OPTION_HAS_PTR)
+        {
+            offset += sizeof(void *);
+        }
+
+        pthread_mutex_t *pMutex = MEMBLOCK_NULLPTR;
+
+        if (opts & MEMBLOCK_OPTION_USE_MUTEX)
+        {
+            pMutex = (pthread_mutex_t *)((char *)pBlockStart + offset);
+            offset += sizeof(pthread_mutex_t);
+            pthread_mutex_lock(pMutex);
+        }
 #endif
+        opts = *(uint64_t *)pBlockStart;
+        size_t used = opts & ((uint64_t)0xFFFFFFFF);
+        const size_t all = used >> 16;
+        used &= 0xFFFF;
+        size_t bitfieldSize = ((all + 63) >> 6);
+        bitfieldSize *= sizeof(uint64_t);
+        uint64_t *const pBitfieldStart = (uint64_t *)((char *)pBlockStart + offset);
+        char *const pDataStart = (char *)pBitfieldStart + bitfieldSize;
+
+        int result = 1;
+        size_t realItemSize = (opts >> MEMBLOCK_INTERNAL_NUM_MEMBLOCKS_SHIFT) & 0xFFFF;
+
+        if (realItemSize > 0 && used > 0 && ((char *)pItem) >= pDataStart)
+        {
+            CALC_REAL_ITEM_SIZE(realItemSize, opts)
+
+            const size_t diff = (char *)pItem - pDataStart;
+            size_t itemIdx = diff / realItemSize;
+
+            if (itemIdx < all && diff == itemIdx * realItemSize)
+            {
+                const size_t blockIdx = itemIdx >> 6;
+                itemIdx &= 0x3F;
+                const uint64_t bit = ((uint64_t)0x1) << itemIdx;
+
+                if (pBitfieldStart[blockIdx] & bit)
+                {
+                    pBitfieldStart[blockIdx] &= ~bit;
+                    --used;
+
+                    opts &= ~((uint64_t)0xFFFF);
+                    opts |= used;
+                    *(uint64_t *)pBlockStart = opts;
+                    result = 0;
+                }
+            }
+        }
+
+#if MEMBLOCK_USE_MUTEXES
+        if (pMutex)
+        {
+            pthread_mutex_unlock(pMutex);
+        }
+
+        if (opts & MEMBLOCK_OPTION_USE_GLOBAL_MUTEX)
+        {
+            pthread_mutex_unlock(&allocLock);
+        }
+#endif
+        return result;
     }
     return 1;
 }
 
+/**
+ * @param pBlock
+ */
 void freeBlock(void *pBlock)
 {
-#if USE_MUTEXES
+    if (pBlock == MEMBLOCK_NULLPTR)
+    {
+        return;
+    }
+
+#if MEMBLOCK_USE_MUTEXES
     pthread_mutex_lock(&allocLock);
 #endif
 
-    if (pBlock != ((void *)0))
-    {
-        free(pBlock);
-    }
+#if MEMBLOCK_USE_MUTEXES
+    void **pPtr = (void **)pBlock;
+    void *pBlockStart = *pPtr;
+    const uint64_t opts = *(uint64_t *)pBlockStart;
 
-#if USE_MUTEXES
+    if (opts & MEMBLOCK_OPTION_USE_MUTEX)
+    {
+        size_t mutexOffset = sizeof(uint64_t);
+
+        if (opts & MEMBLOCK_OPTION_HAS_PTR)
+        {
+            mutexOffset += sizeof(void *);
+        }
+        pthread_mutex_t *pMutex = (pthread_mutex_t *)((char *)pBlockStart + mutexOffset);
+        pthread_mutex_destroy(pMutex);
+    }
+#endif
+    MEMBLOCK_free(pBlock);
+
+#if MEMBLOCK_USE_MUTEXES
     pthread_mutex_unlock(&allocLock);
 #endif
 }
 
+#endif
 #endif

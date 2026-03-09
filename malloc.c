@@ -1,3 +1,8 @@
+
+#define MEMBLOCK_IMPLEMENTATION 1
+
+#include "memblock.h"
+
 #include <inttypes.h>
 #include <stdalign.h>
 #include <stddef.h>
@@ -6,7 +11,8 @@
 #include <stdlib.h>
 #include <threads.h>
 #include <malloc.h>
-#include <pthread.h>
+
+#include "memblock_info.h"
 
 void DisplayBinary(unsigned int n)
 {
@@ -50,7 +56,7 @@ char *toBinary(uint64_t num, char *buf)
   return buf;
 }
 
-#include "memblock.h"
+
 
 int main(void)
 {
@@ -121,6 +127,8 @@ int main(void)
 
   //char buf[65];
 
+  memblockInit();
+
   for (size_t i = 0; i < numElements; i++)
   {
     //char *pBin = toBinary(options[i], buf);
@@ -137,6 +145,8 @@ int main(void)
   {
     freeBlock(pBlocks[i]);
   }
+
+  memblockDestroy();
 
   return 0;
 }
