@@ -64,6 +64,8 @@
 
 typedef uint64_t options_t;
 
+#define MEMBLOCK_ERROR_NO_ERROR 0
+#define MEMBLOCK_RESULT_SUCCESS 0
 #define MEMBLOCK_ERROR_NOT_ENOUGH 1
 #define MEMBLOCK_ERROR_ITEMSIZE 2
 #define MEMBLOCK_ERROR_BLOCKSIZE_FAIL 3
@@ -75,13 +77,13 @@ void memblockInit();
 void memblockDestroy();
 
 void *allocBlock(size_t itemSize, const options_t opts, int *pError);
+void freeBlock(void *pBlock);
+
 void *allocItem(void *pBlock, void *pInit);
+int freeItem(void *pBlock, void *pItem);
 
 void *getStoredPointer(void *pBlock);
 int setStoredPointer(void *pBlock, void *ptrToStore);
-
-int freeItem(void *pBlock, void *pItem);
-void freeBlock(void *pBlock);
 
 #endif
 
@@ -107,7 +109,6 @@ void freeBlock(void *pBlock);
 int memblockError = 0;
 #if MEMBLOCK_USE_MUTEXES
 pthread_mutex_t allocLock = PTHREAD_MUTEX_INITIALIZER;
-// pthread_mutexattr_t allocLockAttrs;
 #endif
 
 #define MEMBLOCK_INTERNAL_VOIDPTR_SIZE (sizeof(void *))
@@ -117,8 +118,16 @@ pthread_mutex_t allocLock = PTHREAD_MUTEX_INITIALIZER;
 #define MEMBLOCK_INTERNAL_OPTIONS_SHIFT (48)
 #define MEMBLOCK_INTERNAL_NUM_MEMBLOCKS_SHIFT (56)
 
+#define MEMBLOCK_INTERNAL_OPTION_ARCH_ALIGNED (((uint64_t)MEMBLOCK_OPTION_ARCH_ALIGNED) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT)
+#define MEMBLOCK_INTERNAL_OPTION_CACHE_ALIGNED (((uint64_t)MEMBLOCK_OPTION_CACHE_ALIGNED) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT)
+#define MEMBLOCK_INTERNAL_OPTION_CLEAR_MEM (((uint64_t)MEMBLOCK_OPTION_CLEAR_MEM) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT)
+
+#define MEMBLOCK_INTERNAL_OPTION_HAS_PTR (((uint64_t)MEMBLOCK_OPTION_HAS_PTR) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT)
+#define MEMBLOCK_INTERNAL_OPTION_USE_MUTEX (((uint64_t)MEMBLOCK_OPTION_USE_MUTEX) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT)
+#define MEMBLOCK_INTERNAL_OPTION_USE_GLOBAL_MUTEX (((uint64_t)MEMBLOCK_OPTION_USE_GLOBAL_MUTEX) << MEMBLOCK_INTERNAL_OPTIONS_SHIFT)
+
 // MACROS:
-#define CALC_REAL_ITEM_SIZE(REAL_ITEM_SZ, OPTS)                     \
+#define MEMBLOCK_CALC_REAL_ITEM_SIZE(REAL_ITEM_SZ, OPTS)            \
     if (OPTS & MEMBLOCK_OPTION_ARCH_ALIGNED)                        \
     {                                                               \
         size_t padding = REAL_ITEM_SZ % (sizeof(void *));           \
@@ -128,6 +137,24 @@ pthread_mutex_t allocLock = PTHREAD_MUTEX_INITIALIZER;
         }                                                           \
     }                                                               \
     if (OPTS & MEMBLOCK_OPTION_CACHE_ALIGNED)                       \
+    {                                                               \
+        size_t padding = REAL_ITEM_SZ % (MEMBLOCK_CACHE_LINE_SIZE); \
+        if (padding > 0)                                            \
+        {                                                           \
+            REAL_ITEM_SZ += (MEMBLOCK_CACHE_LINE_SIZE) - padding;   \
+        }                                                           \
+    }
+
+#define MEMBLOCK_INTERNAL_CALC_REAL_ITEM_SIZE(REAL_ITEM_SZ, OPTS)   \
+    if (OPTS & MEMBLOCK_INTERNAL_OPTION_ARCH_ALIGNED)               \
+    {                                                               \
+        size_t padding = REAL_ITEM_SZ % (sizeof(void *));           \
+        if (padding > 0)                                            \
+        {                                                           \
+            REAL_ITEM_SZ += (sizeof(void *)) - padding;             \
+        }                                                           \
+    }                                                               \
+    if (OPTS & MEMBLOCK_INTERNAL_OPTION_CACHE_ALIGNED)              \
     {                                                               \
         size_t padding = REAL_ITEM_SZ % (MEMBLOCK_CACHE_LINE_SIZE); \
         if (padding > 0)                                            \
@@ -202,15 +229,18 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
         --numMemBlocks;
     }
 
-    int error = 0;
     // Do we expect malloc to use some of allocate memory for its needs?
 #if (MEMBLOCK_MALLOC_RESERVE > 0)
     // If so, check it ...
     if (MEMBLOCK_MALLOC_RESERVE >= sizeAvail)
     {
-        error = MEMBLOCK_ERROR_BLOCKSIZE_FAIL;
-        goto error_point;
-        // return MEMBLOCK_NULLPTR;
+        if (pError == MEMBLOCK_NULLPTR)
+        {
+            pError = &memblockError;
+        }
+        *pError = MEMBLOCK_ERROR_BLOCKSIZE_FAIL;
+
+        return MEMBLOCK_NULLPTR;
     }
     // ... adapt size
     sizeAvail -= MEMBLOCK_MALLOC_RESERVE;
@@ -240,7 +270,7 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
 
     size_t realItemSize = itemSize;
 
-    CALC_REAL_ITEM_SIZE(realItemSize, opts)
+    MEMBLOCK_CALC_REAL_ITEM_SIZE(realItemSize, opts)
 
 #define MAX_OFFSET (MEMBLOCK_CACHE_LINE_SIZE + sizeof(void *) - 1)
 
@@ -252,8 +282,12 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
 
         if (sizeAvail < headerSize + minRequired)
         {
-            error = MEMBLOCK_ERROR_MIN_ITEMS_FAIL;
-            goto error_point;
+            if (pError == MEMBLOCK_NULLPTR)
+            {
+                pError = &memblockError;
+            }
+            *pError = MEMBLOCK_ERROR_MIN_ITEMS_FAIL;
+            return MEMBLOCK_NULLPTR;
         }
     }
 
@@ -263,8 +297,13 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
 
     if (pMem == MEMBLOCK_NULLPTR)
     {
-        error = MEMBLOCK_ERROR_NOT_ENOUGH;
-        goto error_point;
+        if (pError == MEMBLOCK_NULLPTR)
+        {
+            pError = &memblockError;
+        }
+        *pError = MEMBLOCK_ERROR_NOT_ENOUGH;
+
+        return MEMBLOCK_NULLPTR;
     }
 
     const uint64_t val = (uint64_t)pMem;
@@ -354,41 +393,12 @@ void *allocBlock(size_t itemSize, const options_t opts, int *pError)
     // Nullify usage bits
     memset(pDataBlockStart, 0, usageBitfieldSize);
 
-error_point:
-
 #if MEMBLOCK_ALWAYS_SET_ERROR
-    if ((pMem != MEMBLOCK_NULLPTR) && error != 0)
-    {
-        free(pMem);
-    }
     if (pError == MEMBLOCK_NULLPTR)
     {
         pError = &memblockError;
     }
     *pError = error;
-    if (error != 0)
-    {
-        return MEMBLOCK_NULLPTR;
-    }
-#else
-    if (error != 0)
-    {
-        if (pMem != MEMBLOCK_NULLPTR)
-        {
-            free(pMem);
-        }
-        if (pError == MEMBLOCK_NULLPTR)
-        {
-            pError = &memblockError;
-        }
-        *pError = error;
-
-        return MEMBLOCK_NULLPTR;
-    }
-    else if (pError != MEMBLOCK_NULLPTR)
-    {
-        *pError = error;
-    }
 #endif
 
     return pMem;
@@ -478,7 +488,7 @@ void *allocItem(void *pBlock, void *pInit)
                 const size_t itemSize = (opts >> MEMBLOCK_INTERNAL_NUM_MEMBLOCKS_SHIFT) & 0xFFFF;
                 size_t realItemSize = itemSize;
 
-                CALC_REAL_ITEM_SIZE(realItemSize, opts)
+                MEMBLOCK_CALC_REAL_ITEM_SIZE(realItemSize, opts)
 
                 opts &= ~((uint64_t)0xFFFF);
                 opts |= used;
@@ -586,7 +596,7 @@ int setStoredPointer(void *pBlock, void *ptrToStore)
     if (pBlock != MEMBLOCK_NULLPTR)
     {
         void **pPtr = (void **)pBlock;
-        char *const pBlockStart = *pPtr;
+        char *const pBlockStart = (char *)*pPtr;
 
         if ((char *)pBlockStart >= (char *)pBlock + sizeof(void *))
         {
@@ -616,7 +626,7 @@ int freeItem(void *pBlock, void *pItem)
     if ((pBlock != MEMBLOCK_NULLPTR) && (pItem != MEMBLOCK_NULLPTR))
     {
         void **pPtr = (void **)pBlock;
-        char *const pBlockStart = *pPtr;
+        char *const pBlockStart = (char *)*pPtr;
         uint64_t opts = *(uint64_t *)pBlockStart;
 
         size_t offset = sizeof(uint64_t);
@@ -655,7 +665,7 @@ int freeItem(void *pBlock, void *pItem)
 
         if (realItemSize > 0 && used > 0 && ((char *)pItem) >= pDataStart)
         {
-            CALC_REAL_ITEM_SIZE(realItemSize, opts)
+            MEMBLOCK_CALC_REAL_ITEM_SIZE(realItemSize, opts)
 
             const size_t diff = (char *)pItem - pDataStart;
             size_t itemIdx = diff / realItemSize;

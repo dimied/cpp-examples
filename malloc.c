@@ -33,12 +33,13 @@ char binaryGlobalBuf[65];
 
 char *toBinary(uint64_t num, char *buf)
 {
-  if (buf == (char*)0) {
+  if (buf == (char *)0)
+  {
     buf = binaryGlobalBuf;
   }
-  
+
   buf[64] = '\0';
-  buf = buf+63;
+  buf = buf + 63;
   if (num > 0)
   {
     while (num > 0)
@@ -56,15 +57,13 @@ char *toBinary(uint64_t num, char *buf)
   return buf;
 }
 
-
-
 int main(void)
 {
   size_t a = alignof(max_align_t);
   printf("Alignment of max_align_t is %zu (%#zx)\n", a, a);
 
   size_t s = 2 * 1024 * 1024;
-  //int step = 24;
+  // int step = 24;
 
   float m1 = -1.0f;
   float p1 = 1.0f;
@@ -125,15 +124,15 @@ int main(void)
 
   void *pBlocks[sizeof(sizes) / sizeof(size_t)];
 
-  //char buf[65];
+  // char buf[65];
 
   memblockInit();
 
   for (size_t i = 0; i < numElements; i++)
   {
-    //char *pBin = toBinary(options[i], buf);
-    //printf("@%ld : %s\n", i, pBin);
-    void *pMem = allocBlock(sizes[i], options[i], (void*)0);
+    // char *pBin = toBinary(options[i], buf);
+    // printf("@%ld : %s\n", i, pBin);
+    void *pMem = allocBlock(sizes[i], options[i], (int *)0);
     pBlocks[i] = pMem;
 
     blockInfo(pMem);
@@ -141,7 +140,7 @@ int main(void)
 
   printf("\n---\n");
 
-  for (int i = 0; i < numElements; i++)
+  for (size_t i = 0; i < numElements; i++)
   {
     freeBlock(pBlocks[i]);
   }
