@@ -2,9 +2,7 @@
 
 echo "Compile ..."
 
-gcc -Wall http.c
+gcc -Wall -ggdb http.c && ./a.out
 
-echo "---DONE---"
-
-
-./a.out
+#echo "---DONE---"
+#./a.out
