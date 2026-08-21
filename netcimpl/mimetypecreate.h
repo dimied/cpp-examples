@@ -138,6 +138,9 @@ char *testCodeGen()
         return 0;
     }
 
+    initMem();
+    initGenCodeInC();
+
     codegen_container *allRes = codeGenCreateContainer();
 
     if (allRes == 0)
@@ -147,8 +150,6 @@ char *testCodeGen()
     }
     allRes->type = CODEGEN_TYPE_TYPE_GENERIC;
 
-    codegen_container *lastRes = allRes;
-
     codegen_container *structRes = codeGenCreateStruct("dada");
 
     if (structRes == 0)
@@ -157,17 +158,38 @@ char *testCodeGen()
         codeGenFree(allRes);
         return cgResult;
     }
-    lastRes->next = structRes;
-    lastRes = structRes;
+    codeGenAddSub(allRes, structRes);
+
+    structRes = codeGenCreateStruct("dadadud");
+
+    if (structRes == 0)
+    {
+        printf("FAILED: struct\n");
+        codeGenFree(allRes);
+        return cgResult;
+    }
+    codeGenAddSub(allRes, structRes);
+
+    structRes = codeGenCreateStruct("dadadudu");
+
+    if (structRes == 0)
+    {
+        printf("FAILED: struct\n");
+        codeGenFree(allRes);
+        return cgResult;
+    }
+    codeGenAddSub(allRes, structRes);
 
     size_t resultLength = 0;
 
     printf("Out...\n");
     codeGenOutput(allRes, 0, cgResult, outSize, &resultLength);
     printf("Out:generated!\n");
-    printAssignmentStats(NULL, 0, NULL);
 
     codeGenFree(allRes);
+
+    printAssignmentStats(NULL, 0, NULL);
+    printAllocationStats(NULL, 0);
 
     return cgResult;
 }

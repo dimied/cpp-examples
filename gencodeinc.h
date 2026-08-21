@@ -2,6 +2,7 @@
 #define GEN_CODE_IN_C
 
 #include <string.h>
+#include "gencodemem.h"
 
 #define CODEGEN_TYPE_TYPE_GENERIC 1
 #define CODEGEN_TYPE_TYPE_DECL 2
@@ -15,6 +16,8 @@
 #define CODEGEN_OPTION_INLINE_NAME (0x1)
 #define CODEGEN_OPTION_INLINE_TYPE (0x2)
 #define CODEGEN_OPTION_INLINE_ARR_VALUE (0x4)
+#define CODEGEN_OPTION_INLINE_SINGLE_NEXT (0x8)
+#define CODEGEN_OPTION_INLINE_SINGLE_SUB (0x100)
 
 #define SET_OPTION_INLINE_NAME(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_NAME)
 #define UNSET_OPTION_INLINE_NAME(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_NAME))
@@ -31,14 +34,21 @@
 #define HAS_OPTION_INLINE_ARR_VALUE(OPTS) ((OPTS &= CODEGEN_OPTION_INLINE_ARR_VALUE) != 0)
 #define HAS_NO_OPTION_INLINE_ARR_VALUE(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_ARR_VALUE) == 0)
 
-#define SET_OPTION_SINGLE_SUB(OPTS) (OPTS |= 0x8)
+#define SET_OPTION_SINGLE_SUB(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_SINGLE_SUB)
+#define UNSET_OPTION_SINGLE_SUB(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_SINGLE_SUB))
+#define HAS_OPTION_SINGLE_SUB(OPTS) ((OPTS &= CODEGEN_OPTION_INLINE_SINGLE_SUB) != 0)
+#define HAS_NO_OPTION_SINGLE_SUB(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_SINGLE_SUB) == 0)
+
+#define SET_OPTION_SINGLE_NEXT(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_SINGLE_NEXT)
+#define UNSET_OPTION_SINGLE_NEXT(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_SINGLE_NEXT))
+#define HAS_OPTION_SINGLE_NEXT(OPTS) ((OPTS &= CODEGEN_OPTION_INLINE_SINGLE_NEXT) != 0)
+#define HAS_NO_OPTION_SINGLE_NEXT(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_SINGLE_NEXT) == 0)
 
 /**
  * Linked list storing pointers
  */
 struct codegen_pointer_container_type
 {
-    // void *up;
     unsigned int type;
     struct codegen_pointer_container_type *next;
     void *content[6];
@@ -59,148 +69,16 @@ struct codegen_container_type
     CharArrayOrPointer name;
     CharArrayOrPointer typeName;
     CharArrayOrPointer arrInitValue;
-    struct codegen_container_type *next;
-    struct codegen_container_type *sub;
-    // TODO // or union for to store pointer to single value
-    // struct codegen_pointer_container_type *subs;
+    //CharArrayOrPointer comment;
+    union
+    {
+        void *pAny;
+        struct codegen_pointer_container_type *manySubs;
+        struct codegen_container_type *sub;
+    } sub;
 };
 
 typedef struct codegen_container_type codegen_container;
-
-#define MAX_NUM_ALLOCATIONS (100 * 1024)
-void *genCodeMemoryPointers[MAX_NUM_ALLOCATIONS];
-unsigned char genCodeTypes[MAX_NUM_ALLOCATIONS];
-unsigned char genCodeSources[MAX_NUM_ALLOCATIONS];
-unsigned char genCodeOptions[MAX_NUM_ALLOCATIONS];
-size_t genCodeSizes[MAX_NUM_ALLOCATIONS];
-
-int initMemCalled = 0;
-int numMemAllocItems = 0;
-
-enum AllocationType
-{
-    UNKNOWN_TYPE = 0,
-    STRING_TYPE,
-    CONTAINER_TYPE,
-    INVALID_TYPE
-};
-
-enum AllocationSource
-{
-    SOURCE_CONTAINER,
-    SOURCE_STRUCT,
-    SOURCE_STRUCT_ADD,
-    SOURCE_OUTPUT
-};
-
-void initMem()
-{
-    if (initMemCalled == 0)
-    {
-        memset(genCodeMemoryPointers, 0, sizeof(genCodeMemoryPointers));
-        memset(genCodeTypes, 0, sizeof(genCodeTypes));
-        memset(genCodeSizes, 0, sizeof(genCodeSizes));
-        memset(genCodeSources, 0, sizeof(genCodeSources));
-        memset(genCodeOptions, 0, sizeof(genCodeOptions));
-    }
-    ++initMemCalled;
-}
-
-void *allocMemoryImpl(size_t size, unsigned char type, unsigned char source, int *pItemNum)
-{
-    if (numMemAllocItems < MAX_NUM_ALLOCATIONS)
-    {
-        void *result = malloc(size);
-        if (result != 0)
-        {
-            genCodeMemoryPointers[numMemAllocItems] = result;
-            genCodeSizes[numMemAllocItems] = size;
-            genCodeTypes[numMemAllocItems] = type;
-
-            if (pItemNum != 0)
-            {
-                *pItemNum = numMemAllocItems;
-            }
-            ++numMemAllocItems;
-        }
-        return result;
-    }
-    return 0;
-}
-
-void *allocMemory(size_t size, unsigned char type, unsigned char source)
-{
-    if (type > 0x7F)
-    {
-        printf("Invalid type alloc!\n");
-    }
-    return allocMemoryImpl(size, type, source, NULL);
-}
-
-void *callocMemory(size_t size, unsigned char type, unsigned char source)
-{
-    // mark type as zero initialized
-    void *result = allocMemoryImpl(size, type | 0x80, source, NULL);
-    if (result != 0)
-    {
-        memset(result, 0, size);
-    }
-    return result;
-}
-
-void freeMemory(void *pMem)
-{
-    if (pMem != 0)
-    {
-        for (size_t i = 0; i < numMemAllocItems; i++)
-        {
-            if (pMem == genCodeMemoryPointers[i])
-            {
-                if ((genCodeOptions[i] & 0x1) == 0)
-                {
-                    free(pMem);
-                    genCodeOptions[i] |= 1;
-                    // genCodeMemoryPointers[i] = (void *)0;
-                }
-                else
-                {
-                    printf("Trying to deallocate twice @%ld | %p\n", i, pMem);
-                }
-
-                return;
-            }
-        }
-        printf("Failed to find memory");
-    }
-}
-
-/**
- * @param pRes
- * @param code
- */
-void codeGenSetResult(int *pRes, int code)
-{
-    if (pRes != 0)
-    {
-        *pRes = code;
-    }
-}
-
-/**
- * @param len
- */
-void *mallocZeroInit(size_t len)
-{
-    return calloc(len, 1);
-}
-
-/**
- *
- */
-codegen_container *codeGenCreateContainer()
-{
-    return (codegen_container *)mallocZeroInit(sizeof(codegen_container));
-}
 
 struct PropertyAssignmentStats
 {
@@ -224,6 +102,10 @@ int printAssignmentStats(char *pDst, size_t dstLen, struct PropertyAssignmentSta
     size_t a1 = pSrc->forArrValue, a2 = pSrc->forArrValueCopy;
     size_t nSum = n1 + n2, tSum = t1 + t2, aSum = a1 + a2;
 
+    printf("Sizes: container=%ld | ptr-cont=%ld\n",
+           sizeof(struct codegen_container_type),
+           sizeof(struct codegen_pointer_container_type));
+
     if (pDst != 0)
     {
         size_t s = snprintf(pDst, dstLen, "Stats(direct/copy/sum): #name: %ld/%ld/%ld | type: %ld/%ld/%ld | arrValue: %ld/%ld/%ld\n",
@@ -239,6 +121,55 @@ int printAssignmentStats(char *pDst, size_t dstLen, struct PropertyAssignmentSta
     return 0;
 }
 
+/**
+ * @param pRes
+ * @param code
+ */
+void codeGenSetResult(int *pRes, int code)
+{
+    if (pRes != 0)
+    {
+        *pRes = code;
+    }
+}
+
+#define ALLOC_TYPE_UNKNOWN 0
+#define ALLOC_TYPE_STRING 1
+#define ALLOC_TYPE_CONTAINER 2
+#define ALLOC_TYPE_PTR_CONTAINER 3
+#define ALLOC_TYPE_STRING_BUFFER 4
+
+#define ALLOC_SOURCE_UNKNOWN 0
+#define ALLOC_SOURCE_CONTAINER 1
+#define ALLOC_SOURCE_NAME 2
+#define ALLOC_SOURCE_TYPE 3
+#define ALLOC_SOURCE_ARR_INIT_VALUE 4
+#define ALLOC_SOURCE_OUTPUT 5
+
+void initGenCodeInC()
+{
+    initMem();
+    memSetTypeName(ALLOC_TYPE_UNKNOWN, "unknown");
+    memSetTypeName(ALLOC_TYPE_STRING, "string");
+    memSetTypeName(ALLOC_TYPE_CONTAINER, "container");
+    memSetTypeName(ALLOC_TYPE_PTR_CONTAINER, "ptr-container");
+    memSetTypeName(ALLOC_TYPE_STRING_BUFFER, "buffer(string)");
+
+    memSetSourceName(ALLOC_SOURCE_UNKNOWN, "unknown");
+    memSetSourceName(ALLOC_SOURCE_CONTAINER, "container");
+    memSetSourceName(ALLOC_SOURCE_NAME, "setName");
+    memSetSourceName(ALLOC_SOURCE_TYPE, "setType");
+    memSetSourceName(ALLOC_SOURCE_ARR_INIT_VALUE, "setArrInit");
+    memSetSourceName(ALLOC_SOURCE_OUTPUT, "output");
+}
+/**
+ *
+ */
+codegen_container *codeGenCreateContainer()
+{
+    return (codegen_container *)callocMemory(sizeof(codegen_container), ALLOC_TYPE_CONTAINER, ALLOC_SOURCE_CONTAINER);
+}
+
 char *getNamePtr(codegen_container *pContainer)
 {
     if (pContainer == 0)
@@ -246,6 +177,15 @@ char *getNamePtr(codegen_container *pContainer)
         return 0;
     }
     return HAS_OPTION_INLINE_NAME(pContainer->options) ? pContainer->name.name : pContainer->name.pName;
+}
+
+void freeNameAttribute(codegen_container *pContainer)
+{
+    if (HAS_NO_OPTION_INLINE_NAME(pContainer->options) && pContainer->name.pName != (char *)0)
+    {
+        freeMemory(pContainer->name.pName);
+        pContainer->name.pName = 0;
+    }
 }
 
 void *setName(codegen_container *pResult, char *pName, size_t nameLen)
@@ -259,7 +199,7 @@ void *setName(codegen_container *pResult, char *pName, size_t nameLen)
     }
     else
     {
-        char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
+        char *nameCopy = (char *)callocMemory(nameLen + 1, ALLOC_TYPE_STRING, ALLOC_SOURCE_NAME);
         if (nameCopy == 0)
         {
             return 0;
@@ -281,6 +221,15 @@ char *getTypeNamePtr(codegen_container *pContainer)
     return HAS_OPTION_INLINE_TYPE(pContainer->options) ? pContainer->typeName.name : pContainer->typeName.pName;
 }
 
+void freeTypeNameAttribute(codegen_container *pContainer)
+{
+    if (HAS_NO_OPTION_INLINE_TYPE(pContainer->options) && pContainer->typeName.pName != (char *)0)
+    {
+        freeMemory(pContainer->typeName.pName);
+        pContainer->typeName.pName = 0;
+    }
+}
+
 void *setTypeName(codegen_container *pResult, char *pTypeName, size_t nameLen)
 {
     if (nameLen < sizeof(CharArrayOrPointer))
@@ -292,7 +241,7 @@ void *setTypeName(codegen_container *pResult, char *pTypeName, size_t nameLen)
     }
     else
     {
-        char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
+        char *nameCopy = (char *)callocMemory(nameLen + 1, ALLOC_TYPE_STRING, ALLOC_SOURCE_TYPE);
         if (nameCopy == 0)
         {
             return 0;
@@ -316,6 +265,15 @@ char *getArrInitValuePtr(codegen_container *pContainer)
                : pContainer->arrInitValue.pName;
 }
 
+void freeArrInitValueAttribute(codegen_container *pContainer)
+{
+    if (HAS_NO_OPTION_INLINE_ARR_VALUE(pContainer->options) && pContainer->arrInitValue.pName != (char *)0)
+    {
+        freeMemory(pContainer->arrInitValue.pName);
+        pContainer->arrInitValue.pName = 0;
+    }
+}
+
 void *setArrInitValue(codegen_container *pResult, char *pArrInitValue, size_t nameLen)
 {
     if (nameLen < sizeof(CharArrayOrPointer))
@@ -327,7 +285,7 @@ void *setArrInitValue(codegen_container *pResult, char *pArrInitValue, size_t na
     }
     else
     {
-        char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
+        char *nameCopy = (char *)callocMemory(nameLen + 1, ALLOC_TYPE_STRING, ALLOC_SOURCE_ARR_INIT_VALUE);
         if (nameCopy == 0)
         {
             return 0;
@@ -340,6 +298,70 @@ void *setArrInitValue(codegen_container *pResult, char *pArrInitValue, size_t na
     return pResult;
 }
 
+int codeGenAddSub(codegen_container *pContainer, void *pSub)
+{
+    if ((pContainer == 0) || (pSub == 0))
+    {
+        return ERROR_CODE_INVALID_ARGUMENTS;
+    }
+
+    void *oldP = pContainer->sub.pAny;
+
+    if (oldP == 0)
+    {
+        pContainer->sub.pAny = pSub;
+        SET_OPTION_SINGLE_SUB(pContainer->options);
+    }
+    else
+    {
+        struct codegen_pointer_container_type *pSubs = (struct codegen_pointer_container_type *)oldP;
+
+        if (HAS_OPTION_SINGLE_SUB(pContainer->options))
+        {
+            pSubs = callocMemory(sizeof(struct codegen_pointer_container_type), ALLOC_TYPE_PTR_CONTAINER, 0);
+            if (pSubs != 0)
+            {
+                pSubs->content[0] = oldP;
+                pSubs->content[1] = pSub;
+                pContainer->sub.manySubs = pSubs;
+                UNSET_OPTION_SINGLE_SUB(pContainer->options);
+                return 0;
+            }
+            return ERROR_CODE_FAILED_CREATION;
+        }
+        UNSET_OPTION_SINGLE_SUB(pContainer->options);
+        struct codegen_pointer_container_type *pPrevSubs = pSubs;
+
+        while (pSubs != 0)
+        {
+            pPrevSubs = pSubs;
+
+            // search for free space
+            // We don't check for identical values
+            for (int i = 0; i < 6; i++)
+            {
+                if (pSubs->content[i] == 0)
+                {
+                    pSubs->content[i] = pSub;
+                    return 0;
+                }
+            }
+            pSubs = pSubs->next;
+        }
+        // No free space found
+        pSubs = callocMemory(sizeof(struct codegen_pointer_container_type), ALLOC_TYPE_PTR_CONTAINER, 0);
+        if (pSubs != 0)
+        {
+            pSubs->content[0] = pSub;
+            pPrevSubs->next = pSubs;
+            return 0;
+        }
+        return ERROR_CODE_FAILED_CREATION;
+    }
+
+    return 0;
+}
+
 /**
  * @param pContainer
  */
@@ -350,42 +372,47 @@ int codeGenFree(codegen_container *pContainer)
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
 
-    // printf("Start:codeGenFree\n");
+    freeNameAttribute(pContainer);
+    freeTypeNameAttribute(pContainer);
+    freeArrInitValueAttribute(pContainer);
 
-    if (HAS_NO_OPTION_INLINE_NAME(pContainer->options) && pContainer->name.pName != (char *)0)
+    if (pContainer->sub.pAny != 0)
     {
-        // printf("FREE:name...");
-        free(pContainer->name.pName);
-        pContainer->name.pName = 0;
-        // printf("DONE\n");
+        if (HAS_OPTION_SINGLE_SUB(pContainer->options))
+        {
+            codeGenFree(pContainer->sub.sub);
+            pContainer->sub.pAny = 0;
+        }
+        else
+        {
+            struct codegen_pointer_container_type *pSubs = pContainer->sub.manySubs;
+            struct codegen_pointer_container_type *pNext;
+
+            while (pSubs != 0)
+            {
+                for (int i = 0; i < 6; i++)
+                {
+                    void *pSubItem = pSubs->content[i];
+
+                    if (pSubItem != 0)
+                    {
+                        codeGenFree((struct codegen_container_type *)pSubItem);
+                        pSubs->content[i] = 0;
+                    }
+                }
+
+                pNext = pSubs->next;
+
+                freeMemory(pSubs);
+
+                pContainer->sub.pAny = pNext;
+                pSubs = pNext;
+            }
+        }
+        UNSET_OPTION_SINGLE_SUB(pContainer->options);
     }
 
-    if (HAS_NO_OPTION_INLINE_TYPE(pContainer->options) && pContainer->typeName.pName != (char *)0)
-    {
-        // printf("FREE:type...");
-        free(pContainer->typeName.pName);
-        pContainer->typeName.pName = 0;
-        // printf("DONE\n");
-    }
-
-    if (HAS_NO_OPTION_INLINE_ARR_VALUE(pContainer->options) && pContainer->arrInitValue.pName != (char *)0)
-    {
-        // printf("FREE:arrInit...");
-        free(pContainer->arrInitValue.pName);
-        pContainer->arrInitValue.pName = 0;
-        // printf("DONE\n");
-    }
-
-    if (pContainer->next != 0)
-    {
-        // printf("FREE:next...\n");
-        codeGenFree(pContainer->next);
-        pContainer->next = 0;
-        // printf("DONE\n");
-    }
-
-    // printf("FREE:CONTAINER...\n");
-    free(pContainer);
+    freeMemory(pContainer);
 
     return 0;
 }
@@ -495,23 +522,13 @@ int codeGenAddStructPropertyContainer(codegen_container *pStruct, codegen_contai
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
 
-    codegen_container *lastSub = pStruct->sub;
-    codegen_container *curSub = lastSub;
+    int res = codeGenAddSub(pStruct, pContainer);
 
-    while (curSub != 0)
+    if (res != 0)
     {
-        lastSub = curSub;
-        curSub = lastSub->next;
+        return res;
     }
 
-    if (lastSub == 0)
-    {
-        pStruct->sub = pContainer;
-    }
-    else
-    {
-        lastSub->next = pContainer;
-    }
     pContainer->refCount++;
 
     return 0;
@@ -552,16 +569,14 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
     {
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
-    printf("Sizes: container=%ld | ptr-cont=%ld\n",
-           sizeof(struct codegen_container_type),
-           sizeof(struct codegen_pointer_container_type));
 
-    char *buffer = mallocZeroInit(16 * 1024);
-
+    // char *buffer = callocMemory(16 * 1024, ALLOC_TYPE_STRING_BUFFER, ALLOC_SOURCE_OUTPUT);
+#if 0
     if (buffer == 0)
     {
         return ERROR_CODE_FAILED_CREATION;
     }
+#endif
     char structText[1024];
     memset(structText, 0, 1024);
     int resSize;
@@ -578,24 +593,60 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
     {
     case CODEGEN_TYPE_TYPE_GENERIC:
         printf("GEN: Generic\n");
-        codegen_container *pNext = pInput->next;
+        void *pSub = pInput->sub.pAny;
 
-        while (pNext != 0)
+        if (pSub != 0)
         {
-            res = codeGenOutput(pNext, options, dst, spaceLeft, &resSizeGen);
-            if (res != 0)
+            if (HAS_OPTION_SINGLE_SUB(pInput->options))
             {
-                break;
+                res = codeGenOutput(pSub, options, dst, spaceLeft, &resSizeGen);
+                if (res != 0)
+                {
+                    break;
+                }
+                if (spaceLeft < resSizeGen)
+                {
+                    break;
+                }
+                dst += resSizeGen;
+                spaceLeft -= resSizeGen;
+                resultSize += resSizeGen;
             }
-            if (spaceLeft < resSizeGen)
+            else
             {
-                break;
+                struct codegen_pointer_container_type *pSubs = (struct codegen_pointer_container_type *)pSub;
+                int doIterate = 0;
+                while (pSubs != 0 && doIterate == 0)
+                {
+                    for (int i = 0; i < 6; i++)
+                    {
+                        struct codegen_container_type *pSubItem = (struct codegen_container_type *)pSubs->content[i];
+                        if (pSubItem != 0)
+                        {
+                            resSizeGen = 0;
+
+                            res = codeGenOutput(pSubItem, options, dst, spaceLeft, &resSizeGen);
+                            if (res != 0)
+                            {
+                                doIterate++;
+                                break;
+                            }
+                            if (spaceLeft < resSizeGen)
+                            {
+                                doIterate++;
+                                break;
+                            }
+                            dst += resSizeGen;
+                            spaceLeft -= resSizeGen;
+                            resultSize += resSizeGen;
+                        }
+                    }
+
+                    pSubs = pSubs->next;
+                }
             }
-            dst += resSizeGen;
-            spaceLeft -= resSizeGen;
-            resultSize += resSizeGen;
-            pNext = pNext->next;
         }
+
         break;
     case CODEGEN_TYPE_STRUCT:
         printf("GEN: struct\n");
@@ -643,14 +694,15 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
         printf("Unknown type: %d\n", pInput->type);
     }
 
-    // printf("FREE:Buffer...\n");
-    free(buffer);
-    // printf("FREE:Buffer...DONE\n");
+    // freeMemory(buffer);
 
     if (resultLen != 0)
     {
         *resultLen += resultSize;
     }
+
+    printf("GEN:RES: %d\n", res);
+
     return res;
 }
 
