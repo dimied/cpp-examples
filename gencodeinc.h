@@ -9,15 +9,36 @@
 #define CODEGEN_TYPE_ARRAY_TYPE_DECL 3
 #define CODEGEN_TYPE_STRUCT 4
 
+#define CODEGEN_TYPE_HEADER_GUARD 30
+
+#define CODEGEN_TYPE_INT8_ARRAY 10
+#define CODEGEN_TYPE_FIRST_ARRAY_TYPE CODEGEN_TYPE_INT8_ARRAY
+#define CODEGEN_TYPE_CHAR_ARRAY CODEGEN_TYPE_INT8_ARRAY
+#define CODEGEN_TYPE_UINT8_ARRAY 11
+#define CODEGEN_TYPE_UCHAR_ARRAY CODEGEN_TYPE_UINT8_ARRAY
+#define CODEGEN_TYPE_INT16_ARRAY 12
+#define CODEGEN_TYPE_UINT16_ARRAY 13
+#define CODEGEN_TYPE_SHORT_ARRAY CODEGEN_TYPE_INT16_ARRAY
+#define CODEGEN_TYPE_USHORT_ARRAY CODEGEN_TYPE_UINT16_ARRAY
+#define CODEGEN_TYPE_INT32_ARRAY 14
+#define CODEGEN_TYPE_UINT32_ARRAY 15
+#define CODEGEN_TYPE_INT64_ARRAY 16
+#define CODEGEN_TYPE_UINT64_ARRAY 17
+#define CODEGEN_TYPE_FLOAT_ARRAY 18
+#define CODEGEN_TYPE_DOUBLE_ARRAY 19
+#define CODEGEN_TYPE_LAST_ARRAY_TYPE CODEGEN_TYPE_DOUBLE_ARRAY
+
+#define CODEGEN_IS_ARRAY_TYPE(TYPE) ((TYPE >= CODEGEN_TYPE_FIRST_ARRAY_TYPE) && (TYPE <= CODEGEN_TYPE_LAST_ARRAY_TYPE))
+
 #define ERROR_CODE_INVALID_ARGUMENTS 1
 #define ERROR_CODE_FAILED_CREATION 2
 #define ERROR_CODE_FAILED_COPY 3
+#define ERROR_CODE_OVERFLOW 10
 
 #define CODEGEN_OPTION_INLINE_NAME (0x1)
 #define CODEGEN_OPTION_INLINE_TYPE (0x2)
 #define CODEGEN_OPTION_INLINE_ARR_VALUE (0x4)
-#define CODEGEN_OPTION_INLINE_SINGLE_NEXT (0x8)
-#define CODEGEN_OPTION_INLINE_SINGLE_SUB (0x100)
+#define CODEGEN_OPTION_INLINE_SINGLE_SUB (0x8)
 
 #define SET_OPTION_INLINE_NAME(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_NAME)
 #define UNSET_OPTION_INLINE_NAME(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_NAME))
@@ -44,14 +65,15 @@
 #define HAS_OPTION_SINGLE_NEXT(OPTS) ((OPTS &= CODEGEN_OPTION_INLINE_SINGLE_NEXT) != 0)
 #define HAS_NO_OPTION_SINGLE_NEXT(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_SINGLE_NEXT) == 0)
 
+#define CODEGEN_POINTER_CONTAINER_NUM_ELEMENTS 7
 /**
  * Linked list storing pointers
  */
 struct codegen_pointer_container_type
 {
-    unsigned int type;
+    // unsigned int type;
     struct codegen_pointer_container_type *next;
-    void *content[6];
+    void *content[CODEGEN_POINTER_CONTAINER_NUM_ELEMENTS];
 };
 
 typedef union
@@ -69,7 +91,7 @@ struct codegen_container_type
     CharArrayOrPointer name;
     CharArrayOrPointer typeName;
     CharArrayOrPointer arrInitValue;
-    //CharArrayOrPointer comment;
+    // CharArrayOrPointer comment;
     union
     {
         void *pAny;
@@ -338,7 +360,7 @@ int codeGenAddSub(codegen_container *pContainer, void *pSub)
 
             // search for free space
             // We don't check for identical values
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < CODEGEN_POINTER_CONTAINER_NUM_ELEMENTS; i++)
             {
                 if (pSubs->content[i] == 0)
                 {
@@ -390,7 +412,7 @@ int codeGenFree(codegen_container *pContainer)
 
             while (pSubs != 0)
             {
-                for (int i = 0; i < 6; i++)
+                for (int i = 0; i < CODEGEN_POINTER_CONTAINER_NUM_ELEMENTS; i++)
                 {
                     void *pSubItem = pSubs->content[i];
 
@@ -511,6 +533,16 @@ codegen_container *codeGenCreateStruct(char *pName)
     return res;
 }
 
+codegen_container *codeGenCreateHeaderGuard(char *pName)
+{
+    codegen_container *pDefine = codeGenCreateStruct(pName);
+    if (pDefine != 0)
+    {
+        pDefine->type = CODEGEN_TYPE_HEADER_GUARD;
+    }
+    return pDefine;
+}
+
 /**
  * @param pStruct
  * @param pContainer
@@ -563,130 +595,212 @@ int codeGenAddStructProperty(codegen_container *pStruct, char *type, char *name)
 
 #define ERROR_CODE_OUTPUT_COPY_FAILED 10
 
-int codeGenOutput(codegen_container *pInput, int options, char *output, size_t outputLen, size_t *resultLen)
+typedef struct
 {
-    if ((pInput == 0) || (output == 0) || (outputLen == 0))
+    //char *dst;
+    //size_t spaceLeft;
+    size_t resultSize;
+    //size_t resSizeGen;
+} CodeGenOutputState;
+
+typedef struct
+{
+    size_t outputLen;
+    size_t used;
+    char *output;
+} CodeGenOutput;
+
+int initCodeGenOutput(CodeGenOutput *pOutput)
+{
+    if (pOutput != 0)
+    {
+        memset(pOutput, 0, sizeof(CodeGenOutput));
+        return 0;
+    }
+    return ERROR_CODE_INVALID_ARGUMENTS;
+}
+
+#if 0
+char *getDest(CodeGenOutput *pOutput)
+{
+    if (pOutput != 0)
+    {
+        if (pOutput->used < pOutput->outputLen)
+        {
+            return pOutput->output + pOutput->used;
+        }
+    }
+    return 0;
+}
+#endif
+
+int writeToOutput(CodeGenOutput *pOutput, char *pData, size_t len, int options)
+{
+    if (pOutput == 0)
     {
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
 
-    // char *buffer = callocMemory(16 * 1024, ALLOC_TYPE_STRING_BUFFER, ALLOC_SOURCE_OUTPUT);
-#if 0
-    if (buffer == 0)
+    if (options & 0x1)
     {
-        return ERROR_CODE_FAILED_CREATION;
+        pOutput->used += len;
+        return 0;
     }
-#endif
+
+    if (pOutput->outputLen > pOutput->used)
+    {
+        size_t diff = pOutput->outputLen - pOutput->used;
+        if (len < diff)
+        {
+            char *dst = pOutput->output + pOutput->used;
+            memcpy(dst, pData, len);
+            pOutput->used += len;
+            return 0;
+        }
+    }
+    return ERROR_CODE_OVERFLOW;
+}
+
+int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput, size_t *resultLen);
+
+int codeGenOutputForSub(codegen_container *pInput, int options, CodeGenOutput *pOutput, size_t *resultLen, CodeGenOutputState *pOutputState)
+{
+    if ((pInput == 0) || (pOutput == 0))
+    {
+        return ERROR_CODE_INVALID_ARGUMENTS;
+    }
+
+    void *pSub = pInput->sub.pAny;
+    int res = 0;
+
+    if (pSub != 0)
+    {
+        if (HAS_OPTION_SINGLE_SUB(pInput->options))
+        {
+            res = codeGenOutput(pSub, options, pOutput, &pOutputState->resultSize);
+        }
+        else
+        {
+            struct codegen_pointer_container_type *pSubs = (struct codegen_pointer_container_type *)pSub;
+
+            while (pSubs != 0)
+            {
+                int doIterate = 0;
+
+                for (int i = 0; i < CODEGEN_POINTER_CONTAINER_NUM_ELEMENTS; i++)
+                {
+                    struct codegen_container_type *pSubItem = (struct codegen_container_type *)pSubs->content[i];
+                    if (pSubItem != 0)
+                    {
+                        //pOutputState->resSizeGen = 0;
+
+                        res = codeGenOutput(pSubItem, options, pOutput, &pOutputState->resultSize);
+                        if (res != 0)
+                        {
+                            doIterate++;
+                            break;
+                        }
+                    }
+                }
+                if (doIterate)
+                {
+                    break;
+                }
+
+                pSubs = pSubs->next;
+            }
+        }
+    }
+    return res;
+}
+
+char closingBracket[] = "};\n";
+char closingBracketNL[] = "};\n\n";
+
+int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput, size_t *resultLen)
+{
+    if ((pInput == 0) || (pOutput == 0))
+    {
+        return ERROR_CODE_INVALID_ARGUMENTS;
+    }
+
     char structText[1024];
     memset(structText, 0, 1024);
     int resSize;
 
-    int isDummy = options & 0x1;
-    size_t resultSize = 0;
-    char *dst = output;
-    size_t spaceLeft = outputLen;
     int res = 0;
 
-    size_t resSizeGen = 0;
+    CodeGenOutputState state;
+    // state.spaceLeft = pOutput->outputLen;
+    memset(&state, 0, sizeof(state));
+    int outputRes = 0;
+    char *pText;
 
     switch (pInput->type)
     {
     case CODEGEN_TYPE_TYPE_GENERIC:
         printf("GEN: Generic\n");
-        void *pSub = pInput->sub.pAny;
-
-        if (pSub != 0)
-        {
-            if (HAS_OPTION_SINGLE_SUB(pInput->options))
-            {
-                res = codeGenOutput(pSub, options, dst, spaceLeft, &resSizeGen);
-                if (res != 0)
-                {
-                    break;
-                }
-                if (spaceLeft < resSizeGen)
-                {
-                    break;
-                }
-                dst += resSizeGen;
-                spaceLeft -= resSizeGen;
-                resultSize += resSizeGen;
-            }
-            else
-            {
-                struct codegen_pointer_container_type *pSubs = (struct codegen_pointer_container_type *)pSub;
-                int doIterate = 0;
-                while (pSubs != 0 && doIterate == 0)
-                {
-                    for (int i = 0; i < 6; i++)
-                    {
-                        struct codegen_container_type *pSubItem = (struct codegen_container_type *)pSubs->content[i];
-                        if (pSubItem != 0)
-                        {
-                            resSizeGen = 0;
-
-                            res = codeGenOutput(pSubItem, options, dst, spaceLeft, &resSizeGen);
-                            if (res != 0)
-                            {
-                                doIterate++;
-                                break;
-                            }
-                            if (spaceLeft < resSizeGen)
-                            {
-                                doIterate++;
-                                break;
-                            }
-                            dst += resSizeGen;
-                            spaceLeft -= resSizeGen;
-                            resultSize += resSizeGen;
-                        }
-                    }
-
-                    pSubs = pSubs->next;
-                }
-            }
-        }
-
+        res = codeGenOutputForSub(pInput, options, pOutput, resultLen, &state);
+        printf("GEN: Generic: %d\n", res);
         break;
-    case CODEGEN_TYPE_STRUCT:
-        printf("GEN: struct\n");
-        char *pText = getNamePtr(pInput);
-        resSize = snprintf(structText, 1023, "struct %s\n{\n", pText);
+    case CODEGEN_TYPE_HEADER_GUARD:
+        printf("GEN: header guard\n");
+
+        pText = getNamePtr(pInput);
+        resSize = snprintf(structText, 1023, "#ifndef %s\n#define %s\n\n", pText, pText);
 
         if (resSize > 0 && resSize < 1023)
         {
-            resultSize += resSize + 4; // +};NLNL
+            outputRes = writeToOutput(pOutput, structText, resSize, options);
 
-            if (!isDummy)
+            if (outputRes != 0)
             {
-                if (resSize < spaceLeft)
-                {
-                    strncpy(dst, structText, resSize);
-                    spaceLeft -= resSize;
-                    dst += resSize;
-                }
-                else
-                {
-                    res = ERROR_CODE_OUTPUT_COPY_FAILED;
-                    break;
-                }
+                return outputRes;
+            }
 
-                if (spaceLeft > 4)
-                {
-                    *dst = '}';
-                    ++dst;
-                    *dst = ';';
-                    ++dst;
-                    *dst = '\n';
-                    ++dst;
-                    *dst = '\n';
-                    ++dst;
-                    spaceLeft -= 4;
-                }
+            res = codeGenOutputForSub(pInput, options, pOutput, resultLen, &state);
+
+            char *closing = "\n#endif\n\n";
+
+            // TODO: create internal entries
+            outputRes = writeToOutput(pOutput, closing, strlen(closing), options);
+            if (outputRes != 0)
+            {
+                return outputRes;
             }
         }
         else
         {
+            res = 100;
+            printf("FAILED: struct.\n");
+        }
+        printf("GEN: header guard: %d\n", res);
+        break;
+    case CODEGEN_TYPE_STRUCT:
+        printf("GEN: struct\n");
+        pText = getNamePtr(pInput);
+        resSize = snprintf(structText, 1023, "struct %s\n{\n", pText);
+
+        if (resSize > 0 && resSize < 1023)
+        {
+            outputRes = writeToOutput(pOutput, structText, resSize, options);
+
+            if (outputRes != 0)
+            {
+                return outputRes;
+            }
+            char *closing = closingBracketNL;
+
+            // TODO: create internal entries
+            outputRes = writeToOutput(pOutput, closing, strlen(closing), options);
+            if (outputRes != 0)
+            {
+                return outputRes;
+            }
+        }
+        else
+        {
+            res = 100;
             printf("FAILED: struct.\n");
         }
         break;
@@ -694,11 +808,9 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
         printf("Unknown type: %d\n", pInput->type);
     }
 
-    // freeMemory(buffer);
-
     if (resultLen != 0)
     {
-        *resultLen += resultSize;
+        *resultLen += state.resultSize;
     }
 
     printf("GEN:RES: %d\n", res);

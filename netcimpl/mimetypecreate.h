@@ -150,6 +150,11 @@ char *testCodeGen()
     }
     allRes->type = CODEGEN_TYPE_TYPE_GENERIC;
 
+    codegen_container *pDefine = codeGenCreateHeaderGuard("HELLO_INCLUDED");
+    codeGenAddSub(allRes, pDefine);
+
+    codegen_container *pContent = pDefine;
+
     codegen_container *structRes = codeGenCreateStruct("dada");
 
     if (structRes == 0)
@@ -158,7 +163,7 @@ char *testCodeGen()
         codeGenFree(allRes);
         return cgResult;
     }
-    codeGenAddSub(allRes, structRes);
+    codeGenAddSub(pContent, structRes);
 
     structRes = codeGenCreateStruct("dadadud");
 
@@ -168,7 +173,7 @@ char *testCodeGen()
         codeGenFree(allRes);
         return cgResult;
     }
-    codeGenAddSub(allRes, structRes);
+    codeGenAddSub(pContent, structRes);
 
     structRes = codeGenCreateStruct("dadadudu");
 
@@ -178,12 +183,19 @@ char *testCodeGen()
         codeGenFree(allRes);
         return cgResult;
     }
-    codeGenAddSub(allRes, structRes);
+    codeGenAddSub(pContent, structRes);
 
     size_t resultLength = 0;
 
     printf("Out...\n");
-    codeGenOutput(allRes, 0, cgResult, outSize, &resultLength);
+
+    CodeGenOutput output;
+    initCodeGenOutput(&output);
+    output.output = cgResult;
+    output.used = 0;
+    output.outputLen = outSize;
+
+    codeGenOutput(allRes, 0, &output, &resultLength);
     printf("Out:generated!\n");
 
     codeGenFree(allRes);
@@ -193,6 +205,8 @@ char *testCodeGen()
 
     return cgResult;
 }
+
+#include "mimetypefast.h"
 
 char *getContent(size_t *pSize)
 {
