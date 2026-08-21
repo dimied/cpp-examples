@@ -4,5 +4,6 @@ echo "Compile ..."
 
 gcc -Wall -ggdb http.c && ./a.out
 
+wc -c ./a.out
 #echo "---DONE---"
 #./a.out

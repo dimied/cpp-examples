@@ -165,6 +165,7 @@ char *testCodeGen()
     printf("Out...\n");
     codeGenOutput(allRes, 0, cgResult, outSize, &resultLength);
     printf("Out:generated!\n");
+    printAssignmentStats(NULL, 0, NULL);
 
     codeGenFree(allRes);
 

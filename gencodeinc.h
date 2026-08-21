@@ -12,20 +12,167 @@
 #define ERROR_CODE_FAILED_CREATION 2
 #define ERROR_CODE_FAILED_COPY 3
 
+#define CODEGEN_OPTION_INLINE_NAME (0x1)
+#define CODEGEN_OPTION_INLINE_TYPE (0x2)
+#define CODEGEN_OPTION_INLINE_ARR_VALUE (0x4)
+
+#define SET_OPTION_INLINE_NAME(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_NAME)
+#define UNSET_OPTION_INLINE_NAME(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_NAME))
+#define HAS_OPTION_INLINE_NAME(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_NAME) != 0)
+#define HAS_NO_OPTION_INLINE_NAME(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_NAME) == 0)
+
+#define SET_OPTION_INLINE_TYPE(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_TYPE)
+#define UNSET_OPTION_INLINE_TYPE(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_TYPE))
+#define HAS_OPTION_INLINE_TYPE(OPTS) ((OPTS &= CODEGEN_OPTION_INLINE_TYPE) != 0)
+#define HAS_NO_OPTION_INLINE_TYPE(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_TYPE) == 0)
+
+#define SET_OPTION_INLINE_ARR_VALUE(OPTS) (OPTS |= CODEGEN_OPTION_INLINE_ARR_VALUE)
+#define UNSET_OPTION_INLINE_ARR_VALUE(OPTS) (OPTS &= (~CODEGEN_OPTION_INLINE_ARR_VALUE))
+#define HAS_OPTION_INLINE_ARR_VALUE(OPTS) ((OPTS &= CODEGEN_OPTION_INLINE_ARR_VALUE) != 0)
+#define HAS_NO_OPTION_INLINE_ARR_VALUE(OPTS) ((OPTS & CODEGEN_OPTION_INLINE_ARR_VALUE) == 0)
+
+#define SET_OPTION_SINGLE_SUB(OPTS) (OPTS |= 0x8)
+
+/**
+ * Linked list storing pointers
+ */
+struct codegen_pointer_container_type
+{
+    // void *up;
+    unsigned int type;
+    struct codegen_pointer_container_type *next;
+    void *content[6];
+};
+
+typedef union
+{
+    char *pName;
+    char name[sizeof(char *)];
+} CharArrayOrPointer;
+
 struct codegen_container_type
 {
     unsigned int type;
     unsigned int options;
     unsigned int refCount;
     size_t arrCount;
-    char *pName;
-    char *pType;
-    char *arrInitValue;
+    CharArrayOrPointer name;
+    CharArrayOrPointer typeName;
+    CharArrayOrPointer arrInitValue;
     struct codegen_container_type *next;
     struct codegen_container_type *sub;
+    // TODO // or union for to store pointer to single value
+    // struct codegen_pointer_container_type *subs;
 };
 
 typedef struct codegen_container_type codegen_container;
+
+#define MAX_NUM_ALLOCATIONS (100 * 1024)
+void *genCodeMemoryPointers[MAX_NUM_ALLOCATIONS];
+unsigned char genCodeTypes[MAX_NUM_ALLOCATIONS];
+unsigned char genCodeSources[MAX_NUM_ALLOCATIONS];
+unsigned char genCodeOptions[MAX_NUM_ALLOCATIONS];
+size_t genCodeSizes[MAX_NUM_ALLOCATIONS];
+
+int initMemCalled = 0;
+int numMemAllocItems = 0;
+
+enum AllocationType
+{
+    UNKNOWN_TYPE = 0,
+    STRING_TYPE,
+    CONTAINER_TYPE,
+    INVALID_TYPE
+};
+
+enum AllocationSource
+{
+    SOURCE_CONTAINER,
+    SOURCE_STRUCT,
+    SOURCE_STRUCT_ADD,
+    SOURCE_OUTPUT
+};
+
+void initMem()
+{
+    if (initMemCalled == 0)
+    {
+        memset(genCodeMemoryPointers, 0, sizeof(genCodeMemoryPointers));
+        memset(genCodeTypes, 0, sizeof(genCodeTypes));
+        memset(genCodeSizes, 0, sizeof(genCodeSizes));
+        memset(genCodeSources, 0, sizeof(genCodeSources));
+        memset(genCodeOptions, 0, sizeof(genCodeOptions));
+    }
+    ++initMemCalled;
+}
+
+void *allocMemoryImpl(size_t size, unsigned char type, unsigned char source, int *pItemNum)
+{
+    if (numMemAllocItems < MAX_NUM_ALLOCATIONS)
+    {
+        void *result = malloc(size);
+        if (result != 0)
+        {
+            genCodeMemoryPointers[numMemAllocItems] = result;
+            genCodeSizes[numMemAllocItems] = size;
+            genCodeTypes[numMemAllocItems] = type;
+
+            if (pItemNum != 0)
+            {
+                *pItemNum = numMemAllocItems;
+            }
+            ++numMemAllocItems;
+        }
+        return result;
+    }
+    return 0;
+}
+
+void *allocMemory(size_t size, unsigned char type, unsigned char source)
+{
+    if (type > 0x7F)
+    {
+        printf("Invalid type alloc!\n");
+    }
+    return allocMemoryImpl(size, type, source, NULL);
+}
+
+void *callocMemory(size_t size, unsigned char type, unsigned char source)
+{
+    // mark type as zero initialized
+    void *result = allocMemoryImpl(size, type | 0x80, source, NULL);
+    if (result != 0)
+    {
+        memset(result, 0, size);
+    }
+    return result;
+}
+
+void freeMemory(void *pMem)
+{
+    if (pMem != 0)
+    {
+        for (size_t i = 0; i < numMemAllocItems; i++)
+        {
+            if (pMem == genCodeMemoryPointers[i])
+            {
+                if ((genCodeOptions[i] & 0x1) == 0)
+                {
+                    free(pMem);
+                    genCodeOptions[i] |= 1;
+                    // genCodeMemoryPointers[i] = (void *)0;
+                }
+                else
+                {
+                    printf("Trying to deallocate twice @%ld | %p\n", i, pMem);
+                }
+
+                return;
+            }
+        }
+        printf("Failed to find memory");
+    }
+}
 
 /**
  * @param pRes
@@ -55,6 +202,144 @@ codegen_container *codeGenCreateContainer()
     return (codegen_container *)mallocZeroInit(sizeof(codegen_container));
 }
 
+struct PropertyAssignmentStats
+{
+    size_t forName;
+    size_t forNameCopy;
+    size_t forType;
+    size_t forTypeCopy;
+    size_t forArrValue;
+    size_t forArrValueCopy;
+} assignmentStats = {0, 0, 0};
+
+int printAssignmentStats(char *pDst, size_t dstLen, struct PropertyAssignmentStats *pSrc)
+{
+    if (pSrc == 0)
+    {
+        pSrc = &assignmentStats;
+    }
+
+    size_t n1 = pSrc->forName, n2 = pSrc->forNameCopy;
+    size_t t1 = pSrc->forType, t2 = pSrc->forTypeCopy;
+    size_t a1 = pSrc->forArrValue, a2 = pSrc->forArrValueCopy;
+    size_t nSum = n1 + n2, tSum = t1 + t2, aSum = a1 + a2;
+
+    if (pDst != 0)
+    {
+        size_t s = snprintf(pDst, dstLen, "Stats(direct/copy/sum): #name: %ld/%ld/%ld | type: %ld/%ld/%ld | arrValue: %ld/%ld/%ld\n",
+                            n1, n2, nSum, t1, t2, tSum, a1, a2, aSum);
+        if (s < dstLen)
+        {
+            return 0;
+        }
+        return 1;
+    }
+    printf("Stats(direct/copy/sum): #name: %ld/%ld/%ld | type: %ld/%ld/%ld | arrValue: %ld/%ld/%ld\n",
+           n1, n2, nSum, t1, t2, tSum, a1, a2, aSum);
+    return 0;
+}
+
+char *getNamePtr(codegen_container *pContainer)
+{
+    if (pContainer == 0)
+    {
+        return 0;
+    }
+    return HAS_OPTION_INLINE_NAME(pContainer->options) ? pContainer->name.name : pContainer->name.pName;
+}
+
+void *setName(codegen_container *pResult, char *pName, size_t nameLen)
+{
+    if (nameLen < sizeof(CharArrayOrPointer))
+    {
+        memset(pResult->name.name, 0, sizeof(CharArrayOrPointer));
+        strncpy(pResult->name.name, pName, nameLen);
+        SET_OPTION_INLINE_NAME(pResult->options);
+        assignmentStats.forName++;
+    }
+    else
+    {
+        char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
+        if (nameCopy == 0)
+        {
+            return 0;
+        }
+        UNSET_OPTION_INLINE_NAME(pResult->options);
+        strncpy(nameCopy, pName, nameLen);
+        pResult->name.pName = nameCopy;
+        assignmentStats.forNameCopy++;
+    }
+    return pResult;
+}
+
+char *getTypeNamePtr(codegen_container *pContainer)
+{
+    if (pContainer == 0)
+    {
+        return 0;
+    }
+    return HAS_OPTION_INLINE_TYPE(pContainer->options) ? pContainer->typeName.name : pContainer->typeName.pName;
+}
+
+void *setTypeName(codegen_container *pResult, char *pTypeName, size_t nameLen)
+{
+    if (nameLen < sizeof(CharArrayOrPointer))
+    {
+        memset(pResult->typeName.name, 0, sizeof(CharArrayOrPointer));
+        strncpy(pResult->typeName.name, pTypeName, nameLen);
+        SET_OPTION_INLINE_TYPE(pResult->options);
+        assignmentStats.forType++;
+    }
+    else
+    {
+        char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
+        if (nameCopy == 0)
+        {
+            return 0;
+        }
+        UNSET_OPTION_INLINE_NAME(pResult->options);
+        strncpy(nameCopy, pTypeName, nameLen);
+        pResult->typeName.pName = nameCopy;
+        assignmentStats.forTypeCopy++;
+    }
+    return pResult;
+}
+
+char *getArrInitValuePtr(codegen_container *pContainer)
+{
+    if (pContainer == 0)
+    {
+        return 0;
+    }
+    return HAS_OPTION_INLINE_ARR_VALUE(pContainer->options)
+               ? pContainer->arrInitValue.name
+               : pContainer->arrInitValue.pName;
+}
+
+void *setArrInitValue(codegen_container *pResult, char *pArrInitValue, size_t nameLen)
+{
+    if (nameLen < sizeof(CharArrayOrPointer))
+    {
+        memset(pResult->arrInitValue.name, 0, sizeof(CharArrayOrPointer));
+        strncpy(pResult->arrInitValue.name, pArrInitValue, nameLen);
+        SET_OPTION_INLINE_ARR_VALUE(pResult->options);
+        assignmentStats.forArrValue++;
+    }
+    else
+    {
+        char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
+        if (nameCopy == 0)
+        {
+            return 0;
+        }
+        UNSET_OPTION_INLINE_ARR_VALUE(pResult->options);
+        strncpy(nameCopy, pArrInitValue, nameLen);
+        pResult->arrInitValue.pName = nameCopy;
+        assignmentStats.forArrValueCopy++;
+    }
+    return pResult;
+}
+
 /**
  * @param pContainer
  */
@@ -65,40 +350,41 @@ int codeGenFree(codegen_container *pContainer)
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
 
-    printf("Start:codeGenFree\n");
+    // printf("Start:codeGenFree\n");
 
-    if (pContainer->pName != 0)
+    if (HAS_NO_OPTION_INLINE_NAME(pContainer->options) && pContainer->name.pName != (char *)0)
     {
-        printf("FREE:name...");
-        free(pContainer->pName);
-        pContainer->pName = 0;
-        printf("DONE\n");
+        // printf("FREE:name...");
+        free(pContainer->name.pName);
+        pContainer->name.pName = 0;
+        // printf("DONE\n");
     }
-    if (pContainer->pType != 0)
+
+    if (HAS_NO_OPTION_INLINE_TYPE(pContainer->options) && pContainer->typeName.pName != (char *)0)
     {
-        printf("FREE:type...");
-        free(pContainer->pType);
-        pContainer->pType = 0;
-        printf("DONE\n");
+        // printf("FREE:type...");
+        free(pContainer->typeName.pName);
+        pContainer->typeName.pName = 0;
+        // printf("DONE\n");
     }
-    if (pContainer->arrInitValue != 0)
+
+    if (HAS_NO_OPTION_INLINE_ARR_VALUE(pContainer->options) && pContainer->arrInitValue.pName != (char *)0)
     {
-        printf("FREE:arrInit...");
-        free(pContainer->arrInitValue);
-        pContainer->arrInitValue = 0;
-        printf("DONE\n");
+        // printf("FREE:arrInit...");
+        free(pContainer->arrInitValue.pName);
+        pContainer->arrInitValue.pName = 0;
+        // printf("DONE\n");
     }
 
     if (pContainer->next != 0)
     {
-        printf("FREE:next...\n");
+        // printf("FREE:next...\n");
         codeGenFree(pContainer->next);
         pContainer->next = 0;
-        printf("DONE\n");
+        // printf("DONE\n");
     }
 
-    printf("FREE:CONTAINER...\n");
-    fflush(stdout);
+    // printf("FREE:CONTAINER...\n");
     free(pContainer);
 
     return 0;
@@ -119,30 +405,26 @@ codegen_container *codeGenCreateTypedDeclaration(char *type, char *name, int *pR
         return 0;
     }
 
-    size_t nameLen = strlen(name);
-    char *typeCopy = (char *)mallocZeroInit(nameLen + 1);
-    if (typeCopy == 0)
+    size_t nameLen = strlen(type);
+    void *pSetRes = setTypeName(propRes, type, nameLen);
+    if (pSetRes == 0)
     {
         codeGenSetResult(pRes, ERROR_CODE_FAILED_COPY);
         codeGenFree(propRes);
         return 0;
     }
-    strncpy(typeCopy, type, nameLen);
 
     nameLen = strlen(name);
-    char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
-    if (nameCopy == 0)
+    pSetRes = setName(propRes, name, nameLen);
+
+    if (pSetRes == 0)
     {
         codeGenSetResult(pRes, ERROR_CODE_FAILED_COPY);
-        free(typeCopy);
         codeGenFree(propRes);
         return 0;
     }
-    strncpy(nameCopy, name, nameLen);
 
     propRes->type = CODEGEN_TYPE_TYPE_DECL;
-    propRes->pName = nameCopy;
-    propRes->pType = typeCopy;
 
     return propRes;
 }
@@ -155,18 +437,12 @@ codegen_container *codeGenCreateArrayDeclaration(char *type, char *name, size_t 
         return propRes;
     }
 
-    if (arrInitValue != 0)
+    size_t nameLen = strlen(arrInitValue);
+    void *pSetRes = setArrInitValue(propRes, arrInitValue, nameLen);
+    if (pSetRes == 0)
     {
-        size_t nameLen = strlen(arrInitValue);
-        char *copy = (char *)mallocZeroInit(nameLen + 1);
-        if (copy == 0)
-        {
-            codeGenSetResult(pRes, ERROR_CODE_FAILED_COPY);
-            codeGenFree(propRes);
-            return 0;
-        }
-        strncpy(copy, arrInitValue, nameLen);
-        propRes->arrInitValue = copy;
+        codeGenFree(propRes);
+        return 0;
     }
 
     propRes->type = CODEGEN_TYPE_ARRAY_TYPE_DECL;
@@ -191,24 +467,20 @@ codegen_container *codeGenCreateStruct(char *pName)
         return 0;
     }
 
-    char *nameCopy = (char *)mallocZeroInit(nameLen + 1);
-    if (nameCopy == 0)
-    {
-        return 0;
-    }
-    strncpy(nameCopy, pName, nameLen);
-
     codegen_container *res = codeGenCreateContainer();
 
     if (res != 0)
     {
         res->type = CODEGEN_TYPE_STRUCT;
-        res->pName = nameCopy;
+        void *pRes = setName(res, pName, nameLen);
+
+        if (pRes == 0)
+        {
+            codeGenFree(res);
+            return 0;
+        }
     }
-    else
-    {
-        free(nameCopy);
-    }
+
     return res;
 }
 
@@ -280,6 +552,9 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
     {
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
+    printf("Sizes: container=%ld | ptr-cont=%ld\n",
+           sizeof(struct codegen_container_type),
+           sizeof(struct codegen_pointer_container_type));
 
     char *buffer = mallocZeroInit(16 * 1024);
 
@@ -324,7 +599,8 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
         break;
     case CODEGEN_TYPE_STRUCT:
         printf("GEN: struct\n");
-        resSize = snprintf(structText, 1023, "struct %s\n{\n", pInput->pName);
+        char *pText = getNamePtr(pInput);
+        resSize = snprintf(structText, 1023, "struct %s\n{\n", pText);
 
         if (resSize > 0 && resSize < 1023)
         {
@@ -367,9 +643,9 @@ int codeGenOutput(codegen_container *pInput, int options, char *output, size_t o
         printf("Unknown type: %d\n", pInput->type);
     }
 
-    printf("FREE:Buffer...\n");
+    // printf("FREE:Buffer...\n");
     free(buffer);
-    printf("FREE:Buffer...DONE\n");
+    // printf("FREE:Buffer...DONE\n");
 
     if (resultLen != 0)
     {
