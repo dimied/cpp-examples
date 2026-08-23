@@ -127,9 +127,19 @@ static const struct table_entry
 
 #include "mimetypecreate.h"
 
+#include "linux_sysconf.h"
+
 int main()
 {
     signal(SIGINT, signalHandler);
+
+    SysConfData *pSysConf = getSysConf(0, NULL);
+    if (pSysConf != 0)
+    {
+        printSysData(pSysConf, 0, 0);
+        freeSysConf(pSysConf);
+    }
+    return 0;
 
     size_t size = 0;
     char *pContent = getContent(&size);

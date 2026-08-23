@@ -196,7 +196,7 @@ char *testCodeGen()
     output.outputLen = outSize;
 
     codeGenOutput(allRes, 0, &output, &resultLength);
-    printf("Out:generated!\n");
+    printf("Out:generated! Call depth: %ld\n", output.maxCallDepth);
 
     codeGenFree(allRes);
 

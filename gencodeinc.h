@@ -597,16 +597,19 @@ int codeGenAddStructProperty(codegen_container *pStruct, char *type, char *name)
 
 typedef struct
 {
-    //char *dst;
-    //size_t spaceLeft;
+    // char *dst;
+    // size_t spaceLeft;
     size_t resultSize;
-    //size_t resSizeGen;
+    // size_t resSizeGen;
 } CodeGenOutputState;
 
 typedef struct
 {
     size_t outputLen;
     size_t used;
+    size_t callDepth;
+    size_t maxCallDepth;
+    size_t callDepthLimit;
     char *output;
 } CodeGenOutput;
 
@@ -615,6 +618,7 @@ int initCodeGenOutput(CodeGenOutput *pOutput)
     if (pOutput != 0)
     {
         memset(pOutput, 0, sizeof(CodeGenOutput));
+        pOutput->callDepthLimit = 10;
         return 0;
     }
     return ERROR_CODE_INVALID_ARGUMENTS;
@@ -669,6 +673,15 @@ int codeGenOutputForSub(codegen_container *pInput, int options, CodeGenOutput *p
     {
         return ERROR_CODE_INVALID_ARGUMENTS;
     }
+    pOutput->callDepth++;
+    if (pOutput->maxCallDepth < pOutput->callDepth)
+    {
+        pOutput->maxCallDepth = pOutput->callDepth;
+    }
+    if (pOutput->callDepthLimit <= pOutput->callDepth)
+    {
+        return 100;
+    }
 
     void *pSub = pInput->sub.pAny;
     int res = 0;
@@ -692,7 +705,7 @@ int codeGenOutputForSub(codegen_container *pInput, int options, CodeGenOutput *p
                     struct codegen_container_type *pSubItem = (struct codegen_container_type *)pSubs->content[i];
                     if (pSubItem != 0)
                     {
-                        //pOutputState->resSizeGen = 0;
+                        // pOutputState->resSizeGen = 0;
 
                         res = codeGenOutput(pSubItem, options, pOutput, &pOutputState->resultSize);
                         if (res != 0)
@@ -711,6 +724,7 @@ int codeGenOutputForSub(codegen_container *pInput, int options, CodeGenOutput *p
             }
         }
     }
+    pOutput->callDepth--;
     return res;
 }
 
@@ -722,6 +736,16 @@ int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput
     if ((pInput == 0) || (pOutput == 0))
     {
         return ERROR_CODE_INVALID_ARGUMENTS;
+    }
+
+    pOutput->callDepth++;
+    if (pOutput->maxCallDepth < pOutput->callDepth)
+    {
+        pOutput->maxCallDepth = pOutput->callDepth;
+    }
+    if (pOutput->callDepthLimit <= pOutput->callDepth)
+    {
+        return 100;
     }
 
     char structText[1024];
@@ -759,6 +783,10 @@ int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput
             }
 
             res = codeGenOutputForSub(pInput, options, pOutput, resultLen, &state);
+            if (res != 0)
+            {
+                return 0;
+            }
 
             char *closing = "\n#endif\n\n";
 
@@ -814,6 +842,7 @@ int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput
     }
 
     printf("GEN:RES: %d\n", res);
+    pOutput->callDepth--;
 
     return res;
 }
