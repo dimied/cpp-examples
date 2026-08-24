@@ -110,7 +110,7 @@ struct PropertyAssignmentStats
     size_t forTypeCopy;
     size_t forArrValue;
     size_t forArrValueCopy;
-} assignmentStats = {0, 0, 0};
+} assignmentStats = {0, 0, 0, 0, 0, 0};
 
 int printAssignmentStats(char *pDst, size_t dstLen, struct PropertyAssignmentStats *pSrc)
 {
@@ -667,7 +667,7 @@ int writeToOutput(CodeGenOutput *pOutput, char *pData, size_t len, int options)
 
 int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput, size_t *resultLen);
 
-int codeGenOutputForSub(codegen_container *pInput, int options, CodeGenOutput *pOutput, size_t *resultLen, CodeGenOutputState *pOutputState)
+int codeGenOutputForSub(codegen_container *pInput, int options, CodeGenOutput *pOutput, CodeGenOutputState *pOutputState)
 {
     if ((pInput == 0) || (pOutput == 0))
     {
@@ -764,7 +764,7 @@ int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput
     {
     case CODEGEN_TYPE_TYPE_GENERIC:
         printf("GEN: Generic\n");
-        res = codeGenOutputForSub(pInput, options, pOutput, resultLen, &state);
+        res = codeGenOutputForSub(pInput, options, pOutput, &state);
         printf("GEN: Generic: %d\n", res);
         break;
     case CODEGEN_TYPE_HEADER_GUARD:
@@ -782,7 +782,7 @@ int codeGenOutput(codegen_container *pInput, int options, CodeGenOutput *pOutput
                 return outputRes;
             }
 
-            res = codeGenOutputForSub(pInput, options, pOutput, resultLen, &state);
+            res = codeGenOutputForSub(pInput, options, pOutput, &state);
             if (res != 0)
             {
                 return 0;

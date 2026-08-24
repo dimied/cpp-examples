@@ -1,6 +1,6 @@
 #!/bin/bash
 
-gcc -Wall -ggdb http.c
+gcc -Wall -Wextra -pedantic -fPIC -ggdb http.c
 
 r=$?
 echo "COMPILE-RES: "$r

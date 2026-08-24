@@ -1,7 +1,9 @@
 
 .vscode/*
+
 # Prerequisites
 *.d
+*.temp.txt
 
 # Compiled Object files
 *.slo
@@ -34,10 +36,16 @@
 *.a
 *.lib
 
+# Compiled shared libraries
+*.so
+
 # Executables
 *.exe
 *.out
 *.app
+# 
+linux_dltest
+a.out
 
 # debug information files
 *.dwo

@@ -13,7 +13,7 @@ char *genCodeTypeNames[256];
 char *genCodeSourceNames[256];
 
 int initMemCalled = 0;
-int numMemAllocItems = 0;
+size_t numMemAllocItems = 0;
 
 char *unknownMemType = "?";
 
@@ -103,6 +103,7 @@ void *allocMemoryImpl(size_t size, unsigned char type, unsigned char source, int
             genCodeMemoryPointers[numMemAllocItems] = result;
             genCodeSizes[numMemAllocItems] = size;
             genCodeTypes[numMemAllocItems] = type;
+            genCodeSources[numMemAllocItems] = source;
 
             if (pItemNum != 0)
             {

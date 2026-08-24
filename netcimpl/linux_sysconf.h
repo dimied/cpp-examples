@@ -3,12 +3,17 @@
 
 #include <unistd.h>
 #include <sys/sysinfo.h>
+#include <errno.h>
 
 #define LINUX_SYS_CONF_DATA_USE_ALL (0xFFFFFFFul)
 
+#define LINUX_SYS_CONF_DATA_USE_NUM_CPUS_SHIFT 0
+#define LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES_SHIFT 1
+#define LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES_SHIFT 2
+
 #define LINUX_SYS_CONF_DATA_USE_NUM_CPUS (0x1)
-#define LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES (0x2)
-#define LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES (0x4)
+#define LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES (0x1<<LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES_SHIFT)
+#define LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES (0x1<<LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES_SHIFT)
 #define LINUX_SYS_CONF_DATA_USE_MAX_STREAMS (0x8)
 
 #define LINUX_SYS_CONF_DATA_USE_PAGE_SIZE (0x10)
@@ -82,6 +87,7 @@ typedef struct SysConfDataType
     unsigned int options;
     /**
      * Stores retrieval statuses
+     * Check using IS_STATUS_OK(pResult, BITMASK)
      */
     unsigned int statuses;
     unsigned int cpu;
@@ -137,7 +143,11 @@ void setCacheInfo(SysConfDataCacheInfo *pData, unsigned int *props)
 int copySysConf(SysConfData *pResult, SysConfData *pSource)
 {
     // TODO
-    return 1;
+    if ((pResult == 0) || (pSource == 0))
+    {
+        return 1;
+    }
+    return 0;
 }
 
 void freeSysConf(SysConfData *pResult)
@@ -202,6 +212,32 @@ unsigned int supportProps[][2] = {
     //
     {_SC_TIMERS, 0x1}};
 
+#include <stddef.h>
+
+unsigned char offsets[][3] = {
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_NUM_CPUS
+    {LINUX_SYS_CONF_DATA_USE_NUM_CPUS, _SC_NPROCESSORS_CONF, offsetof(SysConfData, numCpus)},
+#endif
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES
+    {LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES, _SC_CHILD_MAX, offsetof(SysConfData, numMaxProcesses)},
+#endif
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES
+    {LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES, _SC_OPEN_MAX, offsetof(SysConfData, numMaxOpenFiles)},
+#endif
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_MAX_STREAMS
+    {LINUX_SYS_CONF_DATA_USE_MAX_STREAMS, _SC_STREAM_MAX, offsetof(SysConfData, maxStreams)},
+#endif
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_PAGE_SIZE
+    {LINUX_SYS_CONF_DATA_USE_PAGE_SIZE, _SC_PAGESIZE, offsetof(SysConfData, pageSize)},
+#endif
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_PHYSICAL_PAGES
+    {LINUX_SYS_CONF_DATA_USE_PHYSICAL_PAGES, _SC_PHYS_PAGES, offsetof(SysConfData, physicalPages)},
+#endif
+#if LINUX_SYS_CONF_DATA_MY_USE & LINUX_SYS_CONF_DATA_USE_PHYSICAL_PAGES_AVAILABLE
+    {LINUX_SYS_CONF_DATA_USE_PHYSICAL_PAGES_AVAILABLE, _SC_AVPHYS_PAGES, offsetof(SysConfData, physicalPagesAvailable)},
+#endif
+};
+
 SysConfData *getSysConf(int options, SysConfData *pResult)
 {
     if (pResult == 0)
@@ -211,17 +247,19 @@ SysConfData *getSysConf(int options, SysConfData *pResult)
 
     if (pResult != 0)
     {
-        pResult->numCpus = sysconf(_SC_NPROCESSORS_CONF);
-        pResult->numMaxProcesses = sysconf(_SC_CHILD_MAX);
-        pResult->numMaxOpenFiles = sysconf(_SC_OPEN_MAX);
-        pResult->maxStreams = sysconf(_SC_STREAM_MAX);
+        for (size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); i++)
+        {
+            size_t r = 0;
+            if (options & offsets[i][0])
+            {
+                r = sysconf(offsets[i][1]);
+                char *ptr = (char *)pResult;
+                size_t *tPtr = (size_t *)(ptr + offsets[i][2]);
+                *tPtr = r;
+            }
+        }
 
         pResult->maxThreads = sysconf(_SC_THREAD_THREADS_MAX);
-
-        pResult->pageSize = sysconf(_SC_PAGESIZE);
-        pResult->physicalPages = sysconf(_SC_PHYS_PAGES);
-        pResult->physicalPagesAvailable = sysconf(_SC_AVPHYS_PAGES);
-
         /*
                 _SC_THREAD_STACK_MIN
         */
@@ -230,7 +268,7 @@ SysConfData *getSysConf(int options, SysConfData *pResult)
 
         long int res = 0;
 
-        for (int i = 0; i < sizeof(supportProps) / sizeof(supportProps[0]); i++)
+        for (size_t i = 0; i < sizeof(supportProps) / sizeof(supportProps[0]); i++)
         {
             res = sysconf(supportProps[i][0]);
             if (res > 0)
@@ -252,14 +290,60 @@ SysConfData *getSysConf(int options, SysConfData *pResult)
 
 int parseSysData();
 
-int printSysData(SysConfData *pData, char *pOutput, size_t outputLength)
+int printSysData(SysConfData *pData, unsigned int options, char *pOutput, size_t outputLength)
 {
     if (pData == 0)
     {
         return 1;
     }
-    // char buffer[100];
-    // memset(buffer, 0, 100);
+
+#define BUF_LEN 100
+
+    char buffer[100];
+    // int outLen = outputLength > __INT32_MAX__ ? __INT32_MAX__ : (int)outputLength;
+    int r = 0;
+    size_t prev = 0, expected = 0;
+
+    int l = 0;
+    if (pOutput != 0)
+    {
+        l++;
+    }
+
+#define PREPARE() memset(buffer, 0, BUF_LEN)
+
+#define CHECK_ADD                          \
+    if (r < 0)                             \
+    {                                      \
+        return 1;                          \
+    }                                      \
+    expected += r;                         \
+    if (l != 0 && expected > outputLength) \
+    {                                      \
+        return 1;                          \
+    }                                      \
+                                           \
+    if (l != 0)                            \
+    {                                      \
+        memcpy(&pOutput[prev], buffer, r); \
+    }                                      \
+    else                                   \
+    {                                      \
+        printf("%s", buffer);              \
+    }                                      \
+    prev = expected;
+
+#if LINUX_SYS_CONF_DATA_USE_NUM_CPUS
+    if (options & LINUX_SYS_CONF_DATA_USE_NUM_CPUS)
+    {
+        PREPARE();
+        r = snprintf(buffer, BUF_LEN, "CPUs: %ld\n", pData->numCpus);
+        CHECK_ADD
+    }
+#endif
+
+#undef CHECK_ADD
+#undef PREPARE
 
     printf("CPUs: %ld\n", pData->numCpus);
     printf("Max child processes: %ld\n", pData->numMaxProcesses);
@@ -311,6 +395,7 @@ int printSysData(SysConfData *pData, char *pOutput, size_t outputLength)
 
     printf("Hostname max length: %ld\n", pData->hostnameMaxLength);
     printf("Struct size:: %ld\n", sizeof(*pData));
+
     // TODO: https://en.wikipedia.org/wiki/CPUID
     parseSysData();
 
@@ -321,11 +406,10 @@ int printSysData(SysConfData *pData, char *pOutput, size_t outputLength)
 
 int parseSysData()
 {
-
-    unsigned int i = 0;
 // #if defined(linux)
 #ifdef __unix__
 
+    errno = 0;
     // opendir() returns a pointer of DIR type.
     DIR *dr = opendir("/sys/devices/system/cpu/");
 
@@ -407,14 +491,14 @@ int parseSysData()
                         int level = 1;
                         int cacheline = 0;
                         unsigned long int cpuMap = 0;
-                        unsigned long int value = 0;
-                        unsigned int valueUnit = 0;
+                        long int value = 0;
+                        unsigned int valueUnit = 1;
                         int cacheType = -1;
 
                         while ((indexDE = readdir(indexDIR)) != NULL)
                         {
                             char *fileName = indexDE->d_name;
-                            //printf("\t%s\n", fileName);
+                            // printf("\t%s\n", fileName);
 
                             int hit = -1;
 
@@ -429,7 +513,7 @@ int parseSysData()
 
                             if (hit != -1)
                             {
-                                //printf("HIT: %s\n", fileName);
+                                // printf("HIT: %s\n", fileName);
 
                                 snprintf(fullPathBuffer, 127, "/sys/devices/system/cpu/cpu%d/cache/%s/%s", i, name, fileName);
 
@@ -498,16 +582,6 @@ int parseSysData()
 
     printf("Assigned: %lx\n", assignedCPUs);
 
-    FILE *p = 0;
-    p = fopen("/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size", "r");
-
-    if (p)
-    {
-        fscanf(p, "%d", &i);
-        fclose(p);
-    }
-
-    printf("CLS: %d\n", i);
     return 0;
 #else
 #error Unrecognized platform

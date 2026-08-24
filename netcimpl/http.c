@@ -28,6 +28,7 @@ int socketId;
 
 void signalHandler(int sig)
 {
+    (void)(sig);
     const char msg[] = "Caught SIGINT\n";
     const char msg2[] = "Close socket\n";
 
@@ -66,6 +67,7 @@ void printSocketAddr(struct sockaddr *pSocketAddr, socklen_t addrLen)
 {
     if (pSocketAddr != 0)
     {
+        printf("ADDR:size: %d\n", addrLen);
         printf("FAMILY: %d\n", pSocketAddr->sa_family);
     }
 }
@@ -76,7 +78,7 @@ void printfAddrinfo(struct addrinfo *pInfo)
     printf("FAMILY: %d\n", pInfo->ai_family);
     printf("SOCKTYPE: %d\n", pInfo->ai_socktype);
     printf("PROTOCOL: %d\n", pInfo->ai_protocol);
-    printf("ADDR: %p\n", pInfo->ai_addr);
+    printf("ADDR: %p\n", (void *)pInfo->ai_addr);
     printSocketAddr(pInfo->ai_addr, pInfo->ai_addrlen);
 
     /*
@@ -133,11 +135,20 @@ int main()
 {
     signal(SIGINT, signalHandler);
 
-    SysConfData *pSysConf = getSysConf(0, NULL);
+    char buf[200];
+    memset(buf, 0, 200);
+
+    unsigned int sysConfOptions = LINUX_SYS_CONF_DATA_USE_ALL;
+
+    SysConfData *pSysConf = getSysConf(sysConfOptions, NULL);
+
     if (pSysConf != 0)
     {
-        printSysData(pSysConf, 0, 0);
+        int pr = printSysData(pSysConf, sysConfOptions, buf, 200);
         freeSysConf(pSysConf);
+        printf("----%d----\n", pr);
+        printf("%s", buf);
+        printf("---\n");
     }
     return 0;
 

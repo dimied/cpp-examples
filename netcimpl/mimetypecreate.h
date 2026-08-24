@@ -206,7 +206,7 @@ char *testCodeGen()
     return cgResult;
 }
 
-#include "mimetypefast.h"
+// #include "mimetypefast.h"
 
 char *getContent(size_t *pSize)
 {
@@ -219,7 +219,7 @@ char *getContent(size_t *pSize)
     return res;
 
 #define SOME_PTR_COUNT 5
-    void *pointers[SOME_PTR_COUNT] = {};
+    void *pointers[SOME_PTR_COUNT];
     memset(pointers, 0, sizeof(void *) * SOME_PTR_COUNT);
 
     printf("CT:size: %ld", sizeof(struct typed_content_type_dummy));
