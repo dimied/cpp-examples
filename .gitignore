@@ -43,8 +43,11 @@
 *.exe
 *.out
 *.app
+
 # 
 linux_dltest
+linux_epoll
+pthreads_test
 a.out
 
 # debug information files

@@ -9,6 +9,7 @@
 #include <dlfcn.h>
 #include <link.h>
 #include <stdio.h>
+#include <string.h>
 
 const struct
 {
@@ -42,6 +43,9 @@ const struct
     {PT_GNU_PROPERTY, "PT_GNU_PROPERTY"},
 };
 
+void showNote(void *data, uintmax_t memsize, uintmax_t alignment);
+void showDynamic(void *data, uintmax_t size);
+
 static int showInfo(struct dl_phdr_info *info, size_t size, void *data)
 {
     int count = -1;
@@ -49,6 +53,12 @@ static int showInfo(struct dl_phdr_info *info, size_t size, void *data)
     if (data != 0)
     {
         count = *((int *)data);
+    }
+
+    char *name = strstr(info->dlpi_name, "libGL.so");
+    if (name == NULL)
+    {
+        return 0;
     }
 
     printf("S:%d: %ld\n", count, size);
@@ -95,14 +105,33 @@ static int showInfo(struct dl_phdr_info *info, size_t size, void *data)
         }
         void *realAddr = (void *)(info->dlpi_addr + info->dlpi_phdr[j].p_vaddr);
 
-        printf("    %2zu: [%14p; memsz:%7ld] flags: %#jx:%3s; ", j,
+        printf("  %2zu: [%14p; memsz:%7ld; align: %4ld] flags: %#jx:%3s; ", j,
                realAddr,
                (uintmax_t)info->dlpi_phdr[j].p_memsz,
+               (uintmax_t)info->dlpi_phdr[j].p_align,
                (uintmax_t)info->dlpi_phdr[j].p_flags, flags);
+
         if (type != NULL)
+        {
             printf("%s\n", type);
+        }
         else
+        {
             printf("[other (%#x)]\n", p_type);
+        }
+#if 0
+        if (p_type == PT_NOTE && (p_flags & PF_R) != 0)
+        {
+            showNote(realAddr, (uintmax_t)info->dlpi_phdr[j].p_memsz,
+                     4);
+        }
+#endif
+        if (p_type == PT_LOAD && (p_flags & PF_X) && (p_flags & PF_R))
+        {
+            printf("DYNAMIC:\n");
+            //showDynamic(realAddr, (uintmax_t)info->dlpi_phdr[j].p_memsz);
+            printf("---\n");
+        }
     }
 
     count++;
@@ -115,12 +144,204 @@ static int showInfo(struct dl_phdr_info *info, size_t size, void *data)
     return 0;
 }
 
+void showDynamic(void *base, uintmax_t size)
+{
+    Dl_info info;
+    char *dst = (char *)base;
+
+    uintmax_t s = 0;
+    const size_t offset = 8;
+
+    while (s + offset <= size)
+    {
+        const void *addr = dst;
+        dst += offset;
+        s += offset;
+        int res = dladdr(addr, &info);
+
+        printf("RES: %d\n", res);
+
+        if (res != 0)
+        {
+             printf("dli_fname: %s\n", info.dli_fname);
+            // printf("dli_fbase: %p\n", info.dli_fbase);
+            printf("dli_sname: %s\n", info.dli_sname);
+            printf("dli_saddr: %p\n", info.dli_saddr);
+        }
+        else
+        {
+            printf("FAILED\n");
+            return;
+        }
+    }
+}
+
 int iterate()
 {
     int data[4];
     int res = dl_iterate_phdr(showInfo, data);
 
     return res;
+}
+
+void showNote(void *data, uintmax_t memsize, uintmax_t alignment)
+{
+    // structure, aligned to alignment
+    // namesz
+    // descsz
+    // type
+    // name (if namesz>0)
+    // desc (if descsz>0)
+    // repeating: ...
+
+    printf("Note: sz=%ld | align=%ld\n", memsize, alignment);
+
+    if ((alignment == 4) || (alignment >= 8))
+    {
+        // namesz, descsz, type
+        uintmax_t minSize = 12;
+        if (alignment >= 8)
+        {
+            minSize = 24;
+        }
+
+        if (memsize < minSize)
+        {
+            printf("Size error!\n");
+            return;
+        }
+        // memsize -= minSize;
+
+        char *cData = (char *)data;
+        char *curData = cData;
+        long int sizeLeft = (long int)memsize;
+
+        while (curData - cData <= (long int)memsize)
+        {
+            char *name, *desc;
+            uint64_t szName = 0, szDesc = 0, type = 0;
+            size_t step = 4;
+
+            if (alignment == 4)
+            {
+                szName = *((uint32_t *)curData);
+                curData += 4;
+                szDesc = *((uint32_t *)curData);
+                curData += 4;
+                type = *((uint32_t *)curData);
+                curData += 4;
+                sizeLeft -= 12;
+            }
+            else
+            {
+                step = 8;
+                szName = *((uint64_t *)curData);
+                curData += 8;
+                szDesc = *((uint64_t *)curData);
+                curData += 8;
+                type = *((uint64_t *)curData);
+                curData += 8;
+                sizeLeft -= 24;
+            }
+            if (sizeLeft <= 0)
+            {
+                return;
+            }
+
+            if ((szName > INT32_MAX) || (szDesc >= INT32_MAX))
+            {
+                return;
+            }
+
+            if (szName > 0)
+            {
+                if ((long int)szName > sizeLeft)
+                {
+                    return;
+                }
+                size_t s = (szName + step) & (~step);
+                name = curData;
+                curData += s;
+            }
+            if (szDesc > 0)
+            {
+                if ((long int)szDesc > sizeLeft)
+                {
+                    return;
+                }
+                size_t s = (szDesc + step) & (~step);
+                desc = curData;
+                curData += s;
+            }
+            printf("Name: %ld | %s\n", szName, name);
+            printf("Desc: %ld | %s\n", szDesc, desc);
+            printf("Type: %ld\n", type);
+        }
+    }
+    else
+    {
+        printf("Alignment error!\n");
+    }
+}
+
+//
+void findModule()
+{
+    Dl_info info;
+    char *pError;
+    const void *addr = (void *)glGetError;
+
+    int res = dladdr(addr, &info);
+
+    void *handle = NULL;
+    char fPath[128];
+    memset(fPath, 0, 128);
+
+    printf("RES: %d\n", res);
+
+    if (res != 0)
+    {
+        if (info.dli_fname != 0)
+        {
+            size_t s = strlen(info.dli_fname);
+            if (s < 128)
+            {
+                strncpy(fPath, info.dli_fname, s);
+            }
+        }
+        printf("dli_fname: %s\n", info.dli_fname);
+        printf("dli_fbase: %p\n", info.dli_fbase);
+        printf("dli_sname: %s\n", info.dli_sname);
+        printf("dli_saddr: %p\n", info.dli_saddr);
+    }
+    else
+    {
+        pError = dlerror();
+        printf("ERROR:%s\n", pError);
+        return;
+    }
+    if (fPath[0] == 0)
+    {
+        return;
+    }
+    handle = dlopen(fPath, RTLD_NOW);
+
+    if (handle == NULL)
+    {
+        pError = dlerror();
+        printf("ERROR:dlopen:%s\n", pError);
+        return;
+    }
+
+    printf("Loaded: %s\n", fPath);
+
+    char *symbols[] = {"glGetString", "glBegin"};
+
+    for (size_t i = 0; i < 2; i++)
+    {
+        void *sr = dlsym(handle, symbols[i]);
+        printf("S: %s | %p\n", symbols[i], sr);
+    }
 }
 
 #endif

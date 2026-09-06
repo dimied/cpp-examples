@@ -4,7 +4,7 @@
 #-print-search-dirs
 #-static 
 #-fPIC
-gcc -Wall -Wextra -pedantic -no-pie -ggdb  linux_dltest.c -lc -ldl -lGL  -o linux_dltest
+gcc -Wall -Wextra -pedantic -fPIC -O3  linux_dltest.c -lc -ldl -lGL  -o linux_dltest
 
 r=$?
 echo "COMPILE-RES: "$r

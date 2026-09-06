@@ -10,7 +10,6 @@
 #include "linux_dl.h"
 #include <stdint.h>
 #include <stdlib.h>
-//
 
 
 int main()
@@ -18,6 +17,13 @@ int main()
     GLenum err = glGetError();
     printf("E: %d\n", err);
 
+    // E.g.        dl_iterate_phdr
+    int res = iterate();
+    printf("IRES: %d\n", res);
+
+    findModule();
+
+#if 0
     const GLubyte *s = glGetString(GL_VERSION);
     printf("R: %s\n", s);
 
@@ -26,9 +32,7 @@ int main()
 
     s = glGetString(GL_VENDOR);
     printf("R3: %s\n", s);
+#endif
 
-    // E.g.        dl_iterate_phdr
-    int res = iterate();
-    printf("IRES: %d\n", res);
     return 0;
 }
