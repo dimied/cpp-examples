@@ -131,9 +131,36 @@ static const struct table_entry
 
 #include "linux_sysconf.h"
 
+#include "ip_util.h"
+
+const char *tests[] = {
+    "127.0.0.1",
+    "127.0.0+1",
+    "127.0.0.G",
+    "127.0.0.F",
+    "::1",
+    "1.1.1.1",
+    "10.0.0.1",
+    "10.255.0.1",
+    "10.-255.0.1",
+    "10.256.0.1",
+    ":10.255.0.1",
+    "::10.255.0.1",
+    "1:2:3:4:5:6:7:8",
+    "1:2:3:4::5.6.7.8"};
+#define NUM_TESTS (sizeof(tests) / sizeof(tests[0]))
+
 int main()
 {
     signal(SIGINT, signalHandler);
+
+    for (size_t i = 0; i < NUM_TESTS; i++)
+    {
+        int parseRes = parse_ip(tests[i], 0);
+        printf("IN: %s\nRES: %x (%s)(%s)\n", tests[i], parseRes, parse_ip_error(parseRes), parse_ip_success(parseRes));
+    }
+    printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
+    return 0;
 
     char buf[200];
     memset(buf, 0, 200);
