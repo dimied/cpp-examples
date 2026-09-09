@@ -26,11 +26,18 @@ struct sockaddr_storage otherAddr;
 socklen_t otherAddrLen;
 int socketId;
 
+#include "server.h"
+
+MyServer myServer;
+
 void signalHandler(int sig)
 {
     (void)(sig);
     const char msg[] = "Caught SIGINT\n";
     const char msg2[] = "Close socket\n";
+
+    int closeRes = cfc_close(&myServer);
+    printf("Close res: %d\n", closeRes);
 
     if (socketId != 0)
     {
@@ -39,65 +46,10 @@ void signalHandler(int sig)
         write(STDOUT_FILENO, msg2, sizeof(msg2) - 1);
     }
     write(STDOUT_FILENO, msg, sizeof(msg) - 1);
+
     running = 0;
     retValue = 1;
     //_exit(sig);
-}
-
-void printAliases(char **aliases)
-{
-    printf("PROTO:ALIASES:");
-
-    int num = 0;
-    while (*aliases != 0)
-    {
-        if (num > 0)
-        {
-            printf(",");
-        }
-        printf("%s", *aliases);
-        num++;
-        aliases++;
-    }
-
-    printf("\n");
-}
-
-void printSocketAddr(struct sockaddr *pSocketAddr, socklen_t addrLen)
-{
-    if (pSocketAddr != 0)
-    {
-        printf("ADDR:size: %d\n", addrLen);
-        printf("FAMILY: %d\n", pSocketAddr->sa_family);
-    }
-}
-
-void printfAddrinfo(struct addrinfo *pInfo)
-{
-    printf("CNAME: %s\n", pInfo->ai_canonname);
-    printf("FAMILY: %d\n", pInfo->ai_family);
-    printf("SOCKTYPE: %d\n", pInfo->ai_socktype);
-    printf("PROTOCOL: %d\n", pInfo->ai_protocol);
-    printf("ADDR: %p\n", (void *)pInfo->ai_addr);
-    printSocketAddr(pInfo->ai_addr, pInfo->ai_addrlen);
-
-    /*
-    struct addrinfo
-{
-  int ai_flags;			// Input flags.
-  int ai_family;		// Protocol family for socket.
-  int ai_socktype;		// Socket type.
-  int ai_protocol;		// Protocol for socket.
-  socklen_t ai_addrlen;		// Length of socket address.
-  struct sockaddr *ai_addr;	// Socket address for socket.
-  char *ai_canonname;		// Canonical name for service location.
-  struct addrinfo *ai_next;	// Pointer to next in list.
-};
-*/
-    if (pInfo->ai_next != 0)
-    {
-        printfAddrinfo(pInfo->ai_next);
-    }
 }
 
 int yes = 1;
@@ -154,12 +106,36 @@ int main()
 {
     signal(SIGINT, signalHandler);
 
-    for (size_t i = 0; i < NUM_TESTS; i++)
+    for (size_t i = 0; 1 == 0 && i < NUM_TESTS; i++)
     {
         int parseRes = parse_ip(tests[i], 0);
         printf("IN: %s\nRES: %x (%s)(%s)\n", tests[i], parseRes, parse_ip_error(parseRes), parse_ip_success(parseRes));
     }
     printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
+
+    nullify(&myServer, sizeof(myServer));
+    myServer.conns[0].port = 8080;
+    myServer.conns[0].options = SERVER_OPTION_TCP | SERVER_OPTION_IPV4;
+    myServer.conns[0].handleCommand = basicHandle;
+    myServer.conns[0].handleClientCommand = basicHandleClientConnection;
+
+    int conRes = cfc_connect(&myServer);
+    printf("CON-RES:%d\n", conRes);
+
+    int listenRes2 = cfc_listen(&myServer);
+    printf("LISTEN-RES:%d\n", listenRes2);
+    sleep(5);
+
+    while (running != 0)
+    {
+        int acceptRes = cfc_accept(&myServer);
+        printf("ACCEPT-RES: %d\n", acceptRes);
+        sleep(1);
+    }
+
+    int closeRes = cfc_close(&myServer);
+    printf("CLOSE-RES:%d\n", closeRes);
+
     return 0;
 
     char buf[200];
