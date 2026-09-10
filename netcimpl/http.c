@@ -26,6 +26,8 @@ struct sockaddr_storage otherAddr;
 socklen_t otherAddrLen;
 int socketId;
 
+// #define SERVER_NONBLOCKING 1
+
 #include "server.h"
 
 MyServer myServer;
@@ -114,6 +116,7 @@ int main()
     printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
 
     nullify(&myServer, sizeof(myServer));
+    myServer.conns[0].name = "localhost";
     myServer.conns[0].port = 8080;
     myServer.conns[0].options = SERVER_OPTION_TCP | SERVER_OPTION_IPV4;
     myServer.conns[0].handleCommand = basicHandle;
@@ -124,7 +127,9 @@ int main()
 
     int listenRes2 = cfc_listen(&myServer);
     printf("LISTEN-RES:%d\n", listenRes2);
-    sleep(5);
+    sleep(3);
+    int cfr = cacheFiles();
+    printf("Cache files: %d\n", cfr);
 
     while (running != 0)
     {
