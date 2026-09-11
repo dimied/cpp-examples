@@ -41,14 +41,17 @@ void signalHandler(int sig)
     int closeRes = cfc_close(&myServer);
     printf("Close res: %d\n", closeRes);
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
     if (socketId != 0)
     {
         shutdown(socketId, SHUT_RDWR);
         close(socketId);
+
         write(STDOUT_FILENO, msg2, sizeof(msg2) - 1);
     }
     write(STDOUT_FILENO, msg, sizeof(msg) - 1);
-
+#pragma GCC diagnostic pop
     running = 0;
     retValue = 1;
     //_exit(sig);
@@ -58,30 +61,6 @@ int yes = 1;
 char buffer[1024];
 
 // fd_set fdSet;
-
-static const struct table_entry
-{
-    const char *extension;
-    const char *content_type;
-} content_type_table[] = {
-    //{"c", "text/plain"},
-    //{"h", "text/plain"},
-    {"css", "text/css"},
-    {"gif", "image/gif"},
-    {"htm", "text/htm"},
-    {"html", "text/html"},
-    {"ico", "image/vnd.microsoft.icon"},
-    {"jpeg", "image/jpeg"},
-    {"jpg", "image/jpeg"},
-    {"js", "text/javascript"},
-    {"json", "application/json"},
-    {"svg", "image/svg+xml"},
-    {"png", "image/png"},
-    {"pdf", "application/pdf"},
-    {"ps", "application/postscript"},
-    {"txt", "text/plain"}};
-
-#include "mimetypecreate.h"
 
 #include "linux_sysconf.h"
 
@@ -113,7 +92,7 @@ int main()
         int parseRes = parse_ip(tests[i], 0);
         printf("IN: %s\nRES: %x (%s)(%s)\n", tests[i], parseRes, parse_ip_error(parseRes), parse_ip_success(parseRes));
     }
-    printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
+    //printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
 
     nullify(&myServer, sizeof(myServer));
     myServer.conns[0].name = "localhost";
@@ -122,12 +101,15 @@ int main()
     myServer.conns[0].handleCommand = basicHandle;
     myServer.conns[0].handleClientCommand = basicHandleClientConnection;
 
+    printTypeSizes();
+    sleep(1);
+
     int conRes = cfc_connect(&myServer);
     printf("CON-RES:%d\n", conRes);
 
     int listenRes2 = cfc_listen(&myServer);
     printf("LISTEN-RES:%d\n", listenRes2);
-    sleep(3);
+    //sleep(2);
     int cfr = cacheFiles();
     printf("Cache files: %d\n", cfr);
 

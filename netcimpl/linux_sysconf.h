@@ -12,8 +12,8 @@
 #define LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES_SHIFT 2
 
 #define LINUX_SYS_CONF_DATA_USE_NUM_CPUS (0x1)
-#define LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES (0x1<<LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES_SHIFT)
-#define LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES (0x1<<LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES_SHIFT)
+#define LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES (0x1 << LINUX_SYS_CONF_DATA_USE_MAX_PROCESSES_SHIFT)
+#define LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES (0x1 << LINUX_SYS_CONF_DATA_USE_MAX_OPEN_FILES_SHIFT)
 #define LINUX_SYS_CONF_DATA_USE_MAX_STREAMS (0x8)
 
 #define LINUX_SYS_CONF_DATA_USE_PAGE_SIZE (0x10)
@@ -452,7 +452,9 @@ int parseSysData()
         }
     }
     closedir(dr);
-    char fullPathBuffer[128];
+#define LINUX_SYSCONF_BL 512
+
+    char fullPathBuffer[LINUX_SYSCONF_BL];
 
 #define NUM_NAMES 5
     char *names[NUM_NAMES] = {
@@ -467,8 +469,8 @@ int parseSysData()
 
     for (int i = 0; i < cpu; i++)
     {
-        memset(fullPathBuffer, 0, 128);
-        snprintf(fullPathBuffer, 127, "/sys/devices/system/cpu/cpu%d/cache/", i);
+        memset(fullPathBuffer, 0, LINUX_SYSCONF_BL);
+        snprintf(fullPathBuffer, LINUX_SYSCONF_BL - 1, "/sys/devices/system/cpu/cpu%d/cache/", i);
         dr = opendir(fullPathBuffer);
 
         if (dr != 0)
@@ -480,7 +482,7 @@ int parseSysData()
 
                 if (nameLen > 5 && (0 == strncmp("index", name, 5)))
                 {
-                    snprintf(fullPathBuffer, 127, "/sys/devices/system/cpu/cpu%d/cache/%s/", i, name);
+                    snprintf(fullPathBuffer, LINUX_SYSCONF_BL - 1, "/sys/devices/system/cpu/cpu%d/cache/%s/", i, name);
 
                     DIR *indexDIR = opendir(fullPathBuffer);
                     if (indexDIR != 0)
@@ -494,6 +496,7 @@ int parseSysData()
                         long int value = 0;
                         unsigned int valueUnit = 1;
                         int cacheType = -1;
+                        int valid = 0;
 
                         while ((indexDE = readdir(indexDIR)) != NULL)
                         {
@@ -515,30 +518,32 @@ int parseSysData()
                             {
                                 // printf("HIT: %s\n", fileName);
 
-                                snprintf(fullPathBuffer, 127, "/sys/devices/system/cpu/cpu%d/cache/%s/%s", i, name, fileName);
+                                snprintf(fullPathBuffer, LINUX_SYSCONF_BL - 1, "/sys/devices/system/cpu/cpu%d/cache/%s/%s", i, name, fileName);
 
                                 FILE *p = fopen(fullPathBuffer, "r");
 
                                 if (p)
                                 {
+                                    int r;
+                                    r = 1;
                                     switch (hit)
                                     {
                                     case 0:
                                         // level
-                                        fscanf(p, "%d", &level);
+                                        r = fscanf(p, "%d", &level);
                                         break;
                                     case 1:
                                         // cacheline
-                                        fscanf(p, "%d", &cacheline);
+                                        r = fscanf(p, "%d", &cacheline);
                                         break;
                                     case 2:
                                         // shared_map
-                                        fscanf(p, "%lx", &cpuMap);
+                                        r = fscanf(p, "%lx", &cpuMap);
                                         break;
                                     case 3:
                                         // size
                                         memset(valueCache, 0, sizeof(valueCache));
-                                        fscanf(p, "%s", valueCache);
+                                        r = fscanf(p, "%s", valueCache);
                                         if (1 == sscanf(valueCache, "%ldK", &value))
                                         {
                                             valueUnit = 10;
@@ -551,7 +556,7 @@ int parseSysData()
                                     case 4:
                                         // type
                                         memset(valueCache, 0, sizeof(valueCache));
-                                        fscanf(p, "%s", valueCache);
+                                        r = fscanf(p, "%s", valueCache);
                                         for (int ci = 0; ci < 3; ci++)
                                         {
                                             if (strcmp(valueCache, cacheTypes[ci]) == 0)
@@ -562,6 +567,10 @@ int parseSysData()
                                         }
                                         break;
                                     }
+                                    if (r == 0)
+                                    {
+                                        valid |= (0x1 << hit);
+                                    }
 
                                     fclose(p);
                                 }
@@ -570,8 +579,8 @@ int parseSysData()
 
                         //
 
-                        printf("L:%d| T:%d| LS:%d| CPUS:%lx| SZ:%ld| SZU: %d\n",
-                               level, cacheType, cacheline, cpuMap, value, valueUnit);
+                        printf("L:(v=%d):%d| T:%d| LS:%d| CPUS:%lx| SZ:%ld| SZU: %d\n",
+                               valid, level, cacheType, cacheline, cpuMap, value, valueUnit);
                         closedir(indexDIR);
                     }
                 }
@@ -584,7 +593,7 @@ int parseSysData()
 
     return 0;
 #else
-#error Unrecognized platform
+#error "Unrecognized platform"
 #endif
     return 1;
 }

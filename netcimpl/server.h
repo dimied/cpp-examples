@@ -25,6 +25,10 @@
 #endif
 #endif
 
+#include <string.h>
+
+#include "filecache.h"
+
 #ifdef NUM_SOCKET_CONNECTIONS
 #if NUM_SOCKET_CONNECTIONS < 1 || NUM_SOCKET_CONNECTIONS > 63
 #error "NUM_SERVERS invalid (<1 or >63)."
@@ -77,8 +81,11 @@ typedef struct MyServerClientConnection
 {
     int socketId;
     unsigned int state;
+    unsigned int parseState;
+    unsigned int requestState;
     void *next;
-    void *data;
+    // void *data;
+    void *request;
     void *pServerConnection;
 } MyServerClientConnection;
 
@@ -89,12 +96,12 @@ typedef struct MyServerClientConnectionSecure
     SSL *ssl;
 } MyServerClientConnectionSecure;
 
-void *newClientConnection()
+/*@null@*/ void *newClientConnection()
 {
     return calloc(sizeof(MyServerClientConnection), 1);
 }
 
-void *newClientConnectionSecure()
+/*@null@*/ void *newClientConnectionSecure()
 {
     return calloc(sizeof(MyServerClientConnectionSecure), 1);
 }
@@ -145,7 +152,6 @@ typedef struct MyServer
 
 #define HTTP_PARSER_DECLARATIONS 1
 #define HTTP_PARSER_IMPLEMENTATION 1
-#include "http_parser.h"
 
 void nullify(void *pData, size_t size)
 {
@@ -157,22 +163,25 @@ void nullify(void *pData, size_t size)
 
 #include <openssl/err.h>
 
-int errorCB(const char *str, size_t len, void *u)
+int errorCB(const char *str, size_t len, /*@temp@*/ void *_)
 {
-    (void)(u);
-    write(STDOUT_FILENO, str, len);
-    write(STDOUT_FILENO, "\n", 1);
+    (void)(_);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+    (void)write(STDOUT_FILENO, str, len);
+    (void)write(STDOUT_FILENO, "\n", 1);
+#pragma GCC diagnostic pop
     // positive value to continue, 0 to stop
     return 1;
 }
 
-int handleSSLError(MyServerConnection *pConnections, int err)
+int handleSSLError(MyServerConnection *pConnection, int err)
 {
-    (void)(pConnections);
-    (void)(err);
-    int lastError = ERR_get_error();
-    printf("LAST-ERROR: %d\n", lastError);
-    ERR_print_errors_cb(errorCB, 0);
+    //(void)(pConnection);
+    unsigned long lastError = ERR_get_error();
+    printf("LAST-ERROR: %lu|%d|%p\n", lastError, err, (void *)pConnection);
+    ERR_print_errors_cb(errorCB, /*@null@*/ 0);
     return err;
 }
 
@@ -236,7 +245,8 @@ int cfc_close(MyServer *pServer)
 
     MyServerConnection *pConnections = pServer->conns;
 
-    for (int conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    int conIdx;
+    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
     {
         if (pConnections->common.socketId)
         {
@@ -261,11 +271,6 @@ int cfc_connect(MyServer *pServer)
     {
         return 1;
     }
-
-    printf("Ser-Con:size:%ld\n", sizeof(MyServerConnection));
-    printf("Cli-Con:size:%ld\n", sizeof(MyServerClientConnection));
-    printf("Server:size:%ld\n", sizeof(MyServer));
-    printf("\n");
 
     MyServerConnection *pConnections = pServer->conns;
 
@@ -699,330 +704,26 @@ int basicHandle(void *pConnection, int cmd, void *param)
     return 1;
 }
 
-#include <string.h>
+void freeRequest(void *p);
 
-typedef struct CachedFile
+void closeCC(MyServerClientConnection *pCC)
 {
-    unsigned int state;
-    int dataLen;
-    char *path;
-    char *type;
-    void *data;
-    char *response;
-    int responseLen;
-} CachedFile;
-
-#define CFE(PATH, TYPE) {0, 0, PATH, TYPE, 0, 0, 0}
-
-CachedFile fileCache[3] = {
-    CFE("index.html", "text/html"),
-    CFE("favicon.ico", "image/x-icon"),
-    CFE("console_screenshot.png", "image/png"),
-};
-
-/**
- *
- */
-void *readFile(char *p, int *pSize)
-{
-    if (p != 0)
+    printf("CLOSE CON!\n");
+    if (pCC->socketId != 0)
     {
-
-        FILE *fp = fopen(p, "r");
-        if (fp == 0)
-        {
-            return 0;
-        }
-
-        // calculating the size of the file
-        fseek(fp, 0L, SEEK_END);
-        int res = (int)ftell(fp);
-        fseek(fp, 0L, SEEK_SET);
-
-        void *result = malloc(res);
-
-        if (result != 0)
-        {
-            int r = fread(result, 1, res, fp);
-            if (r != res)
-            {
-                free(result);
-                result = 0;
-            }
-            else
-            {
-                if (pSize != 0)
-                {
-                    *pSize = res;
-                }
-            }
-        }
-        fclose(fp);
-        return result;
-    }
-    return 0;
-}
-
-int cacheFiles()
-{
-    int loaded = 0;
-    for (int i = 0; i < 3; i++)
-    {
-        if (0 == fileCache[i].state)
-        {
-            char *p = fileCache[i].path;
-            int state = 3;
-            if (p != 0)
-            {
-                int size = 0;
-                void *data = readFile(p, &size);
-                printf("Load: %s", p);
-
-                if (data != 0)
-                {
-                    state = 1;
-                    fileCache[i].data = data;
-                    fileCache[i].dataLen = size;
-                    printf(" loaded!\n");
-                    loaded++;
-                }
-                else
-                {
-                    state = 2;
-                    printf(" NOT loaded!\n");
-                }
-            }
-            fileCache[i].state = state;
-        }
-    }
-    return loaded;
-}
-
-char *headerTmpl = "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\nContent-Encoding: identity\r\n\r\n";
-
-void *searchInCache(char *path, int *pSize)
-{
-    void *result = 0;
-    char *s1 = strstr(path, "\r\n");
-    if (s1 == 0)
-    {
-        return 0;
-    }
-    *s1 = 0;
-    printf("SEARCH:IN: %s\n", path);
-    for (int i = 0; i < 3; i++)
-    {
-        if (1 == fileCache[i].state)
-        {
-
-            void *s = strstr(path, fileCache[i].path);
-            if (s != 0)
-            {
-                printf("FOUND: %s\n", fileCache[i].path);
-
-                void *pData = fileCache[i].data;
-                int dSize = fileCache[i].dataLen;
-                int size = dSize + 100 + strlen(headerTmpl);
-                char *pMem = (char *)malloc(size);
-                if (pMem != 0)
-                {
-                    int w = snprintf(pMem, size, headerTmpl, fileCache[i].type, dSize);
-                    char *p = pMem + w;
-                    memcpy(p, pData, dSize);
-                    dSize += w;
-                    if (pSize != 0)
-                    {
-                        *pSize = dSize;
-                    }
-                    result = pMem;
-                }
-
-                break;
-            }
-        }
-    }
-    *s1 = '\r';
-    return result;
-}
-
-char *favData = 0;
-int favDataLen = 0;
-char *favResponse = 0;
-int favResponseLen = 0;
-char *favHeader = "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: %d\r\nContent-Encoding: identity\r\n\r\n";
-
-int loadFAV()
-{
-    int result = 0;
-
-    if (favData == 0)
-    {
-        FILE *fp = fopen("./favicon.ico", "r");
-        if (fp != 0)
-        {
-            fseek(fp, 0L, SEEK_END);
-
-            // calculating the size of the file
-            long int res = ftell(fp);
-            fseek(fp, 0L, SEEK_SET);
-            favData = malloc(res);
-            if (favData != 0)
-            {
-                int r = fread(favData, 1, res, fp);
-                if (r != res)
-                {
-                    printf("Reading failed!\n");
-                    free(favData);
-                    favData = 0;
-                    result = 1;
-                }
-                else
-                {
-                    favDataLen = res;
-                }
-            }
-            else
-            {
-                result = 2;
-            }
-            fclose(fp);
-            return result;
-        }
-        else
-        {
-            printf("favicon.ico missing!\n");
-            result = 3;
-        }
-    }
-    if (result == 0 && favResponse == 0)
-    {
-        int s = strlen(favHeader) + 16;
-        char *resp = malloc(s + favDataLen);
-
-        if (resp != 0)
-        {
-            memset(resp, 0, s + favDataLen);
-            sprintf(resp, favHeader, favDataLen);
-            s = strlen(resp);
-            memcpy(resp + s, favData, favDataLen);
-            favResponseLen = s + favDataLen;
-            favResponse = resp;
-        }
-    }
-    return result;
-}
-
-#define BUF_LEN_IN 2048
-
-int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
-{
-    (void)(pServerConnection);
-    MyServerClientConnection *pCC = (MyServerClientConnection *)pClientConnection;
-    char buffer[BUF_LEN_IN];
-    // char outBuffer[512];
-
-    int clientSocketId = pCC->socketId;
-    if (clientSocketId)
-    {
-        ssize_t recvRes;
-        memset(buffer, 0, BUF_LEN_IN);
-
-        if (pCC->data == 0)
-        {
-        }
-
-        if (pCC->state & 0x100)
-        {
-            MyServerClientConnectionSecure *pSC = (MyServerClientConnectionSecure *)pCC;
-
-            //<=0 means error
-            recvRes = SSL_read(pSC->ssl, buffer, BUF_LEN_IN - 1);
-        }
-        else
-        {
-            recvRes = recv(clientSocketId, buffer, BUF_LEN_IN - 1, 0);
-        }
-
-        printf("RECV: %ld\n", recvRes);
-        printf("Request:\n%s\n", buffer);
-
-        int resSize = 0;
-        void *cacheData = searchInCache(buffer, &resSize);
-
-        if (cacheData != 0 && resSize != 0)
-        {
-            int s = send(clientSocketId, cacheData, resSize, 0);
-            printf("SENT:C: %d | %d\n", s, resSize);
-        }
-        else
-        {
-            char *data = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\nHallo";
-            char *data2 = "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\n\r\n";
-            char *data3 = "HTTP/1.0 404 Not Found\r\n";
-
-            char *p = strstr(buffer, "favicon.ico");
-            if (p != 0)
-            {
-                int r = loadFAV();
-                if (r == 0)
-                {
-                    if (favResponse != 0)
-                    {
-                        int s = send(clientSocketId, favResponse, favResponseLen, 0);
-                        printf("SENT:R: %d\n", s);
-                    }
-                    else
-                    {
-                        int s = send(clientSocketId, data2, strlen(data2), 0);
-                        printf("SENT:1: %d\n", s);
-                        s = send(clientSocketId, favData, favDataLen, 0);
-                        printf("SENT:2: %d\n", s);
-                    }
-                }
-                else
-                {
-                    int s = send(clientSocketId, data3, strlen(data3), 0);
-                    printf("SENT:ERR: %d\n", s);
-                }
-            }
-            else
-            {
-                recvRes = send(clientSocketId, data, strlen(data), 0);
-                printf("SENT: %ld\n", recvRes);
-            }
-        }
-
-        // sleep(5);
-        printf("CLOSE CON!\n");
-        close(clientSocketId);
+        close(pCC->socketId);
         pCC->socketId = 0;
-        pCC->state = STATE_CLOSED;
-        /*
-        // GET /file ....
-
-    char* file_request = buffer + 5;
-    char response[1024] = {0};
-    char* metadata = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n";
-
-    memcpy(response, metadata, strlen(metadata));
-
-    if (strncmp(file_request, "index.html ", 11) == 0) {
-        FILE* f = fopen("index.html", "r");
-        fread(response + strlen(metadata), 1024 - strlen(metadata) - 1, 1, f);
-        fclose(f);
-    } else {
-        char* error = "No page found";
-        memcpy(response + strlen(metadata), error, strlen(error));
+    }
+    if (pCC->request != 0)
+    {
+        freeRequest(pCC->request);
+        pCC->request = 0;
     }
 
-    SSL_write(ssl, response, 1024);
-    SSL_shutdown(ssl);
-*/
-        // sleep(1);
-    }
-
-    return 0;
+    pCC->state = STATE_CLOSED | (pCC->state & 0x100);
 }
+
+#include "http_parser.h"
 
 void printAliases(char **aliases)
 {
@@ -1086,5 +787,15 @@ void printProto()
 
     printf("PROTO: %d | %s\n", proto->p_proto, proto->p_name);
     printAliases(proto->p_aliases);
+}
+
+void printTypeSizes()
+{
+    printf("Server:size:%ld\n", sizeof(MyServer));
+    printf("Ser-Con:size:%ld\n", sizeof(MyServerConnection));
+    printf("Cli-Con:size:%ld\n", sizeof(MyServerClientConnection));
+    printf("Request:size:%ld\n", sizeof(HttpRequest));
+
+    printf("\n");
 }
 #endif

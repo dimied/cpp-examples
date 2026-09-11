@@ -2,7 +2,7 @@
 #define MIME_TYPE_CREATE
 
 #include <string.h>
-#include "../gencodeinc.h"
+// #include "../gencodeinc.h"
 
 #define MASK_4BYTES (~(0x3))
 #define MASK_8BYTES (~(0x7))
@@ -126,7 +126,7 @@ int algo(char **strings, unsigned int *sizes, size_t entries, char *dst, size_t 
 
     return 0;
 }
-
+#if 0
 char *testCodeGen()
 {
     size_t outSize = 10 * 1024;
@@ -205,12 +205,14 @@ char *testCodeGen()
 
     return cgResult;
 }
+#endif
 
 // #include "mimetypefast.h"
 
 char *getContent(size_t *pSize)
 {
-    char *res = testCodeGen();
+    //testCodeGen();
+    char *res = "Nothing";
 
     if (res != 0 && pSize != 0)
     {

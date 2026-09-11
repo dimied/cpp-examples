@@ -7,7 +7,8 @@ r=$?
 echo "COMPILE-RES: "$r
 
 if [ $r -eq 0 ]; then
-
+wc -c ./a.out
+echo ""
 ./a.out
 
 echo ""
