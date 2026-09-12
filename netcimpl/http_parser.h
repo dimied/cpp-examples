@@ -539,6 +539,12 @@ ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags);
 
 #define RECV_PARSE_ERROR_FAILED 0
 #define RECV_PARSE_ERROR_NO_DATA 0
+#define RECV_PARSE_ERROR_END_OF_FILE 1
+#define RECV_PARSE_ERROR_EAGAIN 2
+
+#define RECV_PARSE_NO_ERROR 100
+
+#define CHECK_SOCKET_ID 1
 
 int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
 {
@@ -552,356 +558,366 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
     } inBuffer;
 
     int clientSocketId = pCC->socketId;
-    if (clientSocketId)
+
+#if CHECK_SOCKET_ID
+    if (0 == clientSocketId)
     {
-        ssize_t recvRes;
-        // memset(buffer, 0, BUF_LEN_IN);
+        return RECV_PARSE_ERROR_FAILED;
+    }
+#endif
+    ssize_t recvRes;
 
-        printf("PARSE-STATE: %d\n", pCC->parseState);
+    printf("PARSE-STATE: %x\n", pCC->parseState);
 
-        if (pCC->state & 0x100)
+    if (pCC->state & 0x100)
+    {
+        MyServerClientConnectionSecure *pSC = (MyServerClientConnectionSecure *)pCC;
+
+        //<=0 means error
+        recvRes = SSL_read(pSC->ssl, inBuffer.data, BUF_LEN_IN - 1);
+    }
+    else
+    {
+        recvRes = RECV_FUNC(clientSocketId, inBuffer.data, (BUF_LEN_IN - 1), 0);
+    }
+    //printf("RECV: %ld\n", recvRes);
+
+    if (recvRes <= 0)
+    {
+        if (recvRes == 0)
         {
-            MyServerClientConnectionSecure *pSC = (MyServerClientConnectionSecure *)pCC;
+            return RECV_PARSE_ERROR_END_OF_FILE;
+        }
+        //printf("ERRNO: %d\n", ERRNO_VALUE);
+        int err = ERRNO_VALUE;
+        pCC->lastErrno = err;
+        if (err == EAGAIN)
+        {
+            return RECV_PARSE_ERROR_EAGAIN;
+        }
+        return RECV_PARSE_ERROR_NO_DATA;
+    }
 
-            //<=0 means error
-            recvRes = SSL_read(pSC->ssl, inBuffer.data, BUF_LEN_IN - 1);
+    // printf("Request:\n----\n%s\n----\n", inBuffer.data);
+    int state = pCC->parseState;
+    char *pathStart = inBuffer.data;
+    int i = 1;
+    ++recvRes;
+
+    // Strategy:
+    //- use a buffer and collect data
+    //- for every state we can define minimal amount of bytes required
+    //   - for parsing content we refer to the method
+    //   - e.g. GET has no data, POST can have some data
+
+    HttpRequest *pReq = pCC->request;
+
+    if (PARSE_STATE_REQ_LINE == state)
+    {
+        // We need to be able to parse at least 7 chars and ' '
+        if (recvRes < 8)
+        {
+            closeCC(pCC);
+            return 0;
+        }
+        if (pReq == 0)
+        {
+            pReq = newRequest();
+
+            if (pReq == 0)
+            {
+                printf("REQ not created\n");
+                closeCC(pCC);
+                return 0;
+            }
+            pCC->request = pReq;
+        }
+
+        printf("PARSE METHOD\n");
+
+        int s = 0;
+        // parse method
+        while (i < 9 && i < recvRes)
+        {
+            // invalid chars or '\r', '\n'
+            if (*pathStart < ' ')
+            {
+                --s;
+                break;
+            }
+            if (*pathStart == ' ')
+            {
+                ++s;
+                break;
+            }
+            ++pathStart;
+            ++i;
+        }
+        // line-end found?
+        if (s <= 0)
+        {
+            // s==0: too long
+            closeCC(pCC);
+            return 0;
         }
         else
         {
-            recvRes = RECV_FUNC(clientSocketId, inBuffer.data, (BUF_LEN_IN - 1), 0);
+            *pathStart = 0;
         }
-        printf("RECV: %ld\n", recvRes);
-
-        if (recvRes <= 0)
+        int j;
         {
-            printf("ERRNO: %d\n", ERRNO_VALUE);
-            // TODO:check EAGAIN or EWOULDBLOCK.
-            return RECV_PARSE_ERROR_NO_DATA;
-        }
-
-        // printf("Request:\n----\n%s\n----\n", inBuffer.data);
-        int state = pCC->parseState;
-        char *pathStart = inBuffer.data;
-        int i = 1;
-        ++recvRes;
-
-        // Strategy:
-        //- use a buffer and collect data
-        //- for every state we can define minimal amount of bytes required
-        //   - for parsing content we refer to the method
-        //   - e.g. GET has no data, POST can have some data
-
-        HttpRequest *pReq = pCC->request;
-
-        if (PARSE_STATE_REQ_LINE == state)
-        {
-            // We need to be able to parse at least 7 chars and ' '
-            if (recvRes < 8)
+            //--i;
+            for (j = 0; j < NUM_HTTP_METHODS; j++)
             {
-                closeCC(pCC);
-                return 0;
-            }
-            if (pReq == 0)
-            {
-                pReq = newRequest();
-
-                if (pReq == 0)
+                if (0 == strcmp(HttpMethods[j], inBuffer.data))
                 {
-                    printf("REQ not created\n");
-                    closeCC(pCC);
-                    return 0;
-                }
-                pCC->request = pReq;
-            }
-
-            printf("PARSE METHOD\n");
-
-            int s = 0;
-            // parse method
-            while (i < 9 && i < recvRes)
-            {
-                // invalid chars or '\r', '\n'
-                if (*pathStart < ' ')
-                {
-                    --s;
                     break;
                 }
-                if (*pathStart == ' ')
-                {
-                    ++s;
-                    break;
-                }
-                ++pathStart;
-                ++i;
             }
-            // line-end found?
-            if (s <= 0)
-            {
-                // s==0: too long
-                closeCC(pCC);
-                return 0;
-            }
-            else
-            {
-                *pathStart = 0;
-            }
-            int j;
-            {
-                //--i;
-                for (j = 0; j < NUM_HTTP_METHODS; j++)
-                {
-                    if (0 == strcmp(HttpMethods[j], inBuffer.data))
-                    {
-                        break;
-                    }
-                }
-                i += 2;
-            }
+            i += 2;
+        }
 
-            if (j < NUM_HTTP_METHODS)
+        if (j < NUM_HTTP_METHODS)
+        {
+            printf("METHOD: %s|%d\n", inBuffer.data, j);
+            pReq->requestMethod = j;
+        }
+        else
+        {
+            printf("Invalid method found! (%s)\n", inBuffer.data);
+            closeCC(pCC);
+            return 0;
+        }
+        ++pathStart;
+        //++i;
+        INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_HAS_METHOD);
+    }
+
+    char *pStart = pathStart;
+    // parse path
+    if (state == PARSE_STATE_REQ_LINE_HAS_METHOD)
+    {
+        printf("PARSE PATH\n");
+        int s = 0;
+        while (i < recvRes)
+        {
+            if (*pathStart < ' ')
             {
-                printf("METHOD: %s|%d\n", inBuffer.data, j);
-                pReq->requestMethod = j;
+                --s;
+                break;
             }
-            else
+            if (*pathStart == ' ')
             {
-                printf("Invalid method found! (%s)\n", inBuffer.data);
-                closeCC(pCC);
-                return 0;
+                ++s;
+                break;
             }
             ++pathStart;
-            //++i;
-            INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_HAS_METHOD);
+            ++i;
         }
-
-        char *pStart = pathStart;
-        // parse path
-        if (state == PARSE_STATE_REQ_LINE_HAS_METHOD)
+        long int diff = pathStart - pStart;
+        // line-end found?
+        if (s <= 0 || diff <= 0)
         {
-            printf("PARSE PATH\n");
-            int s = 0;
-            while (i < recvRes)
-            {
-                if (*pathStart < ' ')
-                {
-                    --s;
-                    break;
-                }
-                if (*pathStart == ' ')
-                {
-                    ++s;
-                    break;
-                }
-                ++pathStart;
-                ++i;
-            }
-            long int diff = pathStart - pStart;
-            // line-end found?
-            if (s <= 0 || diff <= 0)
-            {
-                closeCC(pCC);
-                return 0;
-            }
-            else
-            {
-                // TODO: long paths
-                *pathStart = 0;
-            }
-            ++pathStart;
-
-            printf("PATH:%s|(#%ld)\n", pStart, diff);
-            char *pReqPath = memoryForPath(diff);
-            if (pReqPath == 0)
-            {
-                closeCC(pCC);
-                return 0;
-            }
-            memcpy(pReqPath, pStart, diff);
-            pReq->path = pReqPath;
-            INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_PATH);
+            closeCC(pCC);
+            return 0;
         }
-
-        printRequest(pReq);
-
-        // min-size: 6 bytes
-        if (state == PARSE_STATE_REQ_LINE_PATH)
+        else
         {
-            printf("PARSE PROT\n");
-            int pOK = 0;
-            char *protStart = pathStart;
+            // TODO: long paths
+            *pathStart = 0;
+        }
+        ++pathStart;
 
-            while (pOK < 10 && i < recvRes)
+        printf("PATH:%s|(#%ld)\n", pStart, diff);
+        char *pReqPath = memoryForPath(diff);
+        if (pReqPath == 0)
+        {
+            closeCC(pCC);
+            return 0;
+        }
+        memcpy(pReqPath, pStart, diff);
+        pReq->path = pReqPath;
+        INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_PATH);
+    }
+
+    printRequest(pReq);
+
+    // min-size: 6 bytes
+    if (state == PARSE_STATE_REQ_LINE_PATH)
+    {
+        printf("PARSE PROT\n");
+        int pOK = 0;
+        char *protStart = pathStart;
+
+        while (pOK < 10 && i < recvRes)
+        {
+            if (*pathStart <= '\n')
             {
-                if (*pathStart <= '\n')
+                if (i > 1)
                 {
-                    if (i > 1)
-                    {
-                        --pathStart;
-                        if (*pathStart != '\r')
-                        {
-                            i = -i;
-                        }
-                    }
-                    else
+                    --pathStart;
+                    if (*pathStart != '\r')
                     {
                         i = -i;
                     }
-
-                    break;
-                }
-                if (*pathStart == ' ')
-                {
-                    break;
-                }
-                ++pOK;
-                ++pathStart;
-                ++i;
-            }
-            if (i < 0 || pOK < 6 || pOK >= 10)
-            {
-                printf("CLOSE! %d|%d\n", i, pOK);
-                closeCC(pCC);
-                return 0;
-            }
-            else
-            {
-                int major, minor;
-                *pathStart = 0;
-                int numItems = sscanf(protStart, "HTTP/%d.%d", &major, &minor);
-                printf("PROT:%s|M=%d,m=%d\n", protStart, major, minor);
-                if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 7)
-                {
-                    closeCC(pCC);
-                    return 0;
-                }
-                minor |= major << 3;
-
-                pReq->requestMethod |= ((unsigned int)minor << 8);
-
-                pathStart += 2;
-                ++i;
-            }
-
-            state++;
-        }
-        printRequest(pReq);
-
-        // parsing separator line
-        if (state == 3)
-        {
-            printf("PARSE SEP-LINE\n");
-            int ok = 0;
-            if (recvRes - i >= 2)
-            {
-                if (*pathStart == '\r' && pathStart[1] == '\n')
-                {
-                    ok++;
-                    pathStart += 2;
-                    i += 2;
-                }
-            }
-            else
-            {
-                closeCC(pCC);
-                return 0;
-            }
-            if (ok)
-            {
-                state++;
-                ok--;
-            }
-        }
-
-        // parsing headers
-        if (state == 4)
-        {
-            printf("PARSE HEADERS\n");
-            if (recvRes - i >= 2)
-            {
-                if (*pathStart == '\r' && pathStart[1] == '\n')
-                {
-                    // ok++;
-                    pathStart += 2;
-                    i += 2;
-                    state++;
                 }
                 else
                 {
+                    i = -i;
                 }
+
+                break;
             }
+            if (*pathStart == ' ')
+            {
+                break;
+            }
+            ++pOK;
+            ++pathStart;
+            ++i;
         }
-        // parse/collect content
-        //- check if content there, but forbidden.
-        if (state == 5)
+        if (i < 0 || pOK < 6 || pOK >= 10)
         {
-            //
-            printf("PARSE CONTENT\n");
-        }
-
-        pCC->parseState = state;
-
-        // parse content, if needed
-
-        if (strlen(pStart) == 0 || strcmp("/", pStart) == 0)
-        {
-            printf("DEFAULT\n");
-            sleep(1);
-            pStart = "index.html";
-        }
-
-        int resSize = 0;
-        void *cacheData = searchPathInCache(pStart, &resSize);
-
-        printf("FROM CACHE! %p\n", cacheData);
-
-        if (cacheData != 0 && resSize != 0)
-        {
-            int s = send(clientSocketId, cacheData, resSize, 0);
-            printf("SENT:C: %d | %d\n", s, resSize);
+            printf("CLOSE! %d|%d\n", i, pOK);
+            closeCC(pCC);
+            return 0;
         }
         else
         {
-            char *data = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\nHallo";
-            char *data2 = "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\n\r\n";
-            char *data3 = "HTTP/1.0 404 Not Found\r\n";
-
-            char *p = strstr(pStart, "favicon.ico");
-            if (p != 0)
+            int major, minor;
+            *pathStart = 0;
+            int numItems = sscanf(protStart, "HTTP/%d.%d", &major, &minor);
+            printf("PROT:%s|M=%d,m=%d\n", protStart, major, minor);
+            if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 7)
             {
-                int r = loadFAV();
-                if (r == 0)
+                closeCC(pCC);
+                return 0;
+            }
+            minor |= major << 3;
+
+            pReq->requestMethod |= ((unsigned int)minor << 8);
+
+            pathStart += 2;
+            ++i;
+        }
+
+        state++;
+    }
+    printRequest(pReq);
+
+    // parsing separator line
+    if (state == 3)
+    {
+        printf("PARSE SEP-LINE\n");
+        int ok = 0;
+        if (recvRes - i >= 2)
+        {
+            if (*pathStart == '\r' && pathStart[1] == '\n')
+            {
+                ok++;
+                pathStart += 2;
+                i += 2;
+            }
+        }
+        else
+        {
+            closeCC(pCC);
+            return 0;
+        }
+        if (ok)
+        {
+            state++;
+            ok--;
+        }
+    }
+
+    // parsing headers
+    if (state == 4)
+    {
+        printf("PARSE HEADERS\n");
+        if (recvRes - i >= 2)
+        {
+            if (*pathStart == '\r' && pathStart[1] == '\n')
+            {
+                // ok++;
+                pathStart += 2;
+                i += 2;
+                state++;
+            }
+            else
+            {
+            }
+        }
+    }
+    // parse/collect content
+    //- check if content there, but forbidden.
+    if (state == 5)
+    {
+        //
+        printf("PARSE CONTENT\n");
+    }
+
+    pCC->parseState = state;
+
+    // parse content, if needed
+
+    if (strlen(pStart) == 0 || strcmp("/", pStart) == 0)
+    {
+        printf("DEFAULT\n");
+        sleep(1);
+        pStart = "index.html";
+    }
+
+    int resSize = 0;
+    void *cacheData = searchPathInCache(pStart, &resSize);
+
+    printf("FROM CACHE! %p\n", cacheData);
+
+    if (cacheData != 0 && resSize != 0)
+    {
+        int s = send(clientSocketId, cacheData, resSize, 0);
+        printf("SENT:C: %d | %d\n", s, resSize);
+    }
+    else
+    {
+        char *data = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\nHallo";
+        char *data2 = "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\n\r\n";
+        char *data3 = "HTTP/1.0 404 Not Found\r\n";
+
+        char *p = strstr(pStart, "favicon.ico");
+        if (p != 0)
+        {
+            int r = loadFAV();
+            if (r == 0)
+            {
+                if (favResponse != 0)
                 {
-                    if (favResponse != 0)
-                    {
-                        int s = send(clientSocketId, favResponse, favResponseLen, 0);
-                        printf("SENT:R: %d\n", s);
-                    }
-                    else
-                    {
-                        int s = send(clientSocketId, data2, strlen(data2), 0);
-                        printf("SENT:1: %d\n", s);
-                        s = send(clientSocketId, favData, favDataLen, 0);
-                        printf("SENT:2: %d\n", s);
-                    }
+                    int s = send(clientSocketId, favResponse, favResponseLen, 0);
+                    printf("SENT:R: %d\n", s);
                 }
                 else
                 {
-                    int s = send(clientSocketId, data3, strlen(data3), 0);
-                    printf("SENT:ERR: %d\n", s);
+                    int s = send(clientSocketId, data2, strlen(data2), 0);
+                    printf("SENT:1: %d\n", s);
+                    s = send(clientSocketId, favData, favDataLen, 0);
+                    printf("SENT:2: %d\n", s);
                 }
             }
             else
             {
-                recvRes = send(clientSocketId, data, strlen(data), 0);
-                printf("SENT: %ld\n", recvRes);
+                int s = send(clientSocketId, data3, strlen(data3), 0);
+                printf("SENT:ERR: %d\n", s);
             }
         }
-
-        closeCC(pCC);
-        // sleep(1);
+        else
+        {
+            recvRes = send(clientSocketId, data, strlen(data), 0);
+            printf("SENT: %ld\n", recvRes);
+        }
     }
 
-    return 0;
+    closeCC(pCC);
+    return RECV_PARSE_NO_ERROR;
 }
 
 #include "http_parser_test.h"

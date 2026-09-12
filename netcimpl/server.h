@@ -83,6 +83,7 @@ typedef struct MyServerClientConnection
     unsigned int state;
     unsigned int parseState;
     unsigned int requestState;
+    int lastErrno;
     void *next;
     // void *data;
     void *request;
