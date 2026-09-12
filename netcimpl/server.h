@@ -706,14 +706,19 @@ int basicHandle(void *pConnection, int cmd, void *param)
 
 void freeRequest(void *p);
 
+int verbose = 1;
+
 void closeCC(MyServerClientConnection *pCC)
 {
     printf("CLOSE CON!\n");
+#if TESTING == 0
     if (pCC->socketId != 0)
     {
+        printf("Close socket!\n");
         close(pCC->socketId);
         pCC->socketId = 0;
     }
+#endif
     if (pCC->request != 0)
     {
         freeRequest(pCC->request);

@@ -28,6 +28,10 @@ int socketId;
 
 // #define SERVER_NONBLOCKING 1
 
+#ifndef TESTING
+#define TESTING 0
+#endif
+
 #include "server.h"
 
 MyServer myServer;
@@ -83,15 +87,27 @@ const char *tests[] = {
     "1:2:3:4::5.6.7.8"};
 #define NUM_TESTS (sizeof(tests) / sizeof(tests[0]))
 
-int main()
-{
-    signal(SIGINT, signalHandler);
-
+void testParseIp() {
+#if 0
     for (size_t i = 0; 1 == 0 && i < NUM_TESTS; i++)
     {
         int parseRes = parse_ip(tests[i], 0);
         printf("IN: %s\nRES: %x (%s)(%s)\n", tests[i], parseRes, parse_ip_error(parseRes), parse_ip_success(parseRes));
     }
+#endif
+}
+
+int main()
+{
+    signal(SIGINT, signalHandler);
+    //testParseIp();
+
+#if TESTING
+    testParser();
+    return 0;
+#endif
+
+
     //printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
 
     nullify(&myServer, sizeof(myServer));

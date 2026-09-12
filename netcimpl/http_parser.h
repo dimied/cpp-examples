@@ -521,6 +521,25 @@ void printRequest(HttpRequest *p)
     }
 }
 
+#if TESTING
+int test_errno = 0;
+
+ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags);
+
+#define RECV_FUNC(SOCKET_ID, DATA_PTR, LEN, FLAGS) test_recv(SOCKET_ID, DATA_PTR, LEN, FLAGS)
+
+#define ERRNO_VALUE (test_errno)
+
+#else
+
+#define RECV_FUNC(SOCKET_ID, DATA_PTR, LEN, FLAGS) recv(SOCKET_ID, DATA_PTR, LEN, FLAGS)
+
+#define ERRNO_VALUE (errno)
+#endif
+
+#define RECV_PARSE_ERROR_FAILED 0
+#define RECV_PARSE_ERROR_NO_DATA 0
+
 int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
 {
     (void)(pServerConnection);
@@ -549,17 +568,18 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         }
         else
         {
-            recvRes = recv(clientSocketId, inBuffer.data, BUF_LEN_IN - 1, 0);
+            recvRes = RECV_FUNC(clientSocketId, inBuffer.data, (BUF_LEN_IN - 1), 0);
         }
-
         printf("RECV: %ld\n", recvRes);
-        printf("Request:\n----\n%s\n----\n", inBuffer.data);
 
         if (recvRes <= 0)
         {
+            printf("ERRNO: %d\n", ERRNO_VALUE);
             // TODO:check EAGAIN or EWOULDBLOCK.
-            return 0;
+            return RECV_PARSE_ERROR_NO_DATA;
         }
+
+        // printf("Request:\n----\n%s\n----\n", inBuffer.data);
         int state = pCC->parseState;
         char *pathStart = inBuffer.data;
         int i = 1;
@@ -878,32 +898,33 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         }
 
         closeCC(pCC);
-        // sleep(5);
-
-        /*
-        // GET /file ....
-
-    char* file_request = buffer + 5;
-    char response[1024] = {0};
-    char* metadata = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n";
-
-    memcpy(response, metadata, strlen(metadata));
-
-    if (strncmp(file_request, "index.html ", 11) == 0) {
-        FILE* f = fopen("index.html", "r");
-        fread(response + strlen(metadata), 1024 - strlen(metadata) - 1, 1, f);
-        fclose(f);
-    } else {
-        char* error = "No page found";
-        memcpy(response + strlen(metadata), error, strlen(error));
-    }
-
-    SSL_write(ssl, response, 1024);
-    SSL_shutdown(ssl);
-*/
         // sleep(1);
     }
 
     return 0;
 }
+
+#include "http_parser_test.h"
+
+/*
+// GET /file ....
+
+char* file_request = buffer + 5;
+char response[1024] = {0};
+char* metadata = "HTTP/1.0 200 OK\r\nContent-Type: text/html\r\n\r\n";
+
+memcpy(response, metadata, strlen(metadata));
+
+if (strncmp(file_request, "index.html ", 11) == 0) {
+FILE* f = fopen("index.html", "r");
+fread(response + strlen(metadata), 1024 - strlen(metadata) - 1, 1, f);
+fclose(f);
+} else {
+char* error = "No page found";
+memcpy(response + strlen(metadata), error, strlen(error));
+}
+
+SSL_write(ssl, response, 1024);
+SSL_shutdown(ssl);
+*/
 #endif
