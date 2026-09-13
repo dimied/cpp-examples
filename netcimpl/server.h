@@ -801,7 +801,6 @@ void printTypeSizes()
     printf("Ser-Con:size:%ld\n", sizeof(MyServerConnection));
     printf("Cli-Con:size:%ld\n", sizeof(MyServerClientConnection));
     printf("Request:size:%ld\n", sizeof(HttpRequest));
-
     printf("\n");
 }
 #endif

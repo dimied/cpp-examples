@@ -97,10 +97,17 @@ void testParseIp() {
 #endif
 }
 
+#include "http_parser_benchmark_snippets.h"
+
 int main()
 {
     signal(SIGINT, signalHandler);
     //testParseIp();
+    printTypeSizes();
+
+    bench_parse_method();
+    bench_parse_protocol();
+    return 0;
 
 #if TESTING
     testParser();
@@ -117,7 +124,7 @@ int main()
     myServer.conns[0].handleCommand = basicHandle;
     myServer.conns[0].handleClientCommand = basicHandleClientConnection;
 
-    printTypeSizes();
+    
     sleep(1);
 
     int conRes = cfc_connect(&myServer);

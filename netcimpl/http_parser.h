@@ -451,24 +451,27 @@ char *HttpMethods[NUM_HTTP_METHODS] = {
     "TRACE",
 };
 
-#if 0
+#if 1
 #define ES(BC) ((unsigned long)' ' << BC)
 
-#define WORD3_TO_UINT64(C1, C2, C3) (C1 | (C2 << 8) | (C3 << 16) | ES(24))
+#define WORD3_TO_UINT64(C1, C2, C3) (C1 | (C2 << 8) | (C3 << 16))
+#define WORD3_TO_UINT64_END(C1, C2, C3) (WORD3_TO_UINT64(C1, C2, C3) | ES(24))
 #define WORD4_TO_UINT64(C1, C2, C3, C4) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ES(32))
-#define WORD5_TO_UINT64(C1, C2, C3, C4, C5) (WORD4_TO_UINT64(C1, C2, C3, C4) | ((unsigned long)C5 << 32) | ES(40))
-#define WORD6_TO_UINT64(C1, C2, C3, C4, C5, C6) (WORD5_TO_UINT64(C1, C2, C3, C4, C5) | ((unsigned long)C6 << 40) | ES(48))
-#define WORD7_TO_UINT64(C1, C2, C3, C4, C5, C6, C7) (WORD6_TO_UINT64(C1, C2, C3, C4, C5, C6) | ((unsigned long)C7 << 48) | ES(56))
+#define WORD5_TO_UINT64(C1, C2, C3, C4, C5) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ES(40))
+#define WORD6_TO_UINT64(C1, C2, C3, C4, C5, C6) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ES(48))
+#define WORD7_TO_UINT64(C1, C2, C3, C4, C5, C6, C7) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | ES(56))
+
+#define WORD8_TO_UINT64(C1, C2, C3, C4, C5, C6, C7, C8) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | ((unsigned long)C8 << 56))
 
 uint64_t HttpMethods2[NUM_HTTP_METHODS] = {
     WORD7_TO_UINT64('C', 'O', 'N', 'N', 'E', 'C', 'T'),
     WORD6_TO_UINT64('D', 'E', 'L', 'E', 'T', 'E'),
-    WORD3_TO_UINT64('G', 'E', 'T'),
+    WORD3_TO_UINT64_END('G', 'E', 'T'),
     WORD4_TO_UINT64('H', 'E', 'A', 'D'),
     WORD7_TO_UINT64('O', 'P', 'T', 'I', 'O', 'N', 'S'),
     WORD5_TO_UINT64('P', 'A', 'T', 'C', 'H'),
     WORD4_TO_UINT64('P', 'O', 'S', 'T'),
-    WORD3_TO_UINT64('P', 'U', 'T'),
+    WORD3_TO_UINT64_END('P', 'U', 'T'),
     WORD5_TO_UINT64('T', 'R', 'A', 'C', 'E'),
 };
 #endif
@@ -542,9 +545,44 @@ ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags);
 #define RECV_PARSE_ERROR_END_OF_FILE 1
 #define RECV_PARSE_ERROR_EAGAIN 2
 
-#define RECV_PARSE_NO_ERROR 100
+#define RECV_PARSE_ERROR_NO_REQMEM 0x10
+
+#define RECV_PARSE_ERROR_MORE_DATA 0x20
+#define RECV_PARSE_ERROR_METHOD_FAILED 0x21
+
+#define RECV_PARSE_NO_ERROR 0x40
+
+// for storing errno in the result
+#define RECV_PARSE_RECV_ERROR_MASK 0x80
 
 #define CHECK_SOCKET_ID 1
+
+#define ONLY_STANDARD_HTTP_VERBS 1
+
+#define SERVER_MULTITHREADING 1
+
+#if SERVER_MULTITHREADING
+#include <pthread.h>
+
+pthread_mutex_t errno_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void noop()
+{
+}
+
+void lock_errno()
+{
+    pthread_mutex_lock(&errno_lock);
+}
+
+void unlock_errno()
+{
+    pthread_mutex_unlock(&errno_lock);
+}
+#else
+#define lock_errno noop
+#define unlock_errno noop
+#endif
 
 int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
 {
@@ -573,30 +611,54 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
     {
         MyServerClientConnectionSecure *pSC = (MyServerClientConnectionSecure *)pCC;
 
+#if SERVER_MULTITHREADING
+        lock_errno();
+#endif
         //<=0 means error
         recvRes = SSL_read(pSC->ssl, inBuffer.data, BUF_LEN_IN - 1);
     }
     else
     {
+
+#if SERVER_MULTITHREADING
+        lock_errno();
+#endif
         recvRes = RECV_FUNC(clientSocketId, inBuffer.data, (BUF_LEN_IN - 1), 0);
     }
-    //printf("RECV: %ld\n", recvRes);
+#if SERVER_MULTITHREADING
+    unlock_errno();
+#endif
+    // printf("RECV: %ld\n", recvRes);
 
     if (recvRes <= 0)
     {
+        int err = ERRNO_VALUE;
+
+#if SERVER_MULTITHREADING
+        unlock_errno();
+#endif
         if (recvRes == 0)
         {
             return RECV_PARSE_ERROR_END_OF_FILE;
         }
-        //printf("ERRNO: %d\n", ERRNO_VALUE);
-        int err = ERRNO_VALUE;
-        pCC->lastErrno = err;
-        if (err == EAGAIN)
+        // printf("ERRNO: %d\n", ERRNO_VALUE);
+
+        // e.g: EAGAIN,EBADF,ECONNREFUSED,EFAULT,EINTR,EINVAL,ENOMEM,ENOTCONN,ENOTSOCK
+
+#if USE_COMPACT_ERROR
+        if (err >= 0 && err < 0x80)
         {
-            return RECV_PARSE_ERROR_EAGAIN;
+            // compact way to save
+            return (RECV_PARSE_RECV_ERROR_MASK|((size_t)err<<8);
         }
-        return RECV_PARSE_ERROR_NO_DATA;
+#endif
+        pCC->lastErrno = err;
+
+        return RECV_PARSE_ERROR_EAGAIN;
     }
+#if SERVER_MULTITHREADING
+    unlock_errno();
+#endif
 
     // printf("Request:\n----\n%s\n----\n", inBuffer.data);
     int state = pCC->parseState;
@@ -615,27 +677,27 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
     if (PARSE_STATE_REQ_LINE == state)
     {
         // We need to be able to parse at least 7 chars and ' '
+#if 0
         if (recvRes < 8)
         {
             closeCC(pCC);
-            return 0;
+            return RECV_PARSE_ERROR_MORE_DATA;
         }
+#endif
         if (pReq == 0)
         {
             pReq = newRequest();
 
             if (pReq == 0)
             {
-                printf("REQ not created\n");
                 closeCC(pCC);
-                return 0;
+                return RECV_PARSE_ERROR_NO_REQMEM;
             }
             pCC->request = pReq;
         }
 
-        printf("PARSE METHOD\n");
-
         int s = 0;
+#if ONLY_STANDARD_HTTP_VERBS
         // parse method
         while (i < 9 && i < recvRes)
         {
@@ -653,17 +715,21 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             ++pathStart;
             ++i;
         }
+
         // line-end found?
         if (s <= 0)
         {
             // s==0: too long
             closeCC(pCC);
-            return 0;
+            return RECV_PARSE_ERROR_METHOD_FAILED;
         }
         else
         {
             *pathStart = 0;
         }
+#else
+#error "No custom HTTP verbs supported"
+#endif
         int j;
         {
             //--i;
@@ -686,7 +752,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         {
             printf("Invalid method found! (%s)\n", inBuffer.data);
             closeCC(pCC);
-            return 0;
+            return RECV_PARSE_ERROR_METHOD_FAILED;
         }
         ++pathStart;
         //++i;
@@ -740,9 +806,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_PATH);
     }
 
-    printRequest(pReq);
-
-    // min-size: 6 bytes
+    // min-size: 8 bytes
     if (state == PARSE_STATE_REQ_LINE_PATH)
     {
         printf("PARSE PROT\n");
@@ -786,6 +850,9 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         {
             int major, minor;
             *pathStart = 0;
+            // TODO:
+            //- test parsing vs. sscanf("HTTP/x.y"), sscanf("/x.y")
+            //- test with different alignments
             int numItems = sscanf(protStart, "HTTP/%d.%d", &major, &minor);
             printf("PROT:%s|M=%d,m=%d\n", protStart, major, minor);
             if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 7)
@@ -793,7 +860,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                 closeCC(pCC);
                 return 0;
             }
-            minor |= major << 3;
+            minor |= major << 4;
 
             pReq->requestMethod |= ((unsigned int)minor << 8);
 
