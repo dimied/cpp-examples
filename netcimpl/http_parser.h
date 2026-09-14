@@ -1,9 +1,30 @@
 #ifndef HTTP_PARSER
 #define HTTP_PARSER
 
+//#include "mimetypecreate.h"
+
+#ifndef HTTP_PARSER_MACROS
+#if HTTP_PARSER_DECLARATIONS
+#define HTTP_PARSER_MACROS 1
+#endif
+#endif
+
+#if HTTP_PARSER_MACROS
+#define WORD_ES(BC) ((unsigned long)' ' << BC)
+
+#define WORD3_TO_UINT64(C1, C2, C3) (C1 | (C2 << 8) | (C3 << 16))
+#define WORD3_TO_UINT64_ES_END(C1, C2, C3) (WORD3_TO_UINT64(C1, C2, C3) | WORD_ES(24))
+#define WORD4_TO_UINT64(C1, C2, C3, C4) (WORD3_TO_UINT64(C1, C2, C3) | (C4) << 24)
+#define WORD4_TO_UINT64_ES_END(C1, C2, C3, C4) (WORD4_TO_UINT64(C1, C2, C3, C4) | WORD_ES(32))
+#define WORD5_TO_UINT64_ES_END(C1, C2, C3, C4, C5) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | WORD_ES(40))
+#define WORD6_TO_UINT64_ES_END(C1, C2, C3, C4, C5, C6) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | WORD_ES(48))
+#define WORD7_TO_UINT64_ES_END(C1, C2, C3, C4, C5, C6, C7) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | WORD_ES(56))
+
+#define WORD8_TO_UINT64(C1, C2, C3, C4, C5, C6, C7, C8) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | ((unsigned long)C8 << 56))
+#endif
+
 #ifdef HTTP_PARSER_DECLARATIONS
 #if HTTP_PARSER_DECLARATIONS
-
 typedef struct RequestHttpHeaders
 {
     unsigned short acceptedTypes[4]; // pairs (quality,type)
@@ -24,18 +45,17 @@ typedef struct RequestHttpContent
 #define HTTP_REQUEST_NUM_PTRS 4
 #endif
 
-#define PROTO_MAJOR_VERSION(M) ((M >> 11) & 0x7)
-#define PROTO_MINOR_VERSION(M) ((M >> 8) & 0x7)
+#define PROTOCOL_MAJOR_VERSION(M) ((M >> 12) & 0x7)
+#define PROTOCOL_MINOR_VERSION(M) ((M >> 8) & 0xF)
 
 typedef struct HttpRequest
 {
-    // 5 bits for request method
-    // 3 bits reserved for custom request method.
-    // 3 bits for major http version, 3 bits for minor http version
-    // 2 bits reserved
+    // 8 bits for request method
+    // 4 bits reserved for custom request method.
+    // 4 bits for major http version, 3 bits for minor http version
+    // 16 unused
     unsigned int requestMethod;
     unsigned int state;
-
 #if 0
     uint64_t pointerTypes; 
     void* pointers[8];
@@ -91,29 +111,6 @@ typedef struct UnknownHeaderResult
 #endif
 #endif
 
-static const struct table_entry
-{
-    const char *extension;
-    const char *content_type;
-} content_type_table[] = {
-    //{"c", "text/plain"},
-    //{"h", "text/plain"},
-    {"css", "text/css"},
-    {"gif", "image/gif"},
-    {"htm", "text/htm"},
-    {"html", "text/html"},
-    {"ico", "image/vnd.microsoft.icon"},
-    {"jpeg", "image/jpeg"},
-    {"jpg", "image/jpeg"},
-    {"js", "text/javascript"},
-    {"json", "application/json"},
-    {"svg", "image/svg+xml"},
-    {"png", "image/png"},
-    {"pdf", "application/pdf"},
-    {"ps", "application/postscript"},
-    {"txt", "text/plain"}};
-
-#include "mimetypecreate.h"
 
 #ifdef HTTP_PARSER_IMPLEMENTATION
 #if HTTP_PARSER_IMPLEMENTATION
@@ -452,27 +449,16 @@ char *HttpMethods[NUM_HTTP_METHODS] = {
 };
 
 #if 1
-#define ES(BC) ((unsigned long)' ' << BC)
-
-#define WORD3_TO_UINT64(C1, C2, C3) (C1 | (C2 << 8) | (C3 << 16))
-#define WORD3_TO_UINT64_END(C1, C2, C3) (WORD3_TO_UINT64(C1, C2, C3) | ES(24))
-#define WORD4_TO_UINT64(C1, C2, C3, C4) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ES(32))
-#define WORD5_TO_UINT64(C1, C2, C3, C4, C5) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ES(40))
-#define WORD6_TO_UINT64(C1, C2, C3, C4, C5, C6) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ES(48))
-#define WORD7_TO_UINT64(C1, C2, C3, C4, C5, C6, C7) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | ES(56))
-
-#define WORD8_TO_UINT64(C1, C2, C3, C4, C5, C6, C7, C8) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | ((unsigned long)C8 << 56))
-
 uint64_t HttpMethods2[NUM_HTTP_METHODS] = {
-    WORD7_TO_UINT64('C', 'O', 'N', 'N', 'E', 'C', 'T'),
-    WORD6_TO_UINT64('D', 'E', 'L', 'E', 'T', 'E'),
-    WORD3_TO_UINT64_END('G', 'E', 'T'),
-    WORD4_TO_UINT64('H', 'E', 'A', 'D'),
-    WORD7_TO_UINT64('O', 'P', 'T', 'I', 'O', 'N', 'S'),
-    WORD5_TO_UINT64('P', 'A', 'T', 'C', 'H'),
-    WORD4_TO_UINT64('P', 'O', 'S', 'T'),
-    WORD3_TO_UINT64_END('P', 'U', 'T'),
-    WORD5_TO_UINT64('T', 'R', 'A', 'C', 'E'),
+    WORD7_TO_UINT64_ES_END('C', 'O', 'N', 'N', 'E', 'C', 'T'),
+    WORD6_TO_UINT64_ES_END('D', 'E', 'L', 'E', 'T', 'E'),
+    WORD3_TO_UINT64_ES_END('G', 'E', 'T'),
+    WORD4_TO_UINT64_ES_END('H', 'E', 'A', 'D'),
+    WORD7_TO_UINT64_ES_END('O', 'P', 'T', 'I', 'O', 'N', 'S'),
+    WORD5_TO_UINT64_ES_END('P', 'A', 'T', 'C', 'H'),
+    WORD4_TO_UINT64_ES_END('P', 'O', 'S', 'T'),
+    WORD3_TO_UINT64_ES_END('P', 'U', 'T'),
+    WORD5_TO_UINT64_ES_END('T', 'R', 'A', 'C', 'E'),
 };
 #endif
 
@@ -514,7 +500,7 @@ void printRequest(HttpRequest *p)
             s = p->path;
         }
         printf(">PATH|%s|\n", s);
-        int major = PROTO_MAJOR_VERSION(p->requestMethod), minor = PROTO_MINOR_VERSION(p->requestMethod);
+        int major = PROTOCOL_MAJOR_VERSION(p->requestMethod), minor = PROTOCOL_MINOR_VERSION(p->requestMethod);
         printf(">PROTO:%d.%d\n", major, minor);
         printf("\n");
     }

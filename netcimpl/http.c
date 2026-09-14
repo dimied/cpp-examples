@@ -18,6 +18,28 @@
 int running = 1;
 int retValue = 0;
 
+// #define SERVER_NONBLOCKING 1
+
+#ifndef TESTING
+#define TESTING 0
+#endif
+
+#define IP_EXAMPLE 0
+#define SC_EXAMPLE 0
+#define NET_EXAMPLE 0
+
+#if IP_EXAMPLE
+#include "ip_util.h"
+void testParseIp()
+#endif
+
+#if SC_EXAMPLE
+#include "linux_sysconf.h"
+
+    void sysConfExample();
+#endif
+
+#if NET_EXAMPLE
 struct addrinfo hints;
 
 struct sockaddr_in socketAddr;
@@ -26,10 +48,7 @@ struct sockaddr_storage otherAddr;
 socklen_t otherAddrLen;
 int socketId;
 
-// #define SERVER_NONBLOCKING 1
-
-#ifndef TESTING
-#define TESTING 0
+int networkExample();
 #endif
 
 #include "server.h"
@@ -40,13 +59,14 @@ void signalHandler(int sig)
 {
     (void)(sig);
     const char msg[] = "Caught SIGINT\n";
-    const char msg2[] = "Close socket\n";
 
     int closeRes = cfc_close(&myServer);
     printf("Close res: %d\n", closeRes);
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-result"
+#if NET_EXAMPLE
+    const char msg2[] = "Close socket\n";
     if (socketId != 0)
     {
         shutdown(socketId, SHUT_RDWR);
@@ -54,6 +74,7 @@ void signalHandler(int sig)
 
         write(STDOUT_FILENO, msg2, sizeof(msg2) - 1);
     }
+#endif
     write(STDOUT_FILENO, msg, sizeof(msg) - 1);
 #pragma GCC diagnostic pop
     running = 0;
@@ -66,43 +87,12 @@ char buffer[1024];
 
 // fd_set fdSet;
 
-#include "linux_sysconf.h"
-
-#include "ip_util.h"
-
-const char *tests[] = {
-    "127.0.0.1",
-    "127.0.0+1",
-    "127.0.0.G",
-    "127.0.0.F",
-    "::1",
-    "1.1.1.1",
-    "10.0.0.1",
-    "10.255.0.1",
-    "10.-255.0.1",
-    "10.256.0.1",
-    ":10.255.0.1",
-    "::10.255.0.1",
-    "1:2:3:4:5:6:7:8",
-    "1:2:3:4::5.6.7.8"};
-#define NUM_TESTS (sizeof(tests) / sizeof(tests[0]))
-
-void testParseIp() {
-#if 0
-    for (size_t i = 0; 1 == 0 && i < NUM_TESTS; i++)
-    {
-        int parseRes = parse_ip(tests[i], 0);
-        printf("IN: %s\nRES: %x (%s)(%s)\n", tests[i], parseRes, parse_ip_error(parseRes), parse_ip_success(parseRes));
-    }
-#endif
-}
-
 #include "http_parser_benchmark_snippets.h"
 
 int main()
 {
     signal(SIGINT, signalHandler);
-    //testParseIp();
+    // testParseIp();
     printTypeSizes();
 
     bench_parse_method();
@@ -114,8 +104,7 @@ int main()
     return 0;
 #endif
 
-
-    //printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
+    // printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
 
     nullify(&myServer, sizeof(myServer));
     myServer.conns[0].name = "localhost";
@@ -124,7 +113,6 @@ int main()
     myServer.conns[0].handleCommand = basicHandle;
     myServer.conns[0].handleClientCommand = basicHandleClientConnection;
 
-    
     sleep(1);
 
     int conRes = cfc_connect(&myServer);
@@ -132,7 +120,7 @@ int main()
 
     int listenRes2 = cfc_listen(&myServer);
     printf("LISTEN-RES:%d\n", listenRes2);
-    //sleep(2);
+    // sleep(2);
     int cfr = cacheFiles();
     printf("Cache files: %d\n", cfr);
 
@@ -146,8 +134,12 @@ int main()
     int closeRes = cfc_close(&myServer);
     printf("CLOSE-RES:%d\n", closeRes);
 
-    return 0;
+    return retValue;
+}
 
+#if SC_EXAMPLE
+void sysConfExample()
+{
     char buf[200];
     memset(buf, 0, 200);
 
@@ -163,35 +155,13 @@ int main()
         printf("%s", buf);
         printf("---\n");
     }
-    return 0;
+}
+#endif
 
-    size_t size = 0;
-    char *pContent = getContent(&size);
-    if (pContent == 0)
-    {
-        printf("FAILED: Content!\n");
-        return 1;
-    }
-    FILE *pFile = fopen("mimetypefast.h", "w");
-    if (pFile == 0)
-    {
-        printf("FAILED: File!\n");
-        printf("FREE:Content...\n");
-        free(pContent);
-        printf("FREE:Content...DONE\n");
-        return 1;
-    }
-    size_t contentLen = strlen(pContent);
-    printf("CL: %ld\n", contentLen);
-    fwrite(pContent, 1, contentLen, pFile);
+#if NET_EXAMPLE
 
-    int fileRes = fclose(pFile);
-    printf("File close: %d\n", fileRes);
-    printf("FREE:Content...\n");
-    free(pContent);
-    printf("FREE:Content...DONE\n");
-
-    return 0;
+int networkExample()
+{
 
     struct protoent *proto = getprotobyname("tcp");
 
@@ -291,6 +261,35 @@ int main()
         sleep(1);
     }
     close(socketId);
-
     return retValue;
 }
+#endif
+
+#if IP_EXAMPLE
+const char *tests[] = {
+    "127.0.0.1",
+    "127.0.0+1",
+    "127.0.0.G",
+    "127.0.0.F",
+    "::1",
+    "1.1.1.1",
+    "10.0.0.1",
+    "10.255.0.1",
+    "10.-255.0.1",
+    "10.256.0.1",
+    ":10.255.0.1",
+    "::10.255.0.1",
+    "1:2:3:4:5:6:7:8",
+    "1:2:3:4::5.6.7.8"};
+
+#define NUM_TESTS (sizeof(tests) / sizeof(tests[0]))
+
+void testParseIp()
+{
+    for (size_t i = 0; 1 == 0 && i < NUM_TESTS; i++)
+    {
+        int parseRes = parse_ip(tests[i], 0);
+        printf("IN: %s\nRES: %x (%s)(%s)\n", tests[i], parseRes, parse_ip_error(parseRes), parse_ip_success(parseRes));
+    }
+}
+#endif

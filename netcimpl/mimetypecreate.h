@@ -8,6 +8,30 @@
 #define MASK_8BYTES (~(0x7))
 
 // #include <string.h>
+
+static const struct table_entry
+{
+    const char *extension;
+    const char *content_type;
+} content_type_table[] = {
+    //{"c", "text/plain"},
+    //{"h", "text/plain"},
+    {"css", "text/css"},
+    {"gif", "image/gif"},
+    {"htm", "text/htm"},
+    {"html", "text/html"},
+    {"ico", "image/vnd.microsoft.icon"},
+    {"jpeg", "image/jpeg"},
+    {"jpg", "image/jpeg"},
+    {"js", "text/javascript"},
+    {"json", "application/json"},
+    {"svg", "image/svg+xml"},
+    {"png", "image/png"},
+    {"pdf", "application/pdf"},
+    {"ps", "application/postscript"},
+    {"txt", "text/plain"}};
+
+
 int compare(const void *a, const void *b)
 {
     if (a == b)
@@ -423,6 +447,34 @@ char *getContent(size_t *pSize)
     *pSize = strlen(dst);
 
     return dst;
+}
+
+void writeMimeContent() {
+    size_t size = 0;
+    char *pContent = getContent(&size);
+    if (pContent == 0)
+    {
+        printf("FAILED: Content!\n");
+        return 1;
+    }
+    FILE *pFile = fopen("mimetypefast.h", "w");
+    if (pFile == 0)
+    {
+        printf("FAILED: File!\n");
+        printf("FREE:Content...\n");
+        free(pContent);
+        printf("FREE:Content...DONE\n");
+        return 1;
+    }
+    size_t contentLen = strlen(pContent);
+    printf("CL: %ld\n", contentLen);
+    fwrite(pContent, 1, contentLen, pFile);
+
+    int fileRes = fclose(pFile);
+    printf("File close: %d\n", fileRes);
+    printf("FREE:Content...\n");
+    free(pContent);
+    printf("FREE:Content...DONE\n");
 }
 
 #endif
