@@ -95,11 +95,14 @@ int main()
     // testParseIp();
     printTypeSizes();
 
+#if 0
     bench_parse_method();
     bench_parse_protocol();
     return 0;
+#endif
 
 #if TESTING
+
     testParser();
     return 0;
 #endif

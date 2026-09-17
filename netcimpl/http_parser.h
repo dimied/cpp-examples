@@ -1,7 +1,7 @@
 #ifndef HTTP_PARSER
 #define HTTP_PARSER
 
-//#include "mimetypecreate.h"
+// #include "mimetypecreate.h"
 
 #ifndef HTTP_PARSER_MACROS
 #if HTTP_PARSER_DECLARATIONS
@@ -110,7 +110,6 @@ typedef struct UnknownHeaderResult
 } UnknownHeaderResult;
 #endif
 #endif
-
 
 #ifdef HTTP_PARSER_IMPLEMENTATION
 #if HTTP_PARSER_IMPLEMENTATION
@@ -404,7 +403,123 @@ void parseAcceptLanguage(char *pAcceptLanguage, unsigned long *pAcceptRes)
 #endif
 #endif
 
-#define BUF_LEN_IN 2048
+int parseAcceptCC(MyServerClientConnection *pCC, char *data, int len)
+{
+    (void)(pCC);
+    (void)(data);
+    (void)(len);
+    return 0;
+}
+
+int parseAcceptEncodingCC(MyServerClientConnection *pCC, char *data, int len)
+{
+    (void)(pCC);
+    (void)(data);
+    (void)(len);
+    return 0;
+}
+
+int parseAcceptLanguageCC(MyServerClientConnection *pCC, char *data, int len)
+{
+    (void)(pCC);
+    (void)(data);
+    (void)(len);
+    return 0;
+}
+
+int parseNotImplemented(MyServerClientConnection *pCC, char *data, int len)
+{
+    (void)(pCC);
+    (void)(data);
+    (void)(len);
+    return 0;
+}
+
+typedef int (*HeaderHandlerFunc)(MyServerClientConnection *pCC, char *data, int len);
+
+typedef struct HeaderHandler
+{
+    char *name;
+    HeaderHandlerFunc func;
+} HeaderHandler;
+
+#define HH(S, H) {S, H}
+
+HeaderHandler headerHandlers[] = {
+    HH("accept", parseAcceptCC),
+    HH("accept-encoding", parseAcceptEncodingCC),
+    HH("accept-language", parseAcceptLanguageCC),
+    HH("Access-Control-Request-Headers", parseAcceptLanguageCC),
+    HH("Access-Control-Request-Method", parseAcceptLanguageCC),
+    HH("alt-used", parseAcceptLanguageCC),
+    HH("authorization", parseAcceptLanguageCC),
+    // HH("Available-Dictionary", parseAcceptLanguageCC),
+    HH("cache-control", parseAcceptLanguageCC),
+    HH("connection", parseNotImplemented),
+    HH("content-digest", parseNotImplemented),
+    HH("cookie", parseNotImplemented),
+    HH("date", parseNotImplemented),
+    HH("Device-Memory", parseNotImplemented),
+    HH("Dictionary-ID", parseNotImplemented),
+    HH("dnt", parseNotImplemented),
+    HH("Downlink", parseNotImplemented),
+    HH("DPR", parseNotImplemented),
+    HH("Early-Data", parseNotImplemented),
+    HH("ECT", parseNotImplemented),
+    HH("ETag", parseNotImplemented),
+    HH("Expect", parseNotImplemented),
+    HH("Forwarded", parseNotImplemented),
+    HH("From", parseNotImplemented),
+    HH("Idempotency-Key", parseNotImplemented),
+    HH("If-Match", parseNotImplemented),
+    HH("If-Modified-Since", parseNotImplemented),
+    HH("If-None-Match", parseNotImplemented),
+    HH("If-Range", parseNotImplemented),
+    HH("If-Unmodified-Since", parseNotImplemented),
+    HH("Keep-Alive", parseNotImplemented),
+    HH("Max-Forwards", parseNotImplemented),
+    HH("Origin", parseNotImplemented),
+    HH("Pragma", parseNotImplemented),
+    HH("Prefer", parseNotImplemented),
+    HH("Proxy-Authorization", parseNotImplemented),
+    HH("Range", parseNotImplemented),
+    HH("Repr-Digest", parseNotImplemented),
+    HH("RTT", parseNotImplemented),
+    HH("Save-Data", parseNotImplemented),
+    HH("sec-fetch-dest", parseNotImplemented),
+    HH("sec-fetch-mode", parseNotImplemented),
+    HH("sec-fetch-site", parseNotImplemented),
+    HH("Sec-Fetch-User", parseNotImplemented),
+    HH("Sec-Purpose", parseNotImplemented),
+    HH("Sec-WebSocket-Extensions", parseNotImplemented),
+    HH("Sec-WebSocket-Key", parseNotImplemented),
+    HH("Sec-WebSocket-Protocol", parseNotImplemented),
+    HH("Sec-WebSocket-Version", parseNotImplemented),
+    HH("Service-Worker", parseNotImplemented),
+    HH("Service-Worker-Navigation-Preload", parseNotImplemented),
+    HH("TE", parseNotImplemented),
+    HH("Trailer", parseNotImplemented),
+    HH("Transfer-Encoding", parseNotImplemented),
+    HH("Upgrade", parseNotImplemented),
+    HH("Upgrade-Insecure-Requests", parseNotImplemented),
+    HH("Via", parseNotImplemented),
+    HH("Viewport-Width", parseNotImplemented),
+    HH("Want-Content-Digest", parseNotImplemented),
+    HH("Want-Repr-Digest", parseNotImplemented),
+    HH("Width", parseNotImplemented),
+    HH("priority", parseNotImplemented),
+    HH("referer", parseNotImplemented),
+    HH("sec-gpc", parseNotImplemented),
+    HH("user-agent", parseNotImplemented),
+};
+
+// RESPONSE-headers
+// Accept-CH, Accept-Patch, Accept-Post, Accept-Ranges, ...
+//
+
+#define NUM_HEADER_HANDLERS (sizeof(headerHandlers) / sizeof(headerHandlers[0]))
+
+#define BUF_LEN_IN 4096
 
 #ifdef SET_STATES
 #define INC_STATE_OR_SET(STATE, NEW_STATE) (STATE = NEW_STATE)
@@ -471,10 +586,13 @@ uint64_t HttpMethods2[NUM_HTTP_METHODS] = {
 // Warning: 'TRACE' excluded
 #define LENGTH_INDEX_MASK ((LENGTH_INDEX_MASK3 << 24) | (LENGTH_INDEX_MASK4 << 32) | (LENGTH_INDEX_MASK5 << 40) | (LENGTH_INDEX_MASK5 << 48) | (LENGTH_INDEX_MASK5 << 56))
 #endif
+
 #define PARSE_STATE_REQ_LINE 0
 #define PARSE_STATE_REQ_LINE_HAS_METHOD 1
 #define PARSE_STATE_REQ_LINE_PATH 2
 #define PARSE_STATE_REQ_LINE_PROTOCOL 3
+#define PARSE_STATE_REQ_HEADERS 4
+
 char *parseStates[] = {
     "Line",
     "Method",
@@ -570,6 +688,35 @@ void unlock_errno()
 #define unlock_errno noop
 #endif
 
+size_t cnt = 0;
+
+const char *validnames[] = {
+    "localhost",
+    "localhost:8080",
+};
+
+int isValidHost(MyServerClientConnection *pCC, char *hostname)
+{
+    (void)(pCC);
+    // printf("CHECK-HOST:%s|\n", hostname);
+    if (hostname != 0)
+    {
+        while (*hostname != 0 && *hostname == ' ')
+        {
+            ++hostname;
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            if (strcmp(hostname, validnames[i]) == 0)
+            {
+                // printf("VALID!%s|\n", validnames[i]);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
 int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
 {
     (void)(pServerConnection);
@@ -651,6 +798,23 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
     char *pathStart = inBuffer.data;
     int i = 1;
     ++recvRes;
+
+#if 0
+    {
+        char buf[64];
+        memset(buf, 0, 64);
+        sprintf(buf, "./request_%ld.temp.txt", cnt);
+        printf("W: %s\n", buf);
+        FILE *fp = fopen(buf, "wb");
+        if (fp != 0)
+        {
+            fwrite(inBuffer.data, 1, recvRes, fp);
+            fclose(fp);
+        }
+        ++cnt;
+    }
+
+#endif
 
     // Strategy:
     //- use a buffer and collect data
@@ -747,7 +911,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
     char *pStart = pathStart;
     // parse path
-    if (state == PARSE_STATE_REQ_LINE_HAS_METHOD)
+    if (PARSE_STATE_REQ_LINE_HAS_METHOD == state)
     {
         printf("PARSE PATH\n");
         int s = 0;
@@ -793,7 +957,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
     }
 
     // min-size: 8 bytes
-    if (state == PARSE_STATE_REQ_LINE_PATH)
+    if (PARSE_STATE_REQ_LINE_PATH == state)
     {
         printf("PARSE PROT\n");
         int pOK = 0;
@@ -818,10 +982,6 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
                 break;
             }
-            if (*pathStart == ' ')
-            {
-                break;
-            }
             ++pOK;
             ++pathStart;
             ++i;
@@ -835,12 +995,14 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         else
         {
             int major, minor;
+            // printf("C?%d|%d\n", (int)*pathStart, (int)pathStart[1]);
             *pathStart = 0;
             // TODO:
             //- test parsing vs. sscanf("HTTP/x.y"), sscanf("/x.y")
             //- test with different alignments
             int numItems = sscanf(protStart, "HTTP/%d.%d", &major, &minor);
             printf("PROT:%s|M=%d,m=%d\n", protStart, major, minor);
+            *pathStart = '\r';
             if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 7)
             {
                 closeCC(pCC);
@@ -854,57 +1016,104 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             ++i;
         }
 
-        state++;
+        INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_PROTOCOL);
     }
     printRequest(pReq);
 
-    // parsing separator line
-    if (state == 3)
-    {
-        printf("PARSE SEP-LINE\n");
-        int ok = 0;
-        if (recvRes - i >= 2)
-        {
-            if (*pathStart == '\r' && pathStart[1] == '\n')
-            {
-                ok++;
-                pathStart += 2;
-                i += 2;
-            }
-        }
-        else
-        {
-            closeCC(pCC);
-            return 0;
-        }
-        if (ok)
-        {
-            state++;
-            ok--;
-        }
-    }
-
     // parsing headers
-    if (state == 4)
+    if (state == PARSE_STATE_REQ_LINE_PROTOCOL)
     {
-        printf("PARSE HEADERS\n");
-        if (recvRes - i >= 2)
+        printf("PARSE HEADERS! #%d\n", NUM_HEADER_HANDLERS);
+        // char* headerPointers[32];
+        // size_t pIdx=0;
+        int hasHost = 0;
+        char *pHeadersBefore = pathStart;
+
+        while (*pathStart != '\r' && pathStart[1] != '\n')
         {
-            if (*pathStart == '\r' && pathStart[1] == '\n')
+            char *pHeader = pathStart;
+            char *pSep = (char *)0;
+
+            while (*pathStart != '\n')
             {
-                // ok++;
+                char c = *pathStart;
+                if (c < 0)
+                {
+                    return 0;
+                }
+
+                if (c == ':')
+                {
+                    pSep = pathStart;
+                    break;
+                }
+
+                if (c >= 'A' && c <= 'Z')
+                {
+                    *pathStart = (char)(c + 32);
+                }
+
+                ++pathStart;
+            }
+
+            if (pSep != 0)
+            {
+                while (*pathStart != '\n')
+                {
+                    ++pathStart;
+                }
+                --pathStart;
+                if (*pathStart == '\r')
+                {
+                    *pathStart = 0;
+                    *pSep = 0;
+                    printf("H|%s||%s|\n", pHeader, pSep);
+
+                    if (hasHost)
+                    {
+                        // printf("PRS:%s|\n", pHeader);
+                        if (strcmp(pHeader, "host") == 0)
+                        {
+                            // 400 Bad Request, more than one Host
+                            return 0;
+                        }
+                    }
+                    else
+                    {
+                        if (strcmp(pHeader, "host") == 0)
+                        {
+                            printf("HOST!%s\n", pSep + 1);
+                            int hostRes = isValidHost(pCC, pSep + 1);
+                            if (0 != hostRes)
+                            {
+                                // 400 Bad Request
+                                return 0;
+                            }
+                            hasHost++;
+                        }
+                    }
+                    *pSep = ':';
+                    *pathStart = '\r';
+                }
                 pathStart += 2;
-                i += 2;
-                state++;
             }
             else
             {
+                closeCC(pCC);
+                return 0;
             }
         }
+
+        if (hasHost == 0)
+        {
+            printf("NO HOST!\n");
+            return 0;
+        }
+        INC_STATE_OR_SET(state, PARSE_STATE_REQ_HEADERS);
     }
     // parse/collect content
     //- check if content there, but forbidden.
-    if (state == 5)
+    if (state == PARSE_STATE_REQ_HEADERS)
     {
         //
         printf("PARSE CONTENT\n");
