@@ -45,4 +45,9 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
 #define NUM_BENCH_PROTOCOL_RUNS 100
 #include "snippets/bench_protocol.h"
 
+#define NUM_BENCH_TEXT_ENTRIES 10
+#define NUM_BENCH_TEXT_RUNS 1000
+#include "snippets/bench_text.h"
+
+
 #endif

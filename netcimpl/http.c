@@ -51,6 +51,21 @@ int socketId;
 int networkExample();
 #endif
 
+
+void writeFile(char *data, int len, int cnt)
+{
+    char buf[64];
+    memset(buf, 0, 64);
+    sprintf(buf, "./request_%d.temp.txt", cnt);
+    printf("W: %s\n", buf);
+    FILE *fp = fopen(buf, "wb");
+    if (fp != 0)
+    {
+        fwrite(data, 1, len, fp);
+        fclose(fp);
+    }
+}
+
 #include "server.h"
 
 MyServer myServer;
@@ -85,6 +100,7 @@ void signalHandler(int sig)
 int yes = 1;
 char buffer[1024];
 
+
 // fd_set fdSet;
 
 #include "http_parser_benchmark_snippets.h"
@@ -98,6 +114,7 @@ int main()
 #if 0
     bench_parse_method();
     bench_parse_protocol();
+    bench_parse_text();
     return 0;
 #endif
 

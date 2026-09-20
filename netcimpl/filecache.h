@@ -99,7 +99,7 @@ int cacheFiles()
     return loaded;
 }
 
-char *headerTmpl = "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\nContent-Encoding: identity\r\n\r\n";
+char *headerTmpl = "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\nContent-Encoding: identity\r\nConnection: close\r\n\r\n";
 
 void *searchPathInCache(char *path, int *pSize)
 {

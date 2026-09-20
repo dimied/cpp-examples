@@ -63,48 +63,64 @@
 
 #define SERVER_OPTION_COPY_NAME 0x10000
 
+#define USING_SSL 1
+
 #define CMD_ACCEPT 0x1
 #define CMD_SKIP 0x2
 #define CMD_CLOSE 0x3
 
 #define STATE_UNKNOWN 0
-#define STATE_ACCEPTED 1
-#define STATE_CLOSED 2
+#define STATE_ACCEPTED 0x100
+#define STATE_CLOSED 0x200
 
-typedef struct MyServerConnectionInfo
-{
-    int socketId;
-    int status;
-} MyServerConnectionInfo;
+#define STATE_RESERVED1 0x1000
+#define STATE_HAS_ERRNO 0x2000
+#define STATE_HAS_BUFFER 0x4000
+#define SECURE_STATE 0x8000
 
+#define IS_SECURE_CONNECTION(PTR_CC) ((PTR_CC->state & SECURE_STATE) != 0)
+
+#define SET_PARSE_STATE(PTR_CC, STATE) (PTR_CC->state = (PTR_CC->state & 0xFFFF00) | STATE)
+#define GET_PARSE_STATE(PTR_CC) (PTR_CC->state & 0xFF)
+#define GET_PARSE_STATE_TO(PTR_CC, STATE) (STATE = GET_PARSE_STATE(PTR_CC))
+
+#define SET_ERRNO(PTR_CC, ERRNO_VAL) (PTR_CC->state = (PTR_CC->state & 0xFF00FFFF) | STATE_HAS_ERRNO | (ERRNO_VAL << 16))
+#define GET_ERRNO_FROM_STATE(STATE) ((STATE >> 16) & 0xFF)
+
+#define CLIENT_CONNECTION_BUFFER_LEN 8
+
+/*!
+@struct MyServerClientConnection
+@brief Structure for a single connection (accepted by a server socket).
+*/
 typedef struct MyServerClientConnection
 {
-    int socketId;
-    unsigned int state;
-    unsigned int parseState;
-    unsigned int requestState;
-    int lastErrno;
-    void *next;
-    // void *data;
-    void *request;
-    void *pServerConnection;
+    int socketId;            /*!< socket for this connection */
+    unsigned int state;      /*!< stores current state of the connection.
+                             Bits:0-7: for parser state.
+                             Bits:8-15: connection state
+                             Bits:16-23: errno
+                              */
+    void *prev;              /*!< prev pointer in the linked list*/
+    void *next;              /*!< next pointer in the linked list*/
+    void *request;           /*!< request object */
+    void *pServerConnection; /*!< pointer to server connection object */
+    union
+    {
+#if USING_SSL
+        SSL *ssl;
+#endif
+        void *reserved;
+    } secure; /*!< used for security */
+    union
+    {
+        char cbytes[CLIENT_CONNECTION_BUFFER_LEN];
+    } buffer; /*!< some buffer */
 } MyServerClientConnection;
-
-typedef struct MyServerClientConnectionSecure
-{
-    MyServerClientConnection base;
-    SSL_CTX *ctx;
-    SSL *ssl;
-} MyServerClientConnectionSecure;
 
 /*@null@*/ void *newClientConnection()
 {
     return calloc(sizeof(MyServerClientConnection), 1);
-}
-
-/*@null@*/ void *newClientConnectionSecure()
-{
-    return calloc(sizeof(MyServerClientConnectionSecure), 1);
 }
 
 typedef struct MyServerClientConnections
@@ -120,10 +136,20 @@ typedef int (*handleConnection)(void *pConnection, int cmd, void *param);
 
 typedef struct SecureOptions
 {
+    SSL_CTX *ctx;
     char *certFilePath;
     char *privKeyFilePath;
-    SSL_CTX *ctx;
+    unsigned long lastError;
 } SecureOptions;
+
+typedef struct MyServerConnectionInfo
+{
+    int socketId;
+    int status;
+} MyServerConnectionInfo;
+
+#define SERVER_STATUS_ERROR_SSL_CERT_NOT_READABLE 0x100
+#define SERVER_STATUS_ERROR_SSL_PRIV_KEY_NOT_READABLE 0x101
 
 typedef struct MyServerConnection
 {
@@ -190,23 +216,8 @@ void printProto();
 
 void printfAddrinfo(struct addrinfo *pInfo);
 
-int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC)
-{
-    MyServerClientConnection *pLast = (MyServerClientConnection *)pCon->clients.last;
-    if (pLast != 0)
-    {
-        printf("Append con\n");
-        pLast->next = pCC;
-    }
-    pLast = pCC;
-    pCon->clients.last = pLast;
-    if (0 == pCon->clients.first)
-    {
-        pCon->clients.first = pLast;
-    }
-    ++pCon->clients.numCons;
-    return 0;
-}
+int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC);
+void removeClientConnection(MyServerClientConnection *pCC);
 
 int closeClientConnections(MyServerConnection *pCon)
 {
@@ -217,14 +228,13 @@ int closeClientConnections(MyServerConnection *pCon)
         while (p != 0)
         {
             MyServerClientConnection *next = p->next;
+            if (p->state & SECURE_STATE)
+            {
+                SSL_shutdown(p->secure.ssl);
+                SSL_free(p->secure.ssl);
+            }
             if (p->socketId)
             {
-                if (p->state & 0x100)
-                {
-                    MyServerClientConnectionSecure *pS = (MyServerClientConnectionSecure *)p;
-                    SSL_shutdown(pS->ssl);
-                    SSL_free(pS->ssl);
-                }
                 close(p->socketId);
             }
             free(p);
@@ -266,59 +276,7 @@ int cfc_close(MyServer *pServer)
     return 0;
 }
 
-int cfc_connect(MyServer *pServer)
-{
-    if (pServer == 0)
-    {
-        return 1;
-    }
-
-    MyServerConnection *pConnections = pServer->conns;
-
-    struct addrinfo hints;
-    struct addrinfo *myServerInfo = 0;
-
-    union
-    {
-        unsigned long value;
-        char data[8];
-    } portNumber;
-
-    int yesOption = 1;
-
-    union
-    {
-        struct sockaddr_in addrV4;
-        struct sockaddr_in6 addrV6;
-    } mySockaddr;
-
-    unsigned long status = 0;
-
-    for (size_t conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
-    {
-        nullify(&hints, sizeof(hints));
-        int ai_family = AF_UNSPEC, ai_socktype;
-
-        if (pConnections->options & SERVER_OPTION_SECURE)
-        {
-            // test if files are accessible
-            int ssl_error = 0;
-            int fr = access(pConnections->secure.certFilePath, F_OK | R_OK);
-            if (fr != 0)
-            {
-                ssl_error = handleSSLError(pConnections, 100);
-                continue;
-            }
-            fr = access(pConnections->secure.privKeyFilePath, F_OK | R_OK);
-            if (fr != 0)
-            {
-                ssl_error = handleSSLError(pConnections, 200);
-                continue;
-            }
-
-            SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
-
-            // TODO: implement SSL_CTX_config
+// TODO: implement SSL_CTX_config
 #if 0
 if (CONF_modules_load_file("config.cnf", "testapp", 0) <= 0) {
     fprintf(stderr, "Error processing config file\n");
@@ -333,67 +291,140 @@ if (SSL_CTX_config(ctx, "server") == 0) {
 }
 #endif
 
+// place in read-only memory
+const int yesOption = 1;
+
+int prepareSSL(MyServerConnection *pConnection)
+{
+    if (pConnection != 0)
+    {
+        if (pConnection->options & SERVER_OPTION_SECURE)
+        {
+            // test if files are accessible
+            int ssl_error = 0;
+            int fr = access(pConnection->secure.certFilePath, F_OK | R_OK);
+            if (fr != 0)
+            {
+                return handleSSLError(pConnection, 100);
+            }
+            fr = access(pConnection->secure.privKeyFilePath, F_OK | R_OK);
+            if (fr != 0)
+            {
+                return handleSSLError(pConnection, 200);
+            }
+
+            SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
+
             if (0 == ctx)
             {
-                ssl_error = handleSSLError(pConnections, 1);
-                continue;
+                return handleSSLError(pConnection, 1);
             }
             else
             {
-                int r = SSL_CTX_use_certificate_chain_file(ctx, pConnections->secure.certFilePath);
-                printf("CF: %d\n", r);
+                int r = SSL_CTX_use_certificate_chain_file(ctx, pConnection->secure.certFilePath);
                 if (1 == r)
                 {
-                    r = SSL_CTX_use_PrivateKey_file(ctx, pConnections->secure.privKeyFilePath, SSL_FILETYPE_PEM);
-                    printf("PKF: %d\n", r);
+                    r = SSL_CTX_use_PrivateKey_file(ctx, pConnection->secure.privKeyFilePath, SSL_FILETYPE_PEM);
                     if (1 != r)
                     {
-                        ssl_error = handleSSLError(pConnections, 3);
+                        ssl_error = handleSSLError(pConnection, 3);
                         SSL_CTX_free(ctx);
                     }
                 }
                 else
                 {
-                    ssl_error = handleSSLError(pConnections, 2);
+                    ssl_error = handleSSLError(pConnection, 2);
                     SSL_CTX_free(ctx);
                 }
             }
 
             if (0 != ssl_error)
             {
-                pConnections->common.status = ssl_error;
-                continue;
+                pConnection->common.status = ssl_error;
+                return ssl_error;
             }
             else
             {
-                pConnections->secure.ctx = ctx;
+                pConnection->secure.ctx = ctx;
             }
         }
+        return 0;
+    }
+    return 1;
+}
 
-        if (pConnections->options & SERVER_OPTION_IPV4)
+/*
+ */
+int cfc_connect(MyServer *pServer)
+{
+    if (pServer == 0)
+    {
+        return 1;
+    }
+
+    MyServerConnection *pConnection = pServer->conns;
+#if 0
+    struct addrinfo hints;
+
+    union
+    {
+        unsigned long value;
+        char data[8];
+    } portNumber;
+#endif
+
+    union
+    {
+        struct sockaddr_in addrV4;
+        struct sockaddr_in6 addrV6;
+    } mySockaddr;
+
+    unsigned long status = 0;
+
+    for (size_t conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    {
+#if 0
+        nullify(&hints, sizeof(hints));
+#endif
+        int ai_family = AF_UNSPEC, ai_socktype;
+
+        if (0 != prepareSSL(pConnection))
+        {
+            continue;
+        }
+
+        if (pConnection->options & SERVER_OPTION_IPV4)
         {
             ai_family = AF_INET;
         }
-        else if (pConnections->options & SERVER_OPTION_IPV6)
+        else if (pConnection->options & SERVER_OPTION_IPV6)
         {
             ai_family = AF_INET6;
         }
 
         int assigned = 0;
 
-        if (pConnections->options & SERVER_OPTION_TCP)
+        if (pConnection->options & SERVER_OPTION_TCP)
         {
             ++assigned;
             ai_socktype = SOCK_STREAM;
+#if 0
             hints.ai_flags = AI_PASSIVE;
-            printf("Connect TCP\n");
+#endif
+            // printf("Connect TCP\n");
         }
-        else if (pConnections->options & SERVER_OPTION_UDP)
+        else if (pConnection->options & SERVER_OPTION_UDP)
         {
             ++assigned;
             ai_socktype = SOCK_DGRAM;
+#if 0
             hints.ai_flags = AI_PASSIVE;
-            printf("Connect UDP\n");
+#endif
+            // printf("Connect UDP\n");
+        }
+        else
+        {
+            continue;
         }
 
         if (assigned)
@@ -403,15 +434,17 @@ if (SSL_CTX_config(ctx, "server") == 0) {
             {
                 ai_family = AF_INET;
             }
+#if 0
             hints.ai_family = ai_family;
             hints.ai_socktype = ai_socktype;
 
-            myServerInfo = 0;
+            struct addrinfo *myServerInfo = 0;
+
             nullify(portNumber.data, 8);
             int j = 0;
 #if 1
             {
-                int port = pConnections->port;
+                int port = pConnection->port;
                 if (0 == port)
                 {
                     portNumber.data[0] = '0';
@@ -431,22 +464,31 @@ if (SSL_CTX_config(ctx, "server") == 0) {
             sprintf(portNumber, "%d", pConnections->port);
 #endif
 
-            int res = getaddrinfo(pConnections->name, &portNumber.data[j], &hints, &myServerInfo);
+            printf("PORT?%s?\n", &portNumber.data[j]);
+            int resAddr = getaddrinfo(pConnection->name, 0, &hints, &myServerInfo);
 
-            printf("ADDR: %d|%s|%s|%d\n", res, pConnections->name, &portNumber.data[j], pConnections->port);
+            printf("ADDR: %d|%s|%s|%d\n", res, pConnection->name, &portNumber.data[j], pConnection->port);
 
             if (res == 0)
             {
+                printf("--ADDR-INFO\n");
                 printfAddrinfo(myServerInfo);
+                printf("--ADDR-INFO-END\n");
             }
+            else
+            {
+                char *errStr = gai_strerror(res);
+                printf("ERR: %s\n", errStr);
+            }
+
             if (myServerInfo != 0)
             {
                 freeaddrinfo(myServerInfo);
             }
-
+#endif
             int socketId = socket(ai_family, ai_socktype, 0);
 
-            pConnections->common.socketId = socketId;
+            pConnection->common.socketId = socketId;
 
             if (socketId < 0)
             {
@@ -457,11 +499,11 @@ if (SSL_CTX_config(ctx, "server") == 0) {
             else
             {
                 // to avoid already in use error
-                res = setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &yesOption, sizeof(yesOption));
+                int res = setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &yesOption, sizeof(yesOption));
                 if (res != 0)
                 {
                     close(socketId);
-                    pConnections->common.socketId = 0;
+                    pConnection->common.socketId = 0;
                     printf("Failed setsockopt...\n");
                     ++assigned;
                 }
@@ -477,7 +519,7 @@ if (SSL_CTX_config(ctx, "server") == 0) {
                 nullify(&mySockaddr, sizeof(mySockaddr));
 
                 socklen_t sockLen = sizeof(mySockaddr.addrV4);
-                in_port_t bindPort = htons(pConnections->port);
+                in_port_t bindPort = htons(pConnection->port);
 
                 if (ai_family == AF_INET)
                 {
@@ -494,12 +536,12 @@ if (SSL_CTX_config(ctx, "server") == 0) {
                     sockLen = sizeof(mySockaddr.addrV6);
                 }
 
-                int res = bind(socketId, (struct sockaddr *)&mySockaddr, sockLen);
+                res = bind(socketId, (struct sockaddr *)&mySockaddr, sockLen);
 
                 if (res != 0)
                 {
                     close(socketId);
-                    pConnections->common.socketId = 0;
+                    pConnection->common.socketId = 0;
                     printf("Failed bind...\n");
                     ++assigned;
                 }
@@ -511,7 +553,7 @@ if (SSL_CTX_config(ctx, "server") == 0) {
             status |= (0x1ul) << conIdx;
         }
 
-        ++pConnections;
+        ++pConnection;
     }
 
     pServer->common.status = status;
@@ -621,7 +663,13 @@ int basicHandle(void *pConnection, int cmd, void *param)
                 {
                     printf("Accepted: %d\n", clientFd);
                     printf("STORAGE: %ld\n", sizeof(otherAddr));
-                    MyServerClientConnection *pCC = 0;
+
+                    MyServerClientConnection *pCC = newClientConnection();
+
+                    if (pCC == 0)
+                    {
+                        return 3;
+                    }
 
                     if (pCon->options & SERVER_OPTION_SECURE)
                     {
@@ -639,14 +687,8 @@ int basicHandle(void *pConnection, int cmd, void *param)
                                 r = SSL_accept(ssl);
                                 printf("ACC: %d\n", r);
 
-                                pCC = newClientConnectionSecure();
-                                MyServerClientConnectionSecure *p = (MyServerClientConnectionSecure *)pCC;
-                                if (p != 0)
-                                {
-                                    // p->ctx = ctx;
-                                    p->ssl = ssl;
-                                    pCC->state = 0x100;
-                                }
+                                pCC->secure.ssl = ssl;
+                                pCC->state |= SECURE_STATE;
                             }
                             else
                             {
@@ -660,15 +702,6 @@ int basicHandle(void *pConnection, int cmd, void *param)
                             return 300;
                         }
                     }
-                    else
-                    {
-                        pCC = newClientConnection();
-                    }
-
-                    if (pCC == 0)
-                    {
-                        return 3;
-                    }
                     pCC->socketId = clientFd;
                     pCC->state |= STATE_ACCEPTED;
 
@@ -676,19 +709,18 @@ int basicHandle(void *pConnection, int cmd, void *param)
 
                     if (r != 0)
                     {
-                        if (pCC->state & 0x100)
+                        if (pCC->state & SECURE_STATE)
                         {
-                            MyServerClientConnectionSecure *p = (MyServerClientConnectionSecure *)pCC;
-                            SSL_shutdown(p->ssl);
-                            SSL_free(p->ssl);
-                            p->ssl = 0;
+                            SSL_shutdown(pCC->secure.ssl);
+                            SSL_free(pCC->secure.ssl);
+                            pCC->secure.ssl = 0;
                         }
                         free(pCC);
 
                         return 100;
                     }
 
-                    return pCCfunc(pCC, 0);
+                    return pCCfunc(pCC, pCon);
                 }
                 else
                 {
@@ -726,7 +758,171 @@ void closeCC(MyServerClientConnection *pCC)
         pCC->request = 0;
     }
 
-    pCC->state = STATE_CLOSED | (pCC->state & 0x100);
+    pCC->state = STATE_CLOSED | (pCC->state & SECURE_STATE);
+}
+
+char *badRequest = "HTTP/1.1 400 Bad Request";
+
+void closeBadRequest(MyServerClientConnection *pCC)
+{
+    printf("CLOSE BAD!\n");
+#if TESTING == 0
+    if (pCC->socketId)
+    {
+        // TODO: error handling
+        send(pCC->socketId, badRequest, strlen(badRequest), 0);
+    }
+#endif
+    closeCC(pCC);
+}
+
+int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC)
+{
+    pCC->pServerConnection = pCon;
+    MyServerClientConnection *pLast = (MyServerClientConnection *)pCon->clients.last;
+    if (pLast != 0)
+    {
+        printf("Append con\n");
+        pLast->next = pCC;
+    }
+    pLast = pCC;
+    pCon->clients.last = pLast;
+    if (0 == pCon->clients.first)
+    {
+        pCon->clients.first = pLast;
+    }
+    ++pCon->clients.numCons;
+    return 0;
+}
+
+void removeClientConnection(MyServerClientConnection *pCC)
+{
+    if (pCC != 0)
+    {
+        MyServerConnection *pCon = (MyServerConnection *)pCC->pServerConnection;
+        if (pCon != 0)
+        {
+            MyServerClientConnection *pLast = pCon->clients.first;
+            if (pLast == pCC)
+            {
+                MyServerClientConnection *next = pCC->next;
+                closeCC(pCC);
+                pCon->clients.first = next;
+
+                if (pCC == pCon->clients.last)
+                {
+                    pCon->clients.last = 0;
+                }
+                return;
+            }
+
+            MyServerClientConnection *next;
+            MyServerClientConnection *p = pLast->next;
+
+            while (p != 0)
+            {
+                next = p->next;
+                if (p == pCC)
+                {
+                    pLast->next = next;
+                    break;
+                }
+                pLast = p;
+                p = next;
+            }
+            if (pCon->clients.last == pCC)
+            {
+                pCon->clients.last = pLast;
+            }
+        }
+    }
+}
+
+#define IS_VALID_HOST_OK 0
+#define IS_VALID_HOST_ERROR_INVALID_ARG 1
+#define IS_VALID_HOST_ERROR_SERVER_CON 2
+#define IS_VALID_HOST_ERROR_INVALID_HOST 3
+#define IS_VALID_HOST_ERROR_PARSE_PORT 4
+#define IS_VALID_HOST_ERROR_INVALID_PORT 5
+#define IS_VALID_HOST_ERROR_REQUIRES_PORT 6
+
+int isValidHost(MyServerClientConnection *pCC, char *hostname)
+{
+    if (hostname != 0 && pCC != 0)
+    {
+        MyServerConnection *pSC = (MyServerConnection *)pCC->pServerConnection;
+        if (pSC == 0)
+        {
+            return IS_VALID_HOST_ERROR_SERVER_CON;
+        }
+
+        while (*hostname != 0 && *hostname == ' ')
+        {
+            ++hostname;
+        }
+
+        if (*hostname == 0)
+        {
+            return IS_VALID_HOST_ERROR_INVALID_HOST;
+        }
+
+        const char *domain = hostname;
+
+        while (*hostname != 0 && *hostname != ':')
+        {
+            ++hostname;
+        }
+
+        if (hostname > domain)
+        {
+            const size_t l = (hostname - domain);
+            const size_t l2 = strlen(pSC->name);
+
+            if (l == l2 && strncmp(pSC->name, domain, l) == 0)
+            {
+                const int expectedPort = (int)pSC->port;
+                int host_port = -1;
+
+                if (*hostname != 0)
+                {
+                    ++hostname;
+                    ++host_port;
+
+#if 0
+                    uint64_t v = (uint64_t)hostname;
+                    printf("Off: %ld\n", v & 0x7);
+                    if ((v & 0x7) == 0)
+                    {
+                        printf("Aligned!\n");
+                    }
+#endif
+                    while (*hostname != 0 && host_port < 0x10000)
+                    {
+                        if (*hostname < '0' || *hostname > '9')
+                        {
+                            return IS_VALID_HOST_ERROR_PARSE_PORT;
+                        }
+                        host_port = host_port * 10 + (*hostname - '0');
+                        ++hostname;
+                    }
+
+                    if (host_port != expectedPort)
+                    {
+                        return IS_VALID_HOST_ERROR_INVALID_PORT;
+                    }
+                    return IS_VALID_HOST_OK;
+                }
+
+                if (expectedPort == 80 || expectedPort == 443)
+                {
+                    return IS_VALID_HOST_OK;
+                }
+                // Non-standard port, i.e. port is required in "host header value"
+                return IS_VALID_HOST_ERROR_REQUIRES_PORT;
+            }
+        }
+    }
+    return IS_VALID_HOST_ERROR_INVALID_ARG;
 }
 
 #include "http_parser.h"
