@@ -133,7 +133,7 @@ void testParser()
         nullify(&testRecvState, sizeof(testRecvState));
 
         testRecvState.result = pTC->result;
-        //printf("DL: %ld\n", pTC->result);
+        // printf("DL: %ld\n", pTC->result);
         testRecvState.data = pTC->rawData;
 #if TESTING
         test_errno = pTC->errno_value;
@@ -198,6 +198,67 @@ ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags)
     }
 
     return state->result;
+}
+
+void testHeaders()
+{
+    printf("Test headers!\n");
+    HttpRequest *pRequest = newRequest();
+
+    HeadersDataInfo info;
+    clearHeadersDataInfo(&info);
+    printHeadersDataInfo(&info);
+    char *test_dataValues[] = {
+        "my data",
+        "no data",
+        "",
+        "hello",
+        "some new data\r\n",
+        "Another data",
+        "sldfkditugzetj8g847546hg4f876jz5486g45f6j457j6g476754g7f8j456764j5g6fj7456",
+        "Just another test value\n",
+        "Just another test value\r\n",
+        "Just another test value2\r\n",
+        "Just another test value2\r\n"};
+
+    const size_t numValues = sizeof(test_dataValues) / sizeof(test_dataValues[0]);
+
+    size_t keepRuning = 1, expected = 0;
+
+    for (int run = 0; keepRuning != 0 && run < 1000; run++)
+    {
+        for (size_t i = 0; i < numValues; i++)
+        {
+            int l = strlen(test_dataValues[i]);
+
+            int r = addHeadersData(pRequest, test_dataValues[i], l);
+
+            expected += l;
+
+            if (r != ADD_HEADERS_OK)
+            {
+                printf("Failed: @run=%d,test=%d|%s|%d|\n", run, r, test_dataValues[i], l);
+                keepRuning = 0;
+                break;
+            }
+            r = getHeadersDataInfo(pRequest, &info);
+            if (r != 0)
+            {
+                printf("get failed!\n");
+                keepRuning = 0;
+                break;
+            }
+            if (info.used != expected)
+            {
+                printf("Fail: exp=%ld | cur=%d\n", expected, info.used);
+                keepRuning = 0;
+                break;
+            }
+            printHeadersDataInfo(&info);
+        }
+    }
+
+    freeRequest(pRequest);
 }
 
 #endif

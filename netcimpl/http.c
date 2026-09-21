@@ -51,7 +51,6 @@ int socketId;
 int networkExample();
 #endif
 
-
 void writeFile(char *data, int len, int cnt)
 {
     char buf[64];
@@ -100,7 +99,6 @@ void signalHandler(int sig)
 int yes = 1;
 char buffer[1024];
 
-
 // fd_set fdSet;
 
 #include "http_parser_benchmark_snippets.h"
@@ -109,6 +107,9 @@ int main()
 {
     signal(SIGINT, signalHandler);
     // testParseIp();
+    int cfr = cacheFiles();
+    printf("Cache files: %d\n\n", cfr);
+
     printTypeSizes();
 
 #if 0
@@ -119,8 +120,8 @@ int main()
 #endif
 
 #if TESTING
-
     testParser();
+    //testHeaders();
     return 0;
 #endif
 
@@ -141,8 +142,6 @@ int main()
     int listenRes2 = cfc_listen(&myServer);
     printf("LISTEN-RES:%d\n", listenRes2);
     // sleep(2);
-    int cfr = cacheFiles();
-    printf("Cache files: %d\n", cfr);
 
     while (running != 0)
     {

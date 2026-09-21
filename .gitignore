@@ -4,6 +4,7 @@
 # Prerequisites
 *.d
 *.temp.txt
+temp/*.png
 
 # Compiled Object files
 *.slo

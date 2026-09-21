@@ -51,11 +51,6 @@ typedef struct RequestHttpHeaders
     unsigned short acceptedTypes[4]; // pairs (quality,type)
 } RequestHttpHeaders;
 
-typedef struct RequestHttpContent
-{
-    void *data;
-} RequestHttpContent;
-
 #ifndef HTTP_REQUEST_NUM_PTRS
 #define HTTP_REQUEST_NUM_PTRS 4
 #endif
@@ -65,6 +60,25 @@ typedef struct RequestHttpContent
 
 #define HTTP_REQUEST_RI_HAS_HOST (0x1 << 16)
 #define HTTP_REQUEST_RI_HAS_PARSED_HEADERS (0x1 << 17)
+
+#define ADD_HEADERS_OK 0
+#define ADD_HEADERS_INVALID_ARGS 1
+#define ADD_HEADERS_NOMEM 2
+#define ADD_HEADERS_TOO_LARGE 3
+
+typedef struct HeadersDataHeader
+{
+    void *next;
+    unsigned int size_and_used;
+    unsigned int options;
+} HeadersDataHeader;
+
+typedef struct HeadersDataInfo
+{
+    unsigned int size;
+    unsigned int used;
+    unsigned int num_chunks;
+} HeadersDataInfo;
 
 typedef struct HttpRequest
 {
@@ -79,35 +93,68 @@ typedef struct HttpRequest
     // Bits:0-7: real state
     // Bits:8... custom
     unsigned int __state;
+    uint64_t __validation; /*!< e.g. for validating connection */
     char *path;
+    void *__clientConnection;
     void *__headers;
     void *__content;
-#if 0
-    uint64_t pointerTypes; 
-    void* pointers[8];
-#else
-    // last ptr should be used for current parsing.
-    void *__pointers[HTTP_REQUEST_NUM_PTRS];
-#endif
+    void *pCustom1;
 } HttpRequest;
 
-typedef struct HeadersDataHeader
+void clearHeadersDataInfo(HeadersDataInfo *pInfo)
 {
-    void *next;
-    unsigned int size;
-    unsigned int used;
-} HeadersDataHeader;
+    if (pInfo != 0)
+    {
+        memset(pInfo, 0, sizeof(HeadersDataInfo));
+    }
+}
 
-#define ADD_HEADERS_OK 0
-#define ADD_HEADERS_INVALID_ARGS 1
-#define ADD_HEADERS_NOMEM 2
+void printHeadersDataInfo(HeadersDataInfo *pInfo)
+{
+    if (pInfo != 0)
+    {
+        printf("HI: size:%d | used:%d | chunks:%d\n", pInfo->size, pInfo->used, pInfo->num_chunks);
+    }
+    else
+    {
+        printf("HI: (nil)\n");
+    }
+}
+
+int getHeadersDataInfo(HttpRequest *pReq, HeadersDataInfo *pInfo)
+{
+    if (pReq != 0 && pInfo != 0)
+    {
+        void *headers = pReq->__headers;
+        if (headers != 0)
+        {
+            unsigned int size = 0, used = 0, chunks = 0;
+
+            while (headers != 0)
+            {
+                HeadersDataHeader *pH = (HeadersDataHeader *)headers;
+                used += pH->size_and_used & 0xFFFF;
+                size += pH->size_and_used >> 16;
+                ++chunks;
+                headers = pH->next;
+            }
+            pInfo->size = size;
+            pInfo->used = used;
+            pInfo->num_chunks = chunks;
+        }
+        return 0;
+    }
+    return 1;
+}
+
+#define HEADER_CHUNK_SIZE 128
 
 size_t header_size(int len)
 {
     unsigned int ds = (len + 7) & 0xFFFFFF0;
-    if (ds < 128)
+    if (ds < HEADER_CHUNK_SIZE)
     {
-        return 128;
+        return HEADER_CHUNK_SIZE;
     }
     else
     {
@@ -117,24 +164,35 @@ size_t header_size(int len)
 
 int addHeadersData(HttpRequest *pReq, char *data, int len)
 {
-    if (pReq != 0 && data != 0 && len > 0 && len < (0x1 << 20))
+    if (pReq != 0 && data != 0 && len >= 0 && len < (0x1 << 20))
     {
+        if (len == 0)
+        {
+            return ADD_HEADERS_OK;
+        }
+
         void *headers = pReq->__headers;
 
         if (headers == 0)
         {
-            const size_t s = header_size(len + sizeof(HeadersDataHeader));
-            printf("SZ:%d>%ld\n", len, s);
+            size_t s = header_size(len + sizeof(HeadersDataHeader));
+            // printf("SZ:%d>%ld\n", len, s);
 
-            headers = calloc((s + 8) >> 3, 8);
+            if (s >= 0x8000)
+            {
+                // TODO
+                return ADD_HEADERS_TOO_LARGE;
+            }
+
+            headers = calloc(s, 1);
 
             if (headers != 0)
             {
                 HeadersDataHeader *pHeader = (HeadersDataHeader *)headers;
                 char *dstData = (char *)headers + sizeof(HeadersDataHeader);
                 memcpy(dstData, data, len);
-                pHeader->size = s - sizeof(HeadersDataHeader);
-                pHeader->used = len;
+                s -= sizeof(HeadersDataHeader);
+                pHeader->size_and_used = (s << 16) | len;
                 pReq->__headers = headers;
                 return ADD_HEADERS_OK;
             }
@@ -146,31 +204,48 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
 
             if (pHeader->next == 0)
             {
-                size_t newSize = pHeader->size;
+                size_t newSize = pHeader->size_and_used >> 16;
+                size_t used = pHeader->size_and_used & 0xFFFF;
                 // can insert?
-                if (len + pHeader->used < newSize)
+                if (len + used < newSize)
                 {
-                    printf("HEADER:FIT!\n");
+                    // printf("HEADER:FIT!\n");
                     char *dstData = (char *)headers + sizeof(HeadersDataHeader);
-                    dstData += pHeader->used;
+                    dstData += used;
+                    // printf("COPY: [%p,%p) -> [%p,%p]\n", dstData, dstData + len, headers, (char *)headers + sizeof(HeadersDataHeader) + newSize);
                     memcpy(dstData, data, len);
-                    pHeader->used += len;
+                    used += len;
+                    pHeader->size_and_used = (pHeader->size_and_used & 0xFFFF0000) | used;
                     return ADD_HEADERS_OK;
                 }
-                newSize += header_size(len);
-                printf("HEADER:REALLOC!%ld|%d>%ld\n", newSize - header_size(len), len, newSize);
+                newSize += header_size(len) + sizeof(HeadersDataHeader);
+                newSize = header_size(newSize);
+
+                if (newSize >= 0x8000)
+                {
+                    // TODO
+                    return ADD_HEADERS_TOO_LARGE;
+                }
+                // printf("HEADER:REALLOC! %ld|%d > %ld\n", pHeader->size_and_used >> 16, len, newSize);
+                // printf("REALLOC: %p", headers);
+
                 // try to reallocate
-                void *res = realloc(headers, newSize);
+                char *res = (char *)realloc(headers, newSize);
+                // printf(" | %p\n", res);
+                // printf("RANGE:[%p , %p)\n", res, res + newSize);
+
                 if (res != 0)
                 {
-                    const size_t dontTouchSize = sizeof(HeadersDataHeader) + pHeader->used;
+                    pHeader = (HeadersDataHeader *)res;
+                    const size_t dontTouchSize = sizeof(HeadersDataHeader) + used;
                     char *dstData = (char *)res + dontTouchSize;
                     // clear new memory
                     memset(dstData, 0, newSize - dontTouchSize);
                     memcpy(dstData, data, len);
-                    pHeader = (HeadersDataHeader *)res;
-                    pHeader->size = newSize;
-                    pHeader->used = dontTouchSize - sizeof(HeadersDataHeader) + len;
+
+                    used = dontTouchSize - sizeof(HeadersDataHeader) + len;
+                    newSize -= sizeof(HeadersDataHeader);
+                    pHeader->size_and_used = (newSize << 16) | used;
                     pReq->__headers = res;
                     return 0;
                 }
@@ -198,6 +273,15 @@ void freeHeadersData(HttpRequest *pReq)
                 perror("Header->next not implemented!\n");
                 exit(1);
             }
+
+            while (headers != 0)
+            {
+                pH = (HeadersDataHeader *)headers;
+                void *next = pH->next;
+                free(headers);
+                headers = next;
+            }
+
             free(headers);
             pReq->__headers = 0;
         }

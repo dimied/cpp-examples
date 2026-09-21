@@ -95,13 +95,13 @@
 */
 typedef struct MyServerClientConnection
 {
-    int socketId;            /*!< socket for this connection */
-    unsigned int state;      /*!< stores current state of the connection.
-                             Bits:0-7: for parser state.
-                             Bits:8-15: connection state
-                             Bits:16-23: errno
-                              */
-    void *prev;              /*!< prev pointer in the linked list*/
+    int socketId;       /*!< socket for this connection */
+    unsigned int state; /*!< stores current state of the connection.
+                        Bits:0-7: for parser state.
+                        Bits:8-15: connection state
+                        Bits:16-23: errno
+                         */
+    uint64_t __validation;
     void *next;              /*!< next pointer in the linked list*/
     void *request;           /*!< request object */
     void *pServerConnection; /*!< pointer to server connection object */
@@ -159,7 +159,8 @@ typedef struct MyServerConnection
     char *name;
     void *custom;
     SecureOptions secure;
-
+    uint64_t normal_headers;     /*!< bitmask for normal headers*/
+    uint64_t additional_headers; /*! bitmask for security and client-hint headers*/
     MyServerClientConnections clients;
     handleConnection handleCommand;
     handleClientConnection handleClientCommand;
@@ -997,6 +998,7 @@ void printTypeSizes()
     printf("Ser-Con:size:%ld\n", sizeof(MyServerConnection));
     printf("Cli-Con:size:%ld\n", sizeof(MyServerClientConnection));
     printf("Request:size:%ld\n", sizeof(HttpRequest));
+    printf("Headers:size:%ld\n", sizeof(HeadersDataHeader));
     printf("\n");
 }
 #endif
