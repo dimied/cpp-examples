@@ -37,6 +37,17 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
     }
 }
 
+#define BENCH_FREE_MEM(M) \
+    size_t t = 0;         \
+    do                    \
+    {                     \
+        if (M[t] != 0)    \
+        {                 \
+            free(M[t]);   \
+        }                 \
+        t++;              \
+    } while (t + 1 < (sizeof(M) / sizeof(M[0])))
+
 #define NUM_BENCH_METHOD_ENTRIES 1000
 #define NUM_BENCH_METHOD_RUNS 1000
 #include "snippets/bench_method.h"
@@ -49,5 +60,8 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
 #define NUM_BENCH_TEXT_RUNS 1000
 #include "snippets/bench_text.h"
 
+#define NUM_BENCH_HEADERS_ENTRIES 1000
+#define NUM_BENCH_HEADERS_RUNS 2
+#include "snippets/bench_headers.h"
 
 #endif

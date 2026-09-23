@@ -102,6 +102,7 @@ char buffer[1024];
 // fd_set fdSet;
 
 #include "http_parser_benchmark_snippets.h"
+#include "http_parser_dev_helper.h"
 
 int main()
 {
@@ -112,16 +113,20 @@ int main()
 
     printTypeSizes();
 
-#if 0
-    bench_parse_method();
-    bench_parse_protocol();
-    bench_parse_text();
+    createAlignedHeadersText();
+    //return 0;
+
+#if 1
+    //bench_parse_method();
+    //bench_parse_protocol();
+    //bench_parse_text();
+    bench_parse_headers();
     return 0;
 #endif
 
 #if TESTING
     testParser();
-    //testHeaders();
+    // testHeaders();
     return 0;
 #endif
 

@@ -1,3 +1,5 @@
+#ifndef BENCH_TEXT_SNIPPETS
+#define BENCH_TEXT_SNIPPETS
 
 #include <ctype.h>
 
@@ -189,10 +191,12 @@ void bench_parse_text()
 
         end = clock();
         printTimes("Bits", start, end, total);
-        //printf("T3:%s|\n", testData3);
+        // printf("T3:%s|\n", testData3);
 
         free(testData3);
         free(testData2);
         free(testData);
     }
 }
+
+#endif

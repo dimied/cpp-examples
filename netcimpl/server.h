@@ -999,6 +999,12 @@ void printTypeSizes()
     printf("Cli-Con:size:%ld\n", sizeof(MyServerClientConnection));
     printf("Request:size:%ld\n", sizeof(HttpRequest));
     printf("Headers:size:%ld\n", sizeof(HeadersDataHeader));
+    printf("---\n");
+    printf("Headers:handlers:%ld |#sec=%ld |#hints=%ld |#names=%ld\n",
+           NUM_HEADER_HANDLERS,
+           NUM_HEADER_HANDLERS_SEC,
+           NUM_HEADER_HANDLERS_CLIENT_HINTS,
+           HEADER_NAMES_TEXT_LEN);
     printf("\n");
 }
 #endif

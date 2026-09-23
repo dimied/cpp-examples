@@ -80,6 +80,8 @@ typedef struct HeadersDataInfo
     unsigned int num_chunks;
 } HeadersDataInfo;
 
+#define HTTP_REQUEST_STATE_PARSING 1
+
 typedef struct HttpRequest
 {
     // Bits:0-7:for request method
@@ -88,7 +90,8 @@ typedef struct HttpRequest
     // Bits:16: flag - has host
     // Bits:17: flag - headers parsed (at least partially)
     // Bits:18: flag -  ...
-    // Bits:24-31: custom
+    // Bits:24-29: custom
+    // Bits:30-31: connection (0:unknown, 2: close, 1: keep-alive, )
     unsigned int requestInfo;
     // Bits:0-7: real state
     // Bits:8... custom
@@ -96,6 +99,7 @@ typedef struct HttpRequest
     uint64_t __validation; /*!< e.g. for validating connection */
     char *path;
     void *__clientConnection;
+    uint64_t acceptedHeaders; /*< collection(bitmask) of header to collect */
     void *__headers;
     void *__content;
     void *pCustom1;
@@ -162,6 +166,9 @@ size_t header_size(int len)
     }
 }
 
+//TODO:instead of saving full header name, 
+// we can save (0x80 | HEADER_IDX) as first byte and reducing the amount of bytes
+//for unknown headers we save full header name.
 int addHeadersData(HttpRequest *pReq, char *data, int len)
 {
     if (pReq != 0 && data != 0 && len >= 0 && len < (0x1 << 20))
@@ -431,7 +438,13 @@ uint64_t HttpMethods2[NUM_HTTP_METHODS] = {
 
 #include "http_parser_headers.h"
 
+#ifndef BUF_LEN_IN
 #define BUF_LEN_IN 4096
+#endif
+
+#if BUF_LEN_IN < 64
+#error "Buffer length too small."
+#endif
 
 #ifdef BUF_LEN_IN_64
 #error "BUF_LEN_IN_64 defined"
@@ -774,7 +787,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                 *pathStart = 0;
                 int numItems = sscanf(protStart, "HTTP/%d.%d", &major, &minor);
                 *pathStart = '\r';
-                if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 7)
+                if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 1)
                 {
                     closeCC(pCC);
                     return 0;
