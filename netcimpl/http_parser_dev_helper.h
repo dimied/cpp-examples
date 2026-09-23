@@ -184,7 +184,7 @@ char *generateTextForAlignedValues(DevAlignedHeadersText *state)
     clearTestStringBuffer(&string_buffer);
 
     int runs = 2;
-    //size_t sizeCounts[64];
+    // size_t sizeCounts[64];
     int hasError = 0;
 
     while (runs != 0 && hasError == 0)
@@ -242,8 +242,8 @@ char *generateTextForAlignedValues(DevAlignedHeadersText *state)
                 hasError++;
                 break;
             }
-            const size_t shift = shiftIdx << 3; //<<3: for bytes
-            state->offsets[s] |= offset << shift;      //>>3: for aligned offsets
+            const size_t shift = shiftIdx << 3;   //<<3: for bytes
+            state->offsets[s] |= offset << shift; //>>3: for aligned offsets
             state->values[s] |= i << shift;
             state->sizeCounts[s]++;
 
@@ -343,8 +343,6 @@ char *generateTextForAlignedValues(DevAlignedHeadersText *state)
 
 char *generateTextForNameOffsets(DevAlignedHeadersText *state)
 {
-    size_t totalSize = 0;
-
     TestStringBuffer string_buffer;
 
     char buffer[256];
@@ -396,60 +394,11 @@ char *generateTextForNameOffsets(DevAlignedHeadersText *state)
         }
     }
     printf("};\n\n");
-    return 0;
-}
-
-void createAlignedHeadersText()
-{
-    DevAlignedHeadersText state;
-    memset(&state, 0, sizeof(DevAlignedHeadersText));
-
-    if (0 != getAlignedHeadersTextStats(&state))
-    {
-        return;
-    }
-
-    printf("Sizes: real=%ld | aligned=%ld\n", state.realSize, state.alignedSize);
-
-    showAlignedStrings(&state);
-    showSizesAndCounts(&state);
-
-    printf("\n//CODE\n");
-
-    char *code = generateTextForConstants(&state);
-    if (code == 0)
-    {
-        printf("//ERROR: failed to generate code for constants\n");
-        return;
-    }
-    printf("%s", code);
-    free(code);
-
-    code = generateTextForAlignedValues(&state);
-    if (code == 0)
-    {
-        printf("//ERROR: failed to generate array code\n");
-        return;
-    }
-    printf("%s", code);
-    free(code);
-
-    code = generateTextForNameOffsets(&state);
-    if (code == 0)
-    {
-        printf("//ERROR: failed to generate name offsets\n");
-        return;
-    }
-    printf("%s", code);
-    free(code);
 
 #if 0
 
 
-    if (hasError == 0)
-    {
-        
-    }
+    
     if (hasError == 0)
     {
         printf("const uint64_t headerNamesValues8[%ld] = {\n", maxSize + 1);
@@ -496,6 +445,54 @@ void createAlignedHeadersText()
         }
         printf("};\n\n");
     }
+#endif
+    return 0;
+}
+
+void createAlignedHeadersText()
+{
+    DevAlignedHeadersText state;
+    memset(&state, 0, sizeof(DevAlignedHeadersText));
+
+    if (0 != getAlignedHeadersTextStats(&state))
+    {
+        return;
+    }
+
+    printf("Sizes: real=%ld | aligned=%ld\n", state.realSize, state.alignedSize);
+
+    showAlignedStrings(&state);
+    showSizesAndCounts(&state);
+
+    printf("\n//CODE\n");
+
+    char *code = generateTextForConstants(&state);
+    if (code == 0)
+    {
+        printf("//ERROR: failed to generate code for constants\n");
+        return;
+    }
+    printf("%s", code);
+    free(code);
+
+    code = generateTextForAlignedValues(&state);
+    if (code == 0)
+    {
+        printf("//ERROR: failed to generate array code\n");
+        return;
+    }
+    printf("%s", code);
+    free(code);
+
+#if 0
+    code = generateTextForNameOffsets(&state);
+    if (code == 0)
+    {
+        printf("//ERROR: failed to generate name offsets\n");
+        return;
+    }
+    printf("%s", code);
+    free(code);
 #endif
     printf("//CODE-END\n\n");
 }

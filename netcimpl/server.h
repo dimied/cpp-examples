@@ -1000,11 +1000,12 @@ void printTypeSizes()
     printf("Request:size:%ld\n", sizeof(HttpRequest));
     printf("Headers:size:%ld\n", sizeof(HeadersDataHeader));
     printf("---\n");
-    printf("Headers:handlers:%ld |#sec=%ld |#hints=%ld |#names=%ld\n",
+    printf("Headers:handlers:%d |#sec=%ld |#hints=%ld |#names=%ld\n",
            NUM_HEADER_HANDLERS,
            NUM_HEADER_HANDLERS_SEC,
            NUM_HEADER_HANDLERS_CLIENT_HINTS,
            HEADER_NAMES_TEXT_LEN);
+    printf("Headers:static:data:%d |#aligned=%d\n", 272 + 272 + 872, 872);
     printf("\n");
 }
 #endif

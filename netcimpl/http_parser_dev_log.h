@@ -26,7 +26,7 @@ void printInfo(int code, char *data, ssize_t val)
         printf("PATH:%s|(#%ld)\n", data, val);
         return;
     case PARSE_HEADERS_CODE:
-        printf("PARSE HEADERS! #%ld\n", NUM_HEADER_HANDLERS);
+        printf("PARSE HEADERS! #%d\n", NUM_HEADER_HANDLERS);
         return;
     case PARSE_CONTENT_CODE:
         printf("PARSE CONTENT\n");

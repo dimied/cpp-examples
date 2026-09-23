@@ -1,0 +1,96 @@
+#ifndef HTTP_PARSER_HEADER_CONSTANTS
+#define HTTP_PARSER_HEADER_CONSTANTS
+
+#define REQ_HEADER_KEEP_ACCEPT (0x1)          /*!< also response */
+#define REQ_HEADER_KEEP_ACCEPT_ENCODING (0x2) /*!< also response*/
+#define REQ_HEADER_KEEP_ACCEPT_LANGUAGE (0x4)
+#define REQ_HEADER_KEEP_ACCESS_CONTROL_REQUEST_HEADERS (0x8)
+
+#define REQ_HEADER_KEEP_ACCESS_CONTROL_REQUEST_METHOD (0x10)
+#define REQ_HEADER_KEEP_ALT_USED (0x20)
+#define REQ_HEADER_KEEP_AUTHORIZATION (0x40)
+#define REQ_HEADER_KEEP_AVAILABLE_DICTIONARY (0x80)
+
+#define REQ_HEADER_KEEP_CACHE_CONTROL (0x100) /*!< also response */
+#define REQ_HEADER_KEEP_CONNECTION (0x200)
+#define REQ_HEADER_KEEP_CONTENT_DIGEST (0x400)      /*!< also response */
+#define REQ_HEADER_KEEP_CONTENT_DISPOSITION (0x800) /*!< also response */
+
+#define REQ_HEADER_KEEP_CONTENT_ENCODING (0x1000) /*!< also response */
+#define REQ_HEADER_KEEP_CONTENT_LENGTH (0x2000)   /*!< also response */
+#define REQ_HEADER_KEEP_CONTENT_LOCATION (0x4000) /*!< also response */
+#define REQ_HEADER_KEEP_CONTENT_TYPE (0x8000)     /*!< also response */
+
+#define REQ_HEADER_KEEP_COOKIE (0x10000)
+#define REQ_HEADER_KEEP_DATE (0x20000) /*!< also response */
+#define REQ_HEADER_KEEP_DICTIONARY_ID (0x40000)
+#define REQ_HEADER_KEEP_EARLY_DATA (0x80000)
+
+#define REQ_HEADER_KEEP_EXPECT (0x100000)
+#define REQ_HEADER_KEEP_FORWARDED (0x200000)
+#define REQ_HEADER_KEEP_FROM (0x400000)
+/* Host skipped, it's always checked (e.g. for HTTP1.1)*/
+#define REQ_HEADER_KEEP_IDEMPOTENCY_KEY (0x800000)
+
+#define REQ_HEADER_KEEP_IF_MATCH (0x1000000)
+#define REQ_HEADER_KEEP_IF_MODIFIED_SINCE (0x2000000)
+#define REQ_HEADER_KEEP_IF_NONE_MATCH (0x4000000)
+#define REQ_HEADER_KEEP_IF_RANGE (0x800 0000)
+
+#define REQ_HEADER_KEEP_IF_UNMODIFIED_SINCE (0x10000000)
+#define REQ_HEADER_KEEP_KEEP_ALIVE (0x20000000) /*!< also response */
+#define REQ_HEADER_KEEP_ALIVE REQ_HEADER_KEEP_KEEP_ALIVE
+#define REQ_HEADER_KEEP_LINK (0x40000000)
+#define REQ_HEADER_KEEP_MAX_FORWARDS (0x80000000)
+
+// unsigned long values
+#define REQ_HEADER_KEEP_ORIGIN ((0x1ul) << 32)
+#define REQ_HEADER_KEEP_PRAGMA ((0x2ul) << 32)
+#define REQ_HEADER_KEEP_PREFER ((0x4ul) << 32)
+#define REQ_HEADER_KEEP_PRIORITY ((0x8ul) << 32) /*!< also response */
+
+#define REQ_HEADER_KEEP_PROXY_AUTHORIZATION ((0x10ul) << 32)
+#define REQ_HEADER_KEEP_RANGE ((0x20ul) << 32)
+#define REQ_HEADER_KEEP_REFERRER ((0x40ul) << 32)
+#define REQ_HEADER_KEEP_REFERER REQ_HEADER_KEEP_REFERRER
+#define REQ_HEADER_KEEP_REPR_DIGEST ((0x80ul) << 32) /*!< also response */
+
+#define REQ_HEADER_KEEP_RTT ((0x100ul) << 32)
+#define REQ_HEADER_KEEP_SAVE_DATA ((0x200ul) << 32)
+#define REQ_HEADER_KEEP_SERVICE_WORKER ((0x400ul) << 32)
+#define REQ_HEADER_KEEP_SERVICE_WORKER_NAVIGATION_PRELOAD ((0x800ul) << 32)
+
+#define REQ_HEADER_KEEP_TE ((0x1000ul) << 32)
+#define REQ_HEADER_KEEP_TRAILER ((0x2000ul) << 32)          /*!< also response */
+#define REQ_HEADER_KEEP_TRAILER_ENCODING ((0x4000ul) << 32) /*!< also response */
+#define REQ_HEADER_KEEP_UPGRADE ((0x8000ul) << 32)          /*!< also response */
+
+#define REQ_HEADER_KEEP_UPGRADE_INSECURE_REQUESTS ((0x10000ul) << 32)
+#define REQ_HEADER_KEEP_USER_AGENT ((0x20000ul) << 32)
+#define REQ_HEADER_KEEP_VIA ((0x40000ul) << 32)                 /*!< also response */
+#define REQ_HEADER_KEEP_WANT_CONTENT_DIGEST ((0x80000ul) << 32) /*!< also response */
+
+#define REQ_HEADER_KEEP_WANT_REPR_DIGEST ((0x100000ul) << 32) /*!< also response */
+#define REQ_HEADER_KEEP_X_FORWARDED_FOR ((0x200000ul) << 32)
+#define REQ_HEADER_KEEP_X_FORWARDED_HOST ((0x400000ul) << 32)
+#define REQ_HEADER_KEEP_X_FORWARDED_PROTO ((0x800000ul) << 32)
+
+#define REQ_HEADER_KEEP_X_FORWARDED_PROTO ((0x800000ul) << 32)
+
+#define REQ_HEADER_KEEP_LAST REQ_HEADER_KEEP_X_FORWARDED_PROTO
+
+#define REQ_HEADER_KEEP_ALL ((REQ_HEADER_KEEP_LAST)<<1)-1)
+
+// to ignore host during requests
+#define REQ_HEADER_IGNORE_HOST ((0x1ul) << 62)
+
+#define HEADER_NAME_MIN_LEN (2)
+#define HEADER_NAME_MAX_LEN (33)
+#define HEADER_SIZE_BITS_CONSTANT (5117968382ul)
+
+// Sizes:bitmask: 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 25 29 30 33
+//uint64_t header_sizes_bits = 5117968382ul;
+
+#define NUM_HEADER_HANDLERS (56)
+
+#endif

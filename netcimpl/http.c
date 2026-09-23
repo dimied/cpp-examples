@@ -65,6 +65,8 @@ void writeFile(char *data, int len, int cnt)
     }
 }
 
+#define INIT_HEADER_DATA_VALIDATE 1
+
 #include "server.h"
 
 MyServer myServer;
@@ -104,6 +106,8 @@ char buffer[1024];
 #include "http_parser_benchmark_snippets.h"
 #include "http_parser_dev_helper.h"
 
+
+
 int main()
 {
     signal(SIGINT, signalHandler);
@@ -112,14 +116,22 @@ int main()
     printf("Cache files: %d\n\n", cfr);
 
     printTypeSizes();
+    {
+        int r = init_header_data();
+        printf("INIT-HEADER-DATA: %d\n", r);
+        if (r != 0)
+        {
+            return 2;
+        }
+    }
 
-    createAlignedHeadersText();
+    // createAlignedHeadersText();
     return 0;
 
 #if 1
-    //bench_parse_method();
-    //bench_parse_protocol();
-    //bench_parse_text();
+    // bench_parse_method();
+    // bench_parse_protocol();
+    // bench_parse_text();
     bench_parse_headers();
     return 0;
 #endif
