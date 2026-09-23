@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <time.h>
+#include "test_string_buffer.h"
 
 double perTestTime(double diff, size_t total_tests)
 {
@@ -37,6 +38,7 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
     }
 }
 
+
 #define BENCH_FREE_MEM(M) \
     size_t t = 0;         \
     do                    \
@@ -56,12 +58,12 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
 #define NUM_BENCH_PROTOCOL_RUNS 100
 #include "snippets/bench_protocol.h"
 
-#define NUM_BENCH_TEXT_ENTRIES 10
-#define NUM_BENCH_TEXT_RUNS 1000
+#define NUM_BENCH_TEXT_ENTRIES 100
+#define NUM_BENCH_TEXT_RUNS 100
 #include "snippets/bench_text.h"
 
-#define NUM_BENCH_HEADERS_ENTRIES 1000
-#define NUM_BENCH_HEADERS_RUNS 2
+#define NUM_BENCH_HEADERS_ENTRIES 100
+#define NUM_BENCH_HEADERS_RUNS 1
 #include "snippets/bench_headers.h"
 
 #endif

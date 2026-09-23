@@ -21,8 +21,6 @@ size_t lastSize = 0;
 
 int impl_headers_aligned(char *pathStart)
 {
-    // uint64_t v = (uint64_t)pathStart;
-
     const size_t s = strlen(pathStart);
 
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
@@ -43,9 +41,9 @@ int impl_headers_aligned(char *pathStart)
 
     while (offsets != 0)
     {
-        uint64_t off = (offsets & 0xFF) << 3; //8 byte alignment
+        uint64_t off = (offsets & 0xFF) << 3; // 8 byte alignment
         const char *pS = &headerNamesAligned8[off];
-        
+
         if (0 == strncmp(pathStart, pS, s))
         {
             return (values & 0xFF);
@@ -57,6 +55,357 @@ int impl_headers_aligned(char *pathStart)
 
     return NUM_HEADER_HANDLERS;
 }
+
+int impl_headers_aligned2(char *pathStart)
+{
+    const size_t s = strlen(pathStart);
+
+    if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
+    {
+        lastSize = s;
+        return NUM_HEADER_HANDLERS;
+    }
+    // size test
+    {
+        const uint64_t bit = (0x1ul) << (s - 1);
+        if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
+        {
+            return NUM_HEADER_HANDLERS;
+        }
+    }
+
+    uint64_t offsets = headerNamesOffsets8[s];
+    uint64_t values = headerNamesValues8[s];
+
+    if (s > 8)
+    {
+        const int s2 = (s + 7) >> 3;
+
+        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *pVals = ((uint64_t *)pathStart);
+
+        while (offsets != 0)
+        {
+            uint64_t *checkValues = vals + (offsets & 0xFF);
+            int ss = (int)s2;
+
+            uint64_t *pVals2 = pVals;
+
+            while (ss != 0)
+            {
+                if (*pVals2 != *checkValues)
+                {
+                    break;
+                }
+                ++pVals2;
+                ++checkValues;
+                --ss;
+            }
+            if (ss == 0)
+            {
+                return (values & 0xFF);
+            }
+
+            offsets >>= 8;
+            values >>= 8;
+        }
+    }
+    else
+    {
+        const uint64_t val = *((uint64_t *)pathStart);
+        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+
+        while (offsets != 0)
+        {
+            uint64_t checkValue = vals[(offsets & 0xFF)];
+            if (checkValue == val)
+            {
+                return (values & 0xFF);
+            }
+
+            offsets >>= 8;
+            values >>= 8;
+        }
+    }
+
+    return NUM_HEADER_HANDLERS;
+}
+
+#if HEADER_NAME_MAX_LEN > 40
+#error "Unrolled version does't support strings of length greater than 40"
+#else
+
+int impl_headers_aligned3(char *pathStart)
+{
+    const size_t s = strlen(pathStart);
+
+    if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
+    {
+        lastSize = s;
+        return NUM_HEADER_HANDLERS;
+    }
+    // size test
+    {
+        const uint64_t bit = (0x1ul) << (s - 1);
+        if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
+        {
+            return NUM_HEADER_HANDLERS;
+        }
+    }
+
+    uint64_t offsets = headerNamesOffsets8[s];
+    uint64_t values = headerNamesValues8[s];
+
+    if (s > 8)
+    {
+        const int s2 = (s + 7) >> 3;
+
+        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *pVals = ((uint64_t *)pathStart);
+        int sawPrefix = 0;
+
+        // using loop unrolling
+        while (offsets != 0)
+        {
+            uint64_t *checkValues = vals + (offsets & 0xFF);
+            // uint64_t myValue = *pVals, checkValue = *checkValues;
+
+            // 8 bytes equal?
+            // if (myValue == checkValue)
+            if (*pVals == *checkValues)
+            {
+                sawPrefix |= 1;
+
+                uint64_t *pVals2 = pVals + 1;
+                ++checkValues;
+                // 16 bytes equal?
+                if (*pVals2 == *checkValues)
+                {
+                    sawPrefix |= 2;
+
+                    if (s2 == 2)
+                    {
+                        return (values & 0xFF);
+                    }
+#if HEADER_NAME_MAX_LEN > 16
+                    else
+                    {
+                        ++pVals2;
+                        ++checkValues;
+                        // 24 bytes equal?
+                        if (*pVals2 == *checkValues)
+                        {
+                            sawPrefix |= 4;
+                            if (s2 == 3)
+                            {
+                                return (values & 0xFF);
+                            }
+#if HEADER_NAME_MAX_LEN > 24
+                            else
+                            {
+                                ++pVals2;
+                                ++checkValues;
+                                // 32 bytes equal?
+                                if (*pVals2 == *checkValues)
+                                {
+                                    if (s2 == 4)
+                                    {
+                                        return (values & 0xFF);
+                                    }
+#if HEADER_NAME_MAX_LEN > 32
+                                    else
+                                    {
+                                        ++pVals2;
+                                        ++checkValues;
+                                        // 33-40 bytes equal?
+                                        if (*pVals2 == *checkValues)
+                                        {
+                                            return (values & 0xFF);
+                                        }
+                                    }
+#endif
+                                }
+                            }
+#endif
+                        }
+                        else if ((sawPrefix & 0x4) != 0)
+                        {
+                            break;
+                        }
+                    }
+#endif
+                }
+                else if ((sawPrefix & 0x2) != 0)
+                {
+                    break;
+                }
+            }
+            else if (sawPrefix != 0)
+            {
+                break;
+            }
+
+            offsets >>= 8;
+            values >>= 8;
+        }
+    }
+    else
+    {
+        const uint64_t val = *((uint64_t *)pathStart);
+        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+
+        while (offsets != 0)
+        {
+            uint64_t checkValue = vals[(offsets & 0xFF)];
+            if (checkValue == val)
+            {
+                return (values & 0xFF);
+            }
+
+            offsets >>= 8;
+            values >>= 8;
+        }
+    }
+
+    return NUM_HEADER_HANDLERS;
+}
+
+
+int impl_headers_aligned4(char *pathStart)
+{
+    const size_t s = strlen(pathStart);
+
+    if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
+    {
+        lastSize = s;
+        return NUM_HEADER_HANDLERS;
+    }
+    // size test
+    {
+        const uint64_t bit = (0x1ul) << (s - 1);
+        if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
+        {
+            return NUM_HEADER_HANDLERS;
+        }
+    }
+
+    uint64_t offsets = headerNamesOffsets8[s];
+    uint64_t values = headerNamesValues8[s];
+
+    if (s > 8)
+    {
+        const int s2 = (s + 7) >> 3;
+
+        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *pVals = ((uint64_t *)pathStart);
+        int sawPrefix = 0;
+
+        // using loop unrolling
+        while (offsets != 0)
+        {
+            uint64_t *checkValues = vals + (offsets & 0xFF);
+            // uint64_t myValue = *pVals, checkValue = *checkValues;
+
+            // 8 bytes equal?
+            // if (myValue == checkValue)
+            if (*pVals == *checkValues)
+            {
+                sawPrefix |= 1;
+
+                uint64_t *pVals2 = pVals + 1;
+                ++checkValues;
+                // 16 bytes equal?
+                if (*pVals2 == *checkValues)
+                {
+                    sawPrefix |= 2;
+
+                    if (s2 == 2)
+                    {
+                        return (values & 0xFF);
+                    }
+#if HEADER_NAME_MAX_LEN > 16
+                    else
+                    {
+                        ++pVals2;
+                        ++checkValues;
+                        // 24 bytes equal?
+                        if (*pVals2 == *checkValues)
+                        {
+                            sawPrefix |= 4;
+                            if (s2 == 3)
+                            {
+                                return (values & 0xFF);
+                            }
+#if HEADER_NAME_MAX_LEN > 24
+                            else
+                            {
+                                ++pVals2;
+                                ++checkValues;
+                                // 32 bytes equal?
+                                if (*pVals2 == *checkValues)
+                                {
+                                    if (s2 == 4)
+                                    {
+                                        return (values & 0xFF);
+                                    }
+#if HEADER_NAME_MAX_LEN > 32
+                                    else
+                                    {
+                                        ++pVals2;
+                                        ++checkValues;
+                                        // 33-40 bytes equal?
+                                        if (*pVals2 == *checkValues)
+                                        {
+                                            return (values & 0xFF);
+                                        }
+                                    }
+#endif
+                                }
+                            }
+#endif
+                        }
+                        else if ((sawPrefix & 0x4) != 0)
+                        {
+                            break;
+                        }
+                    }
+#endif
+                }
+                else if ((sawPrefix & 0x2) != 0)
+                {
+                    break;
+                }
+            }
+            else if (sawPrefix != 0)
+            {
+                break;
+            }
+
+            offsets >>= 8;
+            values >>= 8;
+        }
+    }
+    else
+    {
+        const uint64_t val = *((uint64_t *)pathStart);
+        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+
+        while (offsets != 0)
+        {
+            uint64_t checkValue = vals[(offsets & 0xFF)];
+            if (checkValue == val)
+            {
+                return (values & 0xFF);
+            }
+
+            offsets >>= 8;
+            values >>= 8;
+        }
+    }
+
+    return NUM_HEADER_HANDLERS;
+}
+#endif
 
 void bench_parse_headers()
 {
@@ -164,16 +513,17 @@ void bench_parse_headers()
 
     printf("CASES!#runs:%d|#tests:%d|#total:%ld\n", NUM_BENCH_HEADERS_RUNS, NUM_BENCH_HEADERS_ENTRIES, total);
 
-#define NUM_BENCH_HEADERS_IMPLEMENTATIONS 2
+#define NUM_BENCH_HEADERS_IMPLEMENTATIONS 5
 
     double times[8][NUM_BENCH_HEADERS_IMPLEMENTATIONS];
     memset(times, 0, sizeof(double) * NUM_BENCH_HEADERS_IMPLEMENTATIONS * 8);
+    char *names[NUM_BENCH_HEADERS_IMPLEMENTATIONS] = {"Norm", "IMP1", "IMP2", "IMP3", "IMP4"};
 
     size_t offset;
 
-#define BENCH_PROTOCOL_OFFSET_LIMIT 8
+#define BENCH_HEADERS_OFFSET_LIMIT 8
 
-    for (offset = 0; offset < BENCH_PROTOCOL_OFFSET_LIMIT; offset++)
+    for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
         // align values
         start = clock();
@@ -218,7 +568,7 @@ void bench_parse_headers()
         printf("Hits: %ld\n", hits);
         //
         //
-
+#if 1
         size_t testRun;
         printf("Normal...\n");
         start = clock();
@@ -239,7 +589,7 @@ void bench_parse_headers()
 
         end = clock();
         times[offset][0] = ((double)(end - start));
-        // printTimes("Normal", start, end, total);
+#endif
 #if 1
         printf("IMP1...\n");
         start = clock();
@@ -263,11 +613,83 @@ void bench_parse_headers()
         // printTimes("IMP1", start, end, total);
         times[offset][1] = ((double)(end - start));
 #endif
+
+#if 1
+        printf("IMP2...\n");
+        start = clock();
+
+        for (testRun = 0; testRun < NUM_BENCH_HEADERS_RUNS; testRun++)
+        {
+            for (i = 0; i < NUM_BENCH_HEADERS_ENTRIES; i++)
+            {
+                int r = impl_headers_aligned2(testsReal[i]);
+                if (r != expected[i])
+                {
+                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("T:%s|%s|\n", tests[i], testsReal[i]);
+                    break;
+                }
+            }
+        }
+
+        end = clock();
+        // printTimes("IMP1", start, end, total);
+        times[offset][2] = ((double)(end - start));
+#endif
+
+#if 1
+        printf("IMP3...\n");
+        start = clock();
+
+        for (testRun = 0; testRun < NUM_BENCH_HEADERS_RUNS; testRun++)
+        {
+            for (i = 0; i < NUM_BENCH_HEADERS_ENTRIES; i++)
+            {
+                int r = impl_headers_aligned3(testsReal[i]);
+                if (r != expected[i])
+                {
+                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("T:%s|%s|\n", tests[i], testsReal[i]);
+                    break;
+                }
+            }
+        }
+
+        end = clock();
+        // printTimes("IMP1", start, end, total);
+        times[offset][3] = ((double)(end - start));
+#endif
+#if 1
+        printf("IMP4...\n");
+        start = clock();
+
+        for (testRun = 0; testRun < NUM_BENCH_HEADERS_RUNS; testRun++)
+        {
+            for (i = 0; i < NUM_BENCH_HEADERS_ENTRIES; i++)
+            {
+                int r = impl_headers_aligned4(testsReal[i]);
+                if (r != expected[i])
+                {
+                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("T:%s|%s|\n", tests[i], testsReal[i]);
+                    break;
+                }
+            }
+        }
+
+        end = clock();
+        // printTimes("IMP1", start, end, total);
+        times[offset][4] = ((double)(end - start));
+#endif
     }
 
-    printf("Offset\t");
+    uint64_t addr = (uint64_t)&headerNamesAligned8[0];
+    printf("Alignment: %ld\n", addr & 0x7);
 
-    char *names[NUM_BENCH_HEADERS_IMPLEMENTATIONS] = {"Norm", "IMP1"};
+    printf("Offset\t");
 
     for (i = 0; i < NUM_BENCH_HEADERS_IMPLEMENTATIONS; i++)
     {
@@ -275,7 +697,7 @@ void bench_parse_headers()
     }
     printf("\n");
 
-    for (offset = 0; offset < BENCH_PROTOCOL_OFFSET_LIMIT; offset++)
+    for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
         printf("%6ld\t", offset);
         for (i = 0; i < NUM_BENCH_HEADERS_IMPLEMENTATIONS; i++)
@@ -286,7 +708,7 @@ void bench_parse_headers()
         printf("\n");
     }
     printf("----\n");
-    for (offset = 0; offset < BENCH_PROTOCOL_OFFSET_LIMIT; offset++)
+    for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
         printf("%5ld+\t", offset);
         for (i = 0; i < NUM_BENCH_HEADERS_IMPLEMENTATIONS; i++)
@@ -298,7 +720,7 @@ void bench_parse_headers()
     }
     printf("\n");
 
-#undef BENCH_PROTOCOL_OFFSET_LIMIT
+#undef BENCH_HEADERS_OFFSET_LIMIT
 
     printf("FREE TESTS!\n");
     for (i = 0; i < NUM_BENCH_HEADERS_ENTRIES; i++)

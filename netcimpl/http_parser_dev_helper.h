@@ -1,17 +1,28 @@
+#ifndef HTTP_PARSER_DEV_HELPER
+#define HTTP_PARSER_DEV_HELPER
 
+#include "test_string_buffer.h"
 
-void createAlignedHeadersText()
+typedef struct DevAlignedHeadersText
+{
+    size_t alignedSize;
+    size_t realSize;
+    size_t minSize;
+    size_t maxSize;
+    uint64_t sizes;
+    int numHits;
+    char hits[NUM_HEADER_HANDLERS];
+    size_t sizeCounts[64];
+    uint64_t offsets[64];
+    char *names[64][8];
+    uint64_t values[64];
+} DevAlignedHeadersText;
+
+int getAlignedHeadersTextStats(DevAlignedHeadersText *state)
 {
     size_t i;
-    size_t alignedSize = 0, realSize = 0;
-    char numHits = 0;
-    char hits[NUM_HEADER_HANDLERS];
-    memset(hits, 0, NUM_HEADER_HANDLERS);
-    uint64_t sizes = 0;
-    size_t minSize = 64, maxSize = 0;
-    size_t sizeCounts[64];
-
-    memset(sizeCounts, 0, sizeof(sizeCounts));
+    memset(state, 0, sizeof(DevAlignedHeadersText));
+    state->minSize = 64;
 
     for (i = 0; i < NUM_HEADER_HANDLERS; i++)
     {
@@ -19,235 +30,425 @@ void createAlignedHeadersText()
         if (s == 0)
         {
             printf("Error: empty name @idx=%ld\n", i);
-            continue;
+            return 1;
         }
         size_t padding = (s & 0x7);
 
         if (padding == 0)
         {
-            numHits++;
-            hits[i] = numHits;
+            state->numHits++;
+            state->hits[i] = state->numHits;
         }
         if (padding != 0)
         {
             padding = 8 - padding;
         }
-        alignedSize += (s + padding);
-        realSize += s + 1;
+        state->alignedSize += (s + padding);
+        state->realSize += s + 1;
 
-        if (minSize > s)
+        if (state->minSize > s)
         {
-            minSize = s;
+            state->minSize = s;
         }
-        if (maxSize < s)
+        if (state->maxSize < s)
         {
-            maxSize = s;
+            state->maxSize = s;
         }
 
         if (s < 64)
         {
-            sizes |= (0x1ul << (s - 1));
-            sizeCounts[s]++;
+            state->sizes |= (0x1ul << (s - 1));
+            state->sizeCounts[s]++;
         }
         else
         {
             printf("ERROR: size too large\n");
+            return 1;
         }
     }
 
-    printf("Sizes: real=%ld | aligned=%ld\n", realSize, alignedSize);
+    return 0;
+}
 
-    if (numHits != 0)
+void showAlignedStrings(DevAlignedHeadersText *state)
+{
+    if (state->numHits != 0)
     {
         printf("Hits:\n");
-
+        size_t i;
         for (i = 0; i < NUM_HEADER_HANDLERS; i++)
         {
-            if (hits[i])
+            if (state->hits[i])
             {
                 printf("|%s|\n", headerHandlers[i].name);
             }
         }
     }
+}
 
+void showSizesAndCounts(DevAlignedHeadersText *state)
+{
+    printf("//SIZES:");
+    size_t i;
+    for (i = 0; i < 64; i++)
     {
-        printf("SIZES:");
-        for (i = 0; i < 64; i++)
+        if (state->sizeCounts[i] != 0)
         {
-            if (sizeCounts[i] != 0)
-            {
-                printf("%2ld|", i);
-            }
+            printf("%2ld|", i);
         }
-        printf("\n");
-        printf("COUNT:");
-        for (i = 0; i < 64; i++)
+    }
+    printf("\n");
+    printf("//COUNT:");
+    for (i = 0; i < 64; i++)
+    {
+        if (state->sizeCounts[i] != 0)
         {
-            if (sizeCounts[i] != 0)
-            {
-                printf("%2ld|", sizeCounts[i]);
-            }
+            printf("%2ld|", state->sizeCounts[i]);
         }
-        printf("\n");
+    }
+    printf("\n");
+}
+
+char *generateTextForConstants(DevAlignedHeadersText *state)
+{
+    char buffer[128];
+    memset(buffer, 0, 128);
+
+    char *result = (char *)calloc(1024, 1);
+    if (result == 0)
+    {
+        return 0;
     }
 
-    const uint64_t sizesBitmask = sizes;
+    const uint64_t sizesBitmask = state->sizes;
 
-    printf("\n//CODE\n");
+    char *pResult = result;
 
-    printf("\n#define HEADER_NAME_MIN_LEN (%ld)\n", minSize);
-    printf("#define HEADER_NAME_MAX_LEN (%ld)\n", maxSize);
-    printf("#define HEADER_SIZE_BITS_CONSTANT (%ldul)\n\n", sizesBitmask);
+    int s = sprintf(buffer, "\n#define HEADER_NAME_MIN_LEN (%ld)\n", state->minSize);
+    memcpy(pResult, buffer, s);
+    memset(buffer, 0, s);
+    pResult += s;
+
+    s = sprintf(buffer, "#define HEADER_NAME_MAX_LEN (%ld)\n", state->maxSize);
+    memcpy(pResult, buffer, s);
+    memset(buffer, 0, s);
+    pResult += s;
+
+    s = sprintf(buffer, "#define HEADER_SIZE_BITS_CONSTANT (%ldul)\n\n", sizesBitmask);
+    memcpy(pResult, buffer, s);
+    memset(buffer, 0, s);
+    pResult += s;
+
     {
-        printf("//Sizes:bitmask:");
+        s = sprintf(buffer, "//Sizes:bitmask:");
+        memcpy(pResult, buffer, s);
+        memset(buffer, 0, s);
+        pResult += s;
+
         size_t ts = 1;
+        uint64_t sizes = state->sizes;
         while (sizes != 0)
         {
             if (sizes & 0x1)
             {
-                if (minSize == 0)
-                {
-                    minSize = ts;
-                }
-                printf(" %ld", ts);
+
+                s = sprintf(buffer, " %ld", ts);
+                memcpy(pResult, buffer, s);
+                memset(buffer, 0, s);
+                pResult += s;
             }
             sizes >>= 1;
             ts++;
         }
-        printf("\n");
+        s = sprintf(buffer, "\n");
+        memcpy(pResult, buffer, s);
+        memset(buffer, 0, s);
+        pResult += s;
     }
 
-    printf("uint64_t header_sizes_bits = %ldul;\n\n", sizesBitmask);
+    s = sprintf(buffer, "uint64_t header_sizes_bits = %ldul;\n\n", sizesBitmask);
+    memcpy(pResult, buffer, s);
 
-    printf("const char headerNamesAligned8[%ld] = {\n", alignedSize);
+    return result;
+}
 
-    size_t sz = 0;
-    memset(sizeCounts, 0, sizeof(sizeCounts));
+char *generateTextForAlignedValues(DevAlignedHeadersText *state)
+{
+    size_t totalSize = 0;
 
-    uint64_t offsets[64];
-    memset(offsets, 0, sizeof(offsets));
+    TestStringBuffer string_buffer;
 
-    char *names[64][8];
-    memset(names, 0, sizeof(names));
+    char buffer[256];
+    memset(buffer, 0, 256);
 
-    uint64_t values[64];
-    memset(values, 0, sizeof(values));
+    clearTestStringBuffer(&string_buffer);
+
+    int runs = 2;
+    //size_t sizeCounts[64];
     int hasError = 0;
 
-    for (i = 0; i < NUM_HEADER_HANDLERS; i++)
+    while (runs != 0 && hasError == 0)
     {
-        char *pStr = headerHandlers[i].name;
-        const size_t s = strlen(pStr);
-        size_t padding = (s & 0x7);
-
-        if (padding != 0)
+        int r = initTestStringBuffer(&string_buffer, totalSize);
+        if (0 != r)
         {
-            padding = 8 - padding;
+            printf("//ERROR: no string buffer.(CODE:%d)\n", r);
+            break;
         }
+        runs--;
 
-        size_t sIdx;
-
-        if (sz % 8 != 0)
+        size_t i;
+        r = sprintf(buffer, "const char headerNamesAligned8[%ld] = {\n", state->alignedSize);
+        int addRes = addToTestStringBuffer(&string_buffer, buffer, r);
+        if (addRes != 0)
         {
-            printf("//ERROR: alignment @%ld|%s|\n", i, pStr);
+            printf("//ERROR: adding to string buffer.(CODE:%d)\n", r);
             hasError++;
             break;
         }
-        const uint64_t shiftIdx = sizeCounts[s];
-        names[s][shiftIdx] = pStr;
-        const uint64_t offset = (sz >> 3);
-        if (offset > 255)
+        memset(buffer, 0, r);
+
+        size_t sz = 0;
+        memset(state->sizeCounts, 0, sizeof(state->sizeCounts));
+        memset(state->offsets, 0, sizeof(state->offsets));
+        memset(state->names, 0, sizeof(state->names));
+        memset(state->values, 0, sizeof(state->values));
+
+        for (i = 0; i < NUM_HEADER_HANDLERS; i++)
         {
-            printf("//ERROR: value too large @%ld|%ld|%s|\n", i, offset, pStr);
+            char *pStr = headerHandlers[i].name;
+            const size_t s = strlen(pStr);
+            size_t padding = (s & 0x7);
+
+            if (padding != 0)
+            {
+                padding = 8 - padding;
+            }
+
+            size_t sIdx;
+
+            if (sz % 8 != 0)
+            {
+                printf("//ERROR: alignment @%ld|%s|\n", i, pStr);
+                hasError++;
+                break;
+            }
+            const uint64_t shiftIdx = state->sizeCounts[s];
+            state->names[s][shiftIdx] = pStr;
+            const uint64_t offset = (sz >> 3);
+            if (offset > 255)
+            {
+                printf("//ERROR: value too large @%ld|%ld|%s|\n", i, offset, pStr);
+                hasError++;
+                break;
+            }
+            const size_t shift = shiftIdx << 3; //<<3: for bytes
+            state->offsets[s] |= offset << shift;      //>>3: for aligned offsets
+            state->values[s] |= i << shift;
+            state->sizeCounts[s]++;
+
+            for (sIdx = 0; hasError == 0 && sIdx < s; sIdx++)
+            {
+
+                int len = sprintf(buffer, "'%c'", pStr[sIdx]);
+                addRes = addToTestStringBuffer(&string_buffer, buffer, len);
+                if (0 != addRes)
+                {
+                    printf("//ERROR: add symbol\n");
+                    hasError++;
+                    break;
+                }
+
+                memset(buffer, 0, len);
+
+                sz++;
+                if (sz < state->alignedSize)
+                {
+                    addRes = addToTestStringBuffer(&string_buffer, ",", 1);
+                    if (0 != addRes)
+                    {
+                        printf("//ERROR: add comma\n");
+                        hasError++;
+                        break;
+                    }
+                }
+            }
+            int sepAdded = 0;
+            if (sz > 0 && ((sz & 0x7) == 0))
+            {
+                sepAdded++;
+                addRes = addToTestStringBuffer(&string_buffer, " /**/\n", strlen(" /**/\n"));
+                if (0 != addRes)
+                {
+                    printf("//ERROR: add line end(1)\n");
+                    hasError++;
+                    break;
+                }
+            }
+
+            while (padding != 0)
+            {
+                addRes = addToTestStringBuffer(&string_buffer, "0", 1);
+                if (0 != addRes)
+                {
+                    printf("//ERROR: add 0\n");
+                    hasError++;
+                    break;
+                }
+                sz++;
+                padding--;
+
+                if (sz < state->alignedSize)
+                {
+                    addRes = addToTestStringBuffer(&string_buffer, ",", 1);
+                    if (0 != addRes)
+                    {
+                        printf("//ERROR: add comma(2)\n");
+                        hasError++;
+                        break;
+                    }
+                }
+            }
+
+            if ((sepAdded == 0) && sz > 0 && ((sz & 0x7) == 0))
+            {
+                addRes = addToTestStringBuffer(&string_buffer, " /**/\n", strlen(" /**/\n"));
+                if (0 != addRes)
+                {
+                    printf("//ERROR: add line end(2)\n");
+                    hasError++;
+                    break;
+                }
+            }
+        }
+        addRes = addToTestStringBuffer(&string_buffer, "};\n\n", strlen("};\n\n"));
+        if (0 != addRes)
+        {
+            printf("//ERROR: line end\n");
             hasError++;
             break;
         }
-        const size_t shift = shiftIdx << 3; //<<3: for bytes
-        offsets[s] |= offset << shift;      //>>3: for aligned offsets
-        values[s] |= i << shift;
-        sizeCounts[s]++;
-
-        for (sIdx = 0; sIdx < s; sIdx++)
-        {
-            printf("'%c'", pStr[sIdx]);
-            sz++;
-            if (sz < alignedSize)
-            {
-                printf(",");
-            }
-        }
-        int sepAdded = 0;
-        if (sz > 0 && ((sz & 0x7) == 0))
-        {
-            printf(" /**/");
-            sepAdded++;
-            printf("\n");
-        }
-
-        while (padding != 0)
-        {
-            printf("0");
-            sz++;
-            padding--;
-            if (sz < alignedSize)
-            {
-                printf(",");
-            }
-        }
-
-        if ((sepAdded == 0) && sz > 0 && ((sz & 0x7) == 0))
-        {
-            printf(" /**/");
-            printf("\n");
-        }
+        // printf("//TOTAL-SIZE:%ld\n", string_buffer.used);
+        totalSize = string_buffer.used;
     }
-    printf("};\n\n");
 
     if (hasError == 0)
     {
-        printf("const uint64_t headerNamesOffsets8[%ld] = {\n", maxSize + 1);
-        size_t j;
-        for (i = 0; i < maxSize + 1; i++)
+        return string_buffer.data;
+    }
+    printf("//ERROR: unknown\n");
+    free(string_buffer.data);
+    return 0;
+}
+
+char *generateTextForNameOffsets(DevAlignedHeadersText *state)
+{
+    size_t totalSize = 0;
+
+    TestStringBuffer string_buffer;
+
+    char buffer[256];
+    memset(buffer, 0, 256);
+
+    clearTestStringBuffer(&string_buffer);
+
+    printf("const uint64_t headerNamesOffsets8[%ld] = {\n", state->maxSize + 1);
+    size_t j;
+    size_t i;
+    for (i = 0; i < state->maxSize + 1; i++)
+    {
+        char comma = (i < state->maxSize) ? ',' : ' ';
+
+        const size_t c = state->sizeCounts[i];
+        if (c == 0)
         {
-            char comma = (i < maxSize) ? ',' : ' ';
-
-            const size_t c = sizeCounts[i];
-            if (c == 0)
-            {
-                printf("0%c /*size:%ld*/\n", comma, i);
-            }
-            else
-            {
-#if 1
-                uint64_t off = offsets[i];
-
-                printf("(");
-                printf("(%ld)", off & 0xFF);
-                int shift = 8;
-                off >>= 8;
-                while (off != 0)
-                {
-                    uint64_t o = off & 0xFF;
-
-                    printf("|((%ldul)<<%d)", o, shift);
-
-                    off >>= 8;
-                    shift += 8;
-                }
-                printf(")%c", comma);
-#else
-                printf("%ld%c ", offsets[i], comma);
-#endif
-                printf("/*size:%ld|", i);
-                for (j = 0; j < c - 1; j++)
-                {
-                    printf("%s,", names[i][j]);
-                }
-                printf("%s", names[i][j]);
-                printf("*/\n");
-            }
+            printf("  0%c /*size:%ld*/\n", comma, i);
         }
-        printf("};\n\n");
+        else
+        {
+#if 1
+            uint64_t off = state->offsets[i];
+
+            printf("  (");
+            printf("(%ld)", off & 0xFF);
+            int shift = 8;
+            off >>= 8;
+            while (off != 0)
+            {
+                uint64_t o = off & 0xFF;
+
+                printf("|((%ldul)<<%d)", o, shift);
+
+                off >>= 8;
+                shift += 8;
+            }
+            printf(")%c", comma);
+#else
+            printf("%ld%c ", offsets[i], comma);
+#endif
+            printf("/*size:%ld|", i);
+            for (j = 0; j < c - 1; j++)
+            {
+                printf("%s,", state->names[i][j]);
+            }
+            printf("%s", state->names[i][j]);
+            printf("*/\n");
+        }
+    }
+    printf("};\n\n");
+    return 0;
+}
+
+void createAlignedHeadersText()
+{
+    DevAlignedHeadersText state;
+    memset(&state, 0, sizeof(DevAlignedHeadersText));
+
+    if (0 != getAlignedHeadersTextStats(&state))
+    {
+        return;
+    }
+
+    printf("Sizes: real=%ld | aligned=%ld\n", state.realSize, state.alignedSize);
+
+    showAlignedStrings(&state);
+    showSizesAndCounts(&state);
+
+    printf("\n//CODE\n");
+
+    char *code = generateTextForConstants(&state);
+    if (code == 0)
+    {
+        printf("//ERROR: failed to generate code for constants\n");
+        return;
+    }
+    printf("%s", code);
+    free(code);
+
+    code = generateTextForAlignedValues(&state);
+    if (code == 0)
+    {
+        printf("//ERROR: failed to generate array code\n");
+        return;
+    }
+    printf("%s", code);
+    free(code);
+
+    code = generateTextForNameOffsets(&state);
+    if (code == 0)
+    {
+        printf("//ERROR: failed to generate name offsets\n");
+        return;
+    }
+    printf("%s", code);
+    free(code);
+
+#if 0
+
+
+    if (hasError == 0)
+    {
+        
     }
     if (hasError == 0)
     {
@@ -295,6 +496,8 @@ void createAlignedHeadersText()
         }
         printf("};\n\n");
     }
-
+#endif
     printf("//CODE-END\n\n");
 }
+
+#endif

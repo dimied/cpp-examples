@@ -114,7 +114,7 @@ int main()
     printTypeSizes();
 
     createAlignedHeadersText();
-    //return 0;
+    return 0;
 
 #if 1
     //bench_parse_method();

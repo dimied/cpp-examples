@@ -819,7 +819,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             printInfo(PARSE_HEADERS_CODE, 0, NUM_HEADER_HANDLERS);
 
 #define HO_LEN 32
-            uint32_t headerOffsets[HO_LEN];
+            //uint32_t headerOffsets[HO_LEN];
             size_t pIdx = 0;
             int hasHost = 0;
             // char *pHeadersBefore = pathStart;
@@ -910,7 +910,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                                     {
                                         val = 0;
                                     }
-                                    headerOffsets[pIdx] = val;
+                                    //headerOffsets[pIdx] = val;
                                     pIdx++;
                                 }
                             }
