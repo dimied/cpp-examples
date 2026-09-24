@@ -38,6 +38,67 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
     }
 }
 
+typedef struct TestMemAllocations
+{
+    int used;
+    char *name;
+    void *allocations[6];
+} TestMemAllocations;
+
+TestMemAllocations *testAllocChain = 0;
+
+TestMemAllocations *testMemAllocs(char *name)
+{
+    TestMemAllocations *pM = (TestMemAllocations *)calloc(1, sizeof(TestMemAllocations));
+    if (pM != 0)
+    {
+        pM->name = name;
+    }
+    return pM;
+}
+
+void *allocTestMem(TestMemAllocations *pM, size_t nmemb, size_t sizePerItem)
+{
+    if (pM != 0)
+    {
+        printf("ALLOC:%s|#items=%ld|#size=%ld\n", pM->name, nmemb, sizePerItem);
+        if (pM->used == sizeof(pM->allocations) / sizeof(pM->allocations[0]))
+        {
+            printf("allocTestMem: Too many\n");
+            return 0;
+        }
+
+        void *mem = calloc(nmemb, sizePerItem);
+        if (mem != 0)
+        {
+            pM->allocations[pM->used] = mem;
+            pM->used++;
+        }
+        return mem;
+    }
+    return 0;
+}
+
+void freeMemAllocs(TestMemAllocations *pM)
+{
+    if (pM != 0)
+    {
+        printf("FREE-MEM: %s\n", pM->name);
+        int i;
+        for (i = 0; i < pM->used; i++)
+        {
+            if (pM->allocations[i] != 0)
+            {
+                free(pM->allocations[i]);
+                pM->allocations[i] = 0;
+            }
+        }
+        /*pM->name = 0;
+        pM->used = 0;
+        */
+        free(pM);
+    }
+}
 
 #define BENCH_FREE_MEM(M) \
     size_t t = 0;         \
@@ -62,8 +123,8 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
 #define NUM_BENCH_TEXT_RUNS 100
 #include "snippets/bench_text.h"
 
-#define NUM_BENCH_HEADERS_ENTRIES 100
-#define NUM_BENCH_HEADERS_RUNS 1
+#define NUM_BENCH_HEADERS_ENTRIES 1000
+#define NUM_BENCH_HEADERS_RUNS 10
 #include "snippets/bench_headers.h"
 
 #endif

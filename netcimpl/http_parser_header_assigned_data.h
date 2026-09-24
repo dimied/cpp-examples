@@ -1,6 +1,8 @@
 #ifndef HTTP_HEADER_ASSIGNED_DATA
 #define HTTP_HEADER_ASSIGNED_DATA
 
+
+
 HeaderHandler headerHandlers[] = {
     DESCRIBE_HEADER_HANDLER("accept", parseAcceptCC),
     DESCRIBE_HEADER_HANDLER("accept-encoding", parseAcceptEncodingCC),
@@ -130,7 +132,7 @@ HeaderHandler headerHandlersClientHints[] = {
 
 #define NUM_HEADER_HANDLERS_CLIENT_HINTS (sizeof(headerHandlersClientHints) / sizeof(headerHandlersClientHints[0]))
 
-
+#if 1
 const char headerNamesAligned8[872] = {
     'a', 'c', 'c', 'e', 'p', 't', 0, 0,                                                                                                                                                       /**/
     'a', 'c', 'c', 'e', 'p', 't', '-', 'e', 'n', 'c', 'o', 'd', 'i', 'n', 'g', 0,                                                                                                             /**/
@@ -263,7 +265,8 @@ const uint64_t headerNamesValues8[34] = {
     0,                                                                                         /*size:32*/
     ((43))                                                                                     /*size:33|service-worker-navigation-preload*/
 };
+#endif
 
-#define HEADER_NAMES_TEXT_LEN (sizeof(headerNamesAligned8))
+//
 
 #endif

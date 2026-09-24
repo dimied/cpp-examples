@@ -5,7 +5,6 @@
 
 int impl_headers_normal(char *pathStart)
 {
-
     size_t idx = 0;
     for (idx = 0; idx < NUM_HEADER_HANDLERS; idx++)
     {
@@ -18,6 +17,16 @@ int impl_headers_normal(char *pathStart)
 }
 
 size_t lastSize = 0;
+
+#if 0
+#define bench_header_names headerNamesAligned8
+#define bench_header_offsets headerNamesOffsets8
+#define bench_header_values headerNamesValues8
+#else
+#define bench_header_names header_names_aligned8
+#define bench_header_offsets header_names_offsets8
+#define bench_header_values header_names_values8
+#endif
 
 int impl_headers_aligned(char *pathStart)
 {
@@ -36,13 +45,13 @@ int impl_headers_aligned(char *pathStart)
         }
     }
 
-    uint64_t offsets = headerNamesOffsets8[s];
-    uint64_t values = headerNamesValues8[s];
+    uint64_t offsets = bench_header_offsets[s];
+    uint64_t values = bench_header_values[s];
 
     while (offsets != 0)
     {
         uint64_t off = (offsets & 0xFF) << 3; // 8 byte alignment
-        const char *pS = &headerNamesAligned8[off];
+        const char *pS = &bench_header_names[off];
 
         if (0 == strncmp(pathStart, pS, s))
         {
@@ -74,14 +83,14 @@ int impl_headers_aligned2(char *pathStart)
         }
     }
 
-    uint64_t offsets = headerNamesOffsets8[s];
-    uint64_t values = headerNamesValues8[s];
+    uint64_t offsets = bench_header_offsets[s];
+    uint64_t values = bench_header_values[s];
 
     if (s > 8)
     {
         const int s2 = (s + 7) >> 3;
 
-        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *vals = (uint64_t *)&bench_header_names[0];
         uint64_t *pVals = ((uint64_t *)pathStart);
 
         while (offsets != 0)
@@ -113,7 +122,7 @@ int impl_headers_aligned2(char *pathStart)
     else
     {
         const uint64_t val = *((uint64_t *)pathStart);
-        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *vals = (uint64_t *)&bench_header_names[0];
 
         while (offsets != 0)
         {
@@ -153,14 +162,14 @@ int impl_headers_aligned3(char *pathStart)
         }
     }
 
-    uint64_t offsets = headerNamesOffsets8[s];
-    uint64_t values = headerNamesValues8[s];
+    uint64_t offsets = bench_header_offsets[s];
+    uint64_t values = bench_header_values[s];
 
     if (s > 8)
     {
         const int s2 = (s + 7) >> 3;
 
-        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *vals = (uint64_t *)&bench_header_names[0];
         uint64_t *pVals = ((uint64_t *)pathStart);
         int sawPrefix = 0;
 
@@ -252,7 +261,7 @@ int impl_headers_aligned3(char *pathStart)
     else
     {
         const uint64_t val = *((uint64_t *)pathStart);
-        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *vals = (uint64_t *)&bench_header_names[0];
 
         while (offsets != 0)
         {
@@ -269,7 +278,6 @@ int impl_headers_aligned3(char *pathStart)
 
     return NUM_HEADER_HANDLERS;
 }
-
 
 int impl_headers_aligned4(char *pathStart)
 {
@@ -289,26 +297,26 @@ int impl_headers_aligned4(char *pathStart)
         }
     }
 
-    uint64_t offsets = headerNamesOffsets8[s];
-    uint64_t values = headerNamesValues8[s];
+    uint64_t offsets = bench_header_offsets[s];
+    uint64_t values = bench_header_values[s];
 
     if (s > 8)
     {
         const int s2 = (s + 7) >> 3;
 
-        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *vals = (uint64_t *)&bench_header_names[0];
         uint64_t *pVals = ((uint64_t *)pathStart);
         int sawPrefix = 0;
+        const uint64_t myValue = *pVals;
 
         // using loop unrolling
         while (offsets != 0)
         {
             uint64_t *checkValues = vals + (offsets & 0xFF);
-            // uint64_t myValue = *pVals, checkValue = *checkValues;
 
             // 8 bytes equal?
             // if (myValue == checkValue)
-            if (*pVals == *checkValues)
+            if (myValue == *checkValues)
             {
                 sawPrefix |= 1;
 
@@ -388,7 +396,7 @@ int impl_headers_aligned4(char *pathStart)
     else
     {
         const uint64_t val = *((uint64_t *)pathStart);
-        uint64_t *vals = (uint64_t *)&headerNamesAligned8[0];
+        uint64_t *vals = (uint64_t *)&bench_header_names[0];
 
         while (offsets != 0)
         {
@@ -407,48 +415,52 @@ int impl_headers_aligned4(char *pathStart)
 }
 #endif
 
+#undef BENCH_FREE_MEM
+
 void bench_parse_headers()
 {
     printf("----\n");
     double cpu_time_used;
-    void *mem_allocations[5] = {0, 0, 0, 0, 0};
+    TestMemAllocations *pM = testMemAllocs("bench_headers");
+    
+    if(pM==0) {
+        printf("MEM-ALLOC-FAILED: base\n");
+        return;
+    }
+    // void *mem_allocations[5] = {0, 0, 0, 0, 0};
 
     clock_t end, start = clock();
 
-    int *results = (int *)calloc(NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
-    mem_allocations[0] = (void *)results;
+    int *results = (int *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
     if (results == 0)
     {
         printf("MEM-ALLOC-FAILED: results\n");
         return;
     }
 
-    int *expected = (int *)calloc(NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
+    int *expected = (int *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
     if (expected == 0)
     {
         printf("MEM-ALLOC-FAILED: expected\n");
-        BENCH_FREE_MEM(mem_allocations);
+        freeMemAllocs(pM);
         return;
     }
-    mem_allocations[1] = (void *)expected;
 
-    char **tests = (char **)calloc(NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
+    char **tests = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char*));
     if (tests == 0)
     {
         printf("MEM-ALLOC-FAILED: tests\n");
-        BENCH_FREE_MEM(mem_allocations);
+        freeMemAllocs(pM);
         return;
     }
-    mem_allocations[2] = (void *)tests;
 
-    char **testsReal = (char **)calloc(NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
+    char **testsReal = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char*));
     if (testsReal == 0)
     {
         printf("MEM-ALLOC-FAILED: tests\n");
-        BENCH_FREE_MEM(mem_allocations);
+        freeMemAllocs(pM);
         return;
     }
-    mem_allocations[3] = (void *)testsReal;
 
     end = clock();
     cpu_time_used = ((double)(end - start)) / CLOCKS_PER_SEC;
@@ -505,7 +517,7 @@ void bench_parse_headers()
             }
         }
         printf("MEM-ALLOC-FAILED: tests generation\n");
-        BENCH_FREE_MEM(mem_allocations);
+        freeMemAllocs(pM);
         return;
     }
 
@@ -516,8 +528,9 @@ void bench_parse_headers()
 #define NUM_BENCH_HEADERS_IMPLEMENTATIONS 5
 
     double times[8][NUM_BENCH_HEADERS_IMPLEMENTATIONS];
-    memset(times, 0, sizeof(double) * NUM_BENCH_HEADERS_IMPLEMENTATIONS * 8);
     char *names[NUM_BENCH_HEADERS_IMPLEMENTATIONS] = {"Norm", "IMP1", "IMP2", "IMP3", "IMP4"};
+
+    memset(times, 0, sizeof(double) * NUM_BENCH_HEADERS_IMPLEMENTATIONS * 8);
 
     size_t offset;
 
@@ -686,7 +699,7 @@ void bench_parse_headers()
 #endif
     }
 
-    uint64_t addr = (uint64_t)&headerNamesAligned8[0];
+    uint64_t addr = (uint64_t)&bench_header_names[0];
     printf("Alignment: %ld\n", addr & 0x7);
 
     printf("Offset\t");
@@ -730,9 +743,22 @@ void bench_parse_headers()
             free(tests[i]);
         }
     }
-    BENCH_FREE_MEM(mem_allocations);
+    freeMemAllocs(pM);
 
     printf("----\n");
 #undef NUM_BENCH_HEADERS_IMPLEMENTATIONS
 }
+
+/*
+#define TEST_MEASURE_STRUCT(NAME, ROWS, VALS)            \
+    struct                                                  \
+    {                                                       \
+        double times[ROWS][sizeof(VALS) / sizeof(VALS[0])]; \
+        char *names[sizeof(VALS) / sizeof(VALS[0])] = VALS; \
+    } NAME;                                                 \
+    memset(NAME.times, 0, sizeof(NAME.times));              \
+    // memcpy(NAME.times, VALS, sizeof(VALS))
+
+    TEST_MEASURE_STRUCT(my, 8, ((char *[5]){"Norm", "IMP1", "IMP2", "IMP3", "IMP4"}));
+    */
 #endif

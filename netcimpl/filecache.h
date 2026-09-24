@@ -1,7 +1,6 @@
 #ifndef FILECACHE
 #define FILECACHE
 
-
 typedef struct CachedFile
 {
     unsigned int state;

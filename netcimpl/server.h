@@ -1,185 +1,25 @@
 #ifndef MY_SERVER_INCLUDED
 #define MY_SERVER_INCLUDED
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-// funcs: sleep
-#include <unistd.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/epoll.h>
-// getprotobyname
-// #include <netdb.h>
-#include <fcntl.h>
-#include <errno.h>
-
 #ifndef SSL_ENABLED
 #define SSL_ENABLED 1
 #endif
 
-#ifdef SSL_ENABLED
-#if SSL_ENABLED
-#include <openssl/ssl.h>
-#endif
-#endif
+#include "server_system_headers.h"
 
-#include <string.h>
+#include "server_constants.h"
+#include "server_types.h"
+#include "server_ssl_functions.h"
 
 #include "filecache.h"
 
-#ifdef NUM_SOCKET_CONNECTIONS
-#if NUM_SOCKET_CONNECTIONS < 1 || NUM_SOCKET_CONNECTIONS > 63
-#error "NUM_SERVERS invalid (<1 or >63)."
-#endif
-#else
-#define NUM_SOCKET_CONNECTIONS 2
-#endif
-
-#ifdef SERVER_OPTION_TCP
-#error "SERVER_OPTION_TCP predefined."
-#endif
-#ifdef SERVER_OPTION_UDP
-#error "SERVER_OPTION_UDP predefined."
-#endif
-#ifdef SERVER_OPTION_IPV4
-#error "SERVER_OPTION_IPV4 predefined."
-#endif
-#ifdef SERVER_OPTION_IPV6
-#error "SERVER_OPTION_IPV6 predefined."
-#endif
-#ifdef SERVER_OPTION_SECURE
-#error "SERVER_OPTION_SECURE predefined."
-#endif
-
-#define SERVER_OPTION_TCP 0x10
-#define SERVER_OPTION_UDP 0x20
-
-#define SERVER_OPTION_IPV4 0x100
-#define SERVER_OPTION_IPV6 0x200
-
-#define SERVER_OPTION_SECURE 0x1000
-
-#define SERVER_OPTION_COPY_NAME 0x10000
-
-#define USING_SSL 1
-
-#define CMD_ACCEPT 0x1
-#define CMD_SKIP 0x2
-#define CMD_CLOSE 0x3
-
-#define STATE_UNKNOWN 0
-#define STATE_ACCEPTED 0x100
-#define STATE_CLOSED 0x200
-
-#define STATE_RESERVED1 0x1000
-#define STATE_HAS_ERRNO 0x2000
-#define STATE_HAS_BUFFER 0x4000
-#define SECURE_STATE 0x8000
-
-#define IS_SECURE_CONNECTION(PTR_CC) ((PTR_CC->state & SECURE_STATE) != 0)
-
-#define SET_PARSE_STATE(PTR_CC, STATE) (PTR_CC->state = (PTR_CC->state & 0xFFFF00) | STATE)
-#define GET_PARSE_STATE(PTR_CC) (PTR_CC->state & 0xFF)
-#define GET_PARSE_STATE_TO(PTR_CC, STATE) (STATE = GET_PARSE_STATE(PTR_CC))
-
-#define SET_ERRNO(PTR_CC, ERRNO_VAL) (PTR_CC->state = (PTR_CC->state & 0xFF00FFFF) | STATE_HAS_ERRNO | (ERRNO_VAL << 16))
-#define GET_ERRNO_FROM_STATE(STATE) ((STATE >> 16) & 0xFF)
-
-#define CLIENT_CONNECTION_BUFFER_LEN 8
-
-/*!
-@struct MyServerClientConnection
-@brief Structure for a single connection (accepted by a server socket).
-*/
-typedef struct MyServerClientConnection
-{
-    int socketId;       /*!< socket for this connection */
-    unsigned int state; /*!< stores current state of the connection.
-                        Bits:0-7: for parser state.
-                        Bits:8-15: connection state
-                        Bits:16-23: errno
-                         */
-    uint64_t __validation;
-    void *next;              /*!< next pointer in the linked list*/
-    void *request;           /*!< request object */
-    void *pServerConnection; /*!< pointer to server connection object */
-    union
-    {
-#if USING_SSL
-        SSL *ssl;
-#endif
-        void *reserved;
-    } secure; /*!< used for security */
-    union
-    {
-        char cbytes[CLIENT_CONNECTION_BUFFER_LEN];
-    } buffer; /*!< some buffer */
-} MyServerClientConnection;
+#define HTTP_PARSER_DECLARATIONS 1
+#define HTTP_PARSER_IMPLEMENTATION 1
 
 /*@null@*/ void *newClientConnection()
 {
     return calloc(sizeof(MyServerClientConnection), 1);
 }
-
-typedef struct MyServerClientConnections
-{
-    size_t numCons;
-    void *first;
-    void *last;
-} MyServerClientConnections;
-
-typedef int (*handleClientConnection)(void *pClientConnection, void *pServerConnection);
-
-typedef int (*handleConnection)(void *pConnection, int cmd, void *param);
-
-typedef struct SecureOptions
-{
-    SSL_CTX *ctx;
-    char *certFilePath;
-    char *privKeyFilePath;
-    unsigned long lastError;
-} SecureOptions;
-
-typedef struct MyServerConnectionInfo
-{
-    int socketId;
-    int status;
-} MyServerConnectionInfo;
-
-#define SERVER_STATUS_ERROR_SSL_CERT_NOT_READABLE 0x100
-#define SERVER_STATUS_ERROR_SSL_PRIV_KEY_NOT_READABLE 0x101
-
-typedef struct MyServerConnection
-{
-    unsigned int options;
-    MyServerConnectionInfo common;
-    unsigned short port;
-    char *name;
-    void *custom;
-    SecureOptions secure;
-    uint64_t normal_headers;     /*!< bitmask for normal headers*/
-    uint64_t additional_headers; /*! bitmask for security and client-hint headers*/
-    MyServerClientConnections clients;
-    handleConnection handleCommand;
-    handleClientConnection handleClientCommand;
-} MyServerConnection;
-
-typedef struct MyServer
-{
-    MyServerConnection conns[NUM_SOCKET_CONNECTIONS];
-    struct
-    {
-        unsigned long status;
-        unsigned int options;
-    } common;
-    void *next;
-
-} MyServer;
-
-#define HTTP_PARSER_DECLARATIONS 1
-#define HTTP_PARSER_IMPLEMENTATION 1
 
 void nullify(void *pData, size_t size)
 {
@@ -189,35 +29,12 @@ void nullify(void *pData, size_t size)
     }
 }
 
-#include <openssl/err.h>
-
-int errorCB(const char *str, size_t len, /*@temp@*/ void *_)
-{
-    (void)(_);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-result"
-    (void)write(STDOUT_FILENO, str, len);
-    (void)write(STDOUT_FILENO, "\n", 1);
-#pragma GCC diagnostic pop
-    // positive value to continue, 0 to stop
-    return 1;
-}
-
-int handleSSLError(MyServerConnection *pConnection, int err)
-{
-    //(void)(pConnection);
-    unsigned long lastError = ERR_get_error();
-    printf("LAST-ERROR: %lu|%d|%p\n", lastError, err, (void *)pConnection);
-    ERR_print_errors_cb(errorCB, /*@null@*/ 0);
-    return err;
-}
-
 void printProto();
 
 void printfAddrinfo(struct addrinfo *pInfo);
 
 int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC);
+
 void removeClientConnection(MyServerClientConnection *pCC);
 
 int closeClientConnections(MyServerConnection *pCon)
@@ -277,82 +94,10 @@ int cfc_close(MyServer *pServer)
     return 0;
 }
 
-// TODO: implement SSL_CTX_config
-#if 0
-if (CONF_modules_load_file("config.cnf", "testapp", 0) <= 0) {
-    fprintf(stderr, "Error processing config file\n");
-    goto err;
-}
-
-ctx = SSL_CTX_new(TLS_server_method());
-
-if (SSL_CTX_config(ctx, "server") == 0) {
-    fprintf(stderr, "Error configuring server.\n");
-    goto err;
-}
-#endif
-
 // place in read-only memory
 const int yesOption = 1;
 
-int prepareSSL(MyServerConnection *pConnection)
-{
-    if (pConnection != 0)
-    {
-        if (pConnection->options & SERVER_OPTION_SECURE)
-        {
-            // test if files are accessible
-            int ssl_error = 0;
-            int fr = access(pConnection->secure.certFilePath, F_OK | R_OK);
-            if (fr != 0)
-            {
-                return handleSSLError(pConnection, 100);
-            }
-            fr = access(pConnection->secure.privKeyFilePath, F_OK | R_OK);
-            if (fr != 0)
-            {
-                return handleSSLError(pConnection, 200);
-            }
 
-            SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
-
-            if (0 == ctx)
-            {
-                return handleSSLError(pConnection, 1);
-            }
-            else
-            {
-                int r = SSL_CTX_use_certificate_chain_file(ctx, pConnection->secure.certFilePath);
-                if (1 == r)
-                {
-                    r = SSL_CTX_use_PrivateKey_file(ctx, pConnection->secure.privKeyFilePath, SSL_FILETYPE_PEM);
-                    if (1 != r)
-                    {
-                        ssl_error = handleSSLError(pConnection, 3);
-                        SSL_CTX_free(ctx);
-                    }
-                }
-                else
-                {
-                    ssl_error = handleSSLError(pConnection, 2);
-                    SSL_CTX_free(ctx);
-                }
-            }
-
-            if (0 != ssl_error)
-            {
-                pConnection->common.status = ssl_error;
-                return ssl_error;
-            }
-            else
-            {
-                pConnection->secure.ctx = ctx;
-            }
-        }
-        return 0;
-    }
-    return 1;
-}
 
 /*
  */
@@ -1000,7 +745,7 @@ void printTypeSizes()
     printf("Request:size:%ld\n", sizeof(HttpRequest));
     printf("Headers:size:%ld\n", sizeof(HeadersDataHeader));
     printf("---\n");
-    printf("Headers:handlers:%d |#sec=%ld |#hints=%ld |#names=%ld\n",
+    printf("Headers:handlers:%d |#sec=%ld |#hints=%ld |#names=%d\n",
            NUM_HEADER_HANDLERS,
            NUM_HEADER_HANDLERS_SEC,
            NUM_HEADER_HANDLERS_CLIENT_HINTS,

@@ -124,9 +124,10 @@ int main()
             return 2;
         }
     }
+    printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.");
 
     // createAlignedHeadersText();
-    return 0;
+    //return 0;
 
 #if 1
     // bench_parse_method();
