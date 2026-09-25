@@ -279,7 +279,9 @@ int impl_headers_aligned3(char *pathStart)
     return NUM_HEADER_HANDLERS;
 }
 
-int impl_headers_aligned4(char *pathStart)
+size_t sigHits = 0;
+
+int impl_headers_aligned4(char *pathStart, uint64_t sig)
 {
     const size_t s = strlen(pathStart);
 
@@ -295,6 +297,12 @@ int impl_headers_aligned4(char *pathStart)
         {
             return NUM_HEADER_HANDLERS;
         }
+    }
+    // some invalid chars?
+    if ((header_names_signatures8[s] & sig) != sig)
+    {
+        //printf("SIG:%s|%ld <> %ld\n", pathStart, sig, header_names_signatures8[s]);
+        return NUM_HEADER_HANDLERS;
     }
 
     uint64_t offsets = bench_header_offsets[s];
@@ -422,12 +430,12 @@ void bench_parse_headers()
     printf("----\n");
     double cpu_time_used;
     TestMemAllocations *pM = testMemAllocs("bench_headers");
-    
-    if(pM==0) {
+
+    if (pM == 0)
+    {
         printf("MEM-ALLOC-FAILED: base\n");
         return;
     }
-    // void *mem_allocations[5] = {0, 0, 0, 0, 0};
 
     clock_t end, start = clock();
 
@@ -441,24 +449,28 @@ void bench_parse_headers()
     int *expected = (int *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
     if (expected == 0)
     {
-        printf("MEM-ALLOC-FAILED: expected\n");
-        freeMemAllocs(pM);
+        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: expected\n");
         return;
     }
 
-    char **tests = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char*));
+    char **tests = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
     if (tests == 0)
     {
-        printf("MEM-ALLOC-FAILED: tests\n");
-        freeMemAllocs(pM);
+        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: tests\n");
         return;
     }
 
-    char **testsReal = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char*));
+    char **testsReal = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
     if (testsReal == 0)
     {
-        printf("MEM-ALLOC-FAILED: tests\n");
-        freeMemAllocs(pM);
+        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: tests\n");
+        return;
+    }
+
+    uint64_t *signatures = (uint64_t *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(uint64_t));
+    if (signatures == 0)
+    {
+        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: signatures\n");
         return;
     }
 
@@ -492,6 +504,15 @@ void bench_parse_headers()
         {
             expected[i] = r;
         }
+
+        size_t sIdx;
+        uint64_t sig = 0;
+
+        for (sIdx = 0; sIdx < l; sIdx++)
+        {
+            sig |= (0x1ul)<<(p[sIdx] & 0x3F);
+        }
+        signatures[i] = sig;
 #if 0
                 if (i < 10)
                 {
@@ -682,7 +703,7 @@ void bench_parse_headers()
         {
             for (i = 0; i < NUM_BENCH_HEADERS_ENTRIES; i++)
             {
-                int r = impl_headers_aligned4(testsReal[i]);
+                int r = impl_headers_aligned4(testsReal[i], signatures[i]);
                 if (r != expected[i])
                 {
                     printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);

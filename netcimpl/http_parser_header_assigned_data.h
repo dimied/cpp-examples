@@ -132,7 +132,7 @@ HeaderHandler headerHandlersClientHints[] = {
 
 #define NUM_HEADER_HANDLERS_CLIENT_HINTS (sizeof(headerHandlersClientHints) / sizeof(headerHandlersClientHints[0]))
 
-#if 1
+#if 0
 const char headerNamesAligned8[872] = {
     'a', 'c', 'c', 'e', 'p', 't', 0, 0,                                                                                                                                                       /**/
     'a', 'c', 'c', 'e', 'p', 't', '-', 'e', 'n', 'c', 'o', 'd', 'i', 'n', 'g', 0,                                                                                                             /**/

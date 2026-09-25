@@ -99,6 +99,14 @@ void freeMemAllocs(TestMemAllocations *pM)
         free(pM);
     }
 }
+void freeMemAllocsWithMessage(TestMemAllocations *pM, const char *msg)
+{
+    if (msg != 0)
+    {
+        printf("%s", msg);
+    }
+    freeMemAllocs(pM);
+}
 
 #define BENCH_FREE_MEM(M) \
     size_t t = 0;         \
@@ -124,7 +132,7 @@ void freeMemAllocs(TestMemAllocations *pM)
 #include "snippets/bench_text.h"
 
 #define NUM_BENCH_HEADERS_ENTRIES 1000
-#define NUM_BENCH_HEADERS_RUNS 10
+#define NUM_BENCH_HEADERS_RUNS 100
 #include "snippets/bench_headers.h"
 
 #endif

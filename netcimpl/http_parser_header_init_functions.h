@@ -82,10 +82,12 @@ int init_header_data()
                         return 7;
                     }
 #endif
+
                     size_counts[s] = sz + 1;
                     sz <<= 3;
                     header_names_values8[s] |= (i << sz);
                     header_names_offsets8[s] |= ((aligned_size >> 3) << sz);
+
 #if INIT_HEADER_DATA_VALIDATE
                 }
                 else
@@ -93,24 +95,39 @@ int init_header_data()
                     return 3;
                 }
 #endif
+#if 1
+                uint64_t sig = 0;
+
+                while (*pSrc != 0)
+                {
+                    int shift = (*pSrc) & 0x3F;
+                    sig |= (0x1ul) << shift;
+                    ++pSrc;
+                }
+
+                header_names_signatures8[s] |= sig;
+#endif
+                s += padding;
             }
             else
             {
 #if 0
                 size_t j = 0;
+                char* pSrc2 = pSrc;
                 for (; j < s; j++)
                 {
-                    *pDst = *pSrc;
+                    *pDst = *pSrc2;
                     ++pDst;
-                    ++pSrc;
+                    ++pSrc2;
                 }
+                pDst += padding;
 #else
                 memcpy(pDst, pSrc, s);
+                s += padding;
                 pDst += s;
 #endif
-                pDst += padding;
             }
-            aligned_size += (s + padding);
+            aligned_size += s;
         }
         if (runs == 1)
         {
