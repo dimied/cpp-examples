@@ -184,7 +184,6 @@ char *generateTextForAlignedValues(DevAlignedHeadersText *state)
     clearTestStringBuffer(&string_buffer);
 
     int runs = 2;
-    // size_t sizeCounts[64];
     int hasError = 0;
 
     while (runs != 0 && hasError == 0)

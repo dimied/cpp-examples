@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #must be at the end: -lssl -lcrypto
-gcc -Wall -Wextra -pedantic -fPIC -ggdb http.c -lssl -lcrypto
+gcc -Wall -Wextra -pedantic -fPIC -ggdb -Wno-variadic-macros http.c -lssl -lcrypto
 
 r=$?
 echo "COMPILE-RES: "$r

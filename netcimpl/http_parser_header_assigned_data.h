@@ -1,7 +1,7 @@
 #ifndef HTTP_HEADER_ASSIGNED_DATA
 #define HTTP_HEADER_ASSIGNED_DATA
 
-
+#define DESCRIBE_HEADER_HANDLER(S, H) {S, H}
 
 HeaderHandler headerHandlers[] = {
     DESCRIBE_HEADER_HANDLER("accept", parseAcceptCC),
@@ -129,6 +129,8 @@ HeaderHandler headerHandlersClientHints[] = {
     DESCRIBE_HEADER_HANDLER("warning", parseNotImplemented),
     DESCRIBE_HEADER_HANDLER("width", parseNotImplemented),
 };
+
+#undef DESCRIBE_HEADER_HANDLER
 
 #define NUM_HEADER_HANDLERS_CLIENT_HINTS (sizeof(headerHandlersClientHints) / sizeof(headerHandlersClientHints[0]))
 

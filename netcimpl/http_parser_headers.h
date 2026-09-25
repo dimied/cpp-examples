@@ -5,18 +5,17 @@ int parseAcceptEncodingCC(MyServerClientConnection *pCC, char *data, int len);
 int parseAcceptLanguageCC(MyServerClientConnection *pCC, char *data, int len);
 int parseNotImplemented(MyServerClientConnection *pCC, char *data, int len);
 
-#define DESCRIBE_HEADER_HANDLER(S, H) {S, H}
-
 
 
 #include "http_parser_header_constants.h"
+
 #include "http_parser_header_assigned_data.h"
 
 #include "http_parser_header_empty_data.h"
 
 #include "http_parser_header_init_functions.h"
 
-#undef DESCRIBE_HEADER_HANDLER
+
 
 #define MAX_RECOGNITION_TYPES 32
 #define MAX_UNKNOWN_TYPES 32

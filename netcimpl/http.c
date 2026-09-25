@@ -106,7 +106,9 @@ char buffer[1024];
 #include "http_parser_benchmark_snippets.h"
 #include "http_parser_dev_helper.h"
 
+#include "colors.h"
 
+#include "http_header_codegen.h"
 
 int main()
 {
@@ -124,10 +126,31 @@ int main()
             return 2;
         }
     }
-    printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.");
 
     // createAlignedHeadersText();
-    //return 0;
+    printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.\n");
+    printf("\033[33;1mTODO: Header nach Groesse sortieren, oofset|size speichern, iterieren\n\033[33;0m");
+    printf("\n");
+
+#if 1
+    {
+        char *code = codegen_generate_header_constants();
+        if (code != 0)
+        {
+            printf("//CODE\n");
+            printf("%s", code);
+            printf("//CODE-END\n");
+            free(code);
+        }
+        else
+        {
+            color_text(COLOR_RED|TEXT_EFFECT_UNDERLINE, "//ERROR: header constants codegen failed.\n\n");
+        }
+    }
+#endif
+
+    printHeaderConstants();
+    return 0;
 
 #if 1
     // bench_parse_method();
