@@ -750,7 +750,7 @@ void printTypeSizes()
            NUM_HEADER_HANDLERS_SEC,
            NUM_HEADER_HANDLERS_CLIENT_HINTS,
            HEADER_NAMES_TEXT_LEN);
-    printf("Headers:static:data:%d |#aligned=%d\n", 272 + 272 + 872, 872);
+    printf("Headers:static:data:%d |#aligned=%ld\n", 272 + 272 + 872, sizeof(header_comp_data));
     printf("\n");
 }
 #endif

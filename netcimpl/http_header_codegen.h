@@ -62,7 +62,7 @@ static struct trp codegen_header_constants[] = {
     /**/
     DECL_ENTRY("PROXY_AUTHORIZATION"),
     DECL_ENTRY("RANGE"),
-    DECL_ENTRY_SYN("REFERER","REFERRER"),
+    DECL_ENTRY_SYN("REFERER", "REFERRER"),
     DECL_ENTRY("REPR_DIGEST"),
     /**/
     DECL_ENTRY("RTT"),
@@ -72,7 +72,7 @@ static struct trp codegen_header_constants[] = {
     /**/
     DECL_ENTRY("TE"),
     DECL_ENTRY_RESP("TRAILER"),
-    DECL_ENTRY_RESP("TRAILER_ENCODING"),
+    DECL_ENTRY_RESP("TRANSFER_ENCODING"),
     DECL_ENTRY_RESP("UPGRADE"),
     /**/
     DECL_ENTRY("UPGRADE_INSECURE_REQUESTS"),
@@ -97,10 +97,12 @@ static struct trp codegen_header_constants[] = {
 
 char *codegen_generate_header_constants()
 {
-    size_t totalSize = 0;
+    size_t totalSize = 0, totalSizeForNever = 0;
     TestStringBuffer string_buffer;
+    TestStringBuffer string_buffer_for_never;
 
     clearTestStringBuffer(&string_buffer);
+    clearTestStringBuffer(&string_buffer_for_never);
 
 #define SZZZ (sizeof(codegen_header_constants) / sizeof(struct trp))
 
@@ -123,13 +125,26 @@ char *codegen_generate_header_constants()
         }                                                      \
     } while (0)
 
-#define __BL 512
+#define ADD_AND_CHECK_NEVER(ERR)                                         \
+    addRes = addToTestStringBuffer(&string_buffer_for_never, buffer, r); \
+    do                                                                   \
+    {                                                                    \
+        if (addRes != 0)                                                 \
+        {                                                                \
+            printf("//ERROR: %s.(CODE:%d)\n", ERR, r);                   \
+            hasError++;                                                  \
+            break;                                                       \
+        }                                                                \
+    } while (0)
+
+#define __BL 2048
+#define __BL2 128
 
     char buffer[__BL];
     memset(buffer, 0, __BL);
-    char name_buffer[256];
-    char never_buffer[256];
-    char prev_name_buffer[256];
+    char name_buffer[__BL2];
+    char never_buffer[__BL2];
+    char prev_name_buffer[__BL2];
 
     char *names_processed[SZZZ];
     char names_skip[SZZZ];
@@ -161,9 +176,16 @@ char *codegen_generate_header_constants()
             break;
         }
 
+        r = initTestStringBuffer(&string_buffer_for_never, totalSizeForNever);
+        if (0 != r)
+        {
+            printf("//ERROR: no string buffer for never.(CODE:%d)\n", r);
+            break;
+        }
+
         size_t i;
         int addRes;
-
+#if 0
         for (i = 0; i < SZZZ; i++)
         {
             char *pName = codegen_header_constants[i].name;
@@ -191,6 +213,8 @@ char *codegen_generate_header_constants()
                 }
             }
         }
+#endif
+
 
         r = sprintf(buffer, "\n\n");
         ADD_AND_CHECK("adding newlines");
@@ -203,18 +227,18 @@ char *codegen_generate_header_constants()
         r = sprintf(buffer, "#define __IMPL_RHK_%s_LS 0\n\n", prevName);
         ADD_AND_CHECK("adding first LS");
 
-        memset(name_buffer, 0, 256);
-        memset(never_buffer, 0, 256);
+        memset(name_buffer, 0, __BL2);
+        memset(never_buffer, 0, __BL2);
+
+        char *pAlsoResp = codegen_header_constants[0].also_response ? " /*!< also response */" : "";
 
         int name_len = sprintf(name_buffer, "%s%s", reqPrefix, prevName);
         sprintf(never_buffer, "%s%s", neverPrefix, prevName);
 
-        char *pAlsoResp = codegen_header_constants[0].also_response ? " /*!< also response */" : "";
-
         // NEVER...
         memset(buffer, 0, __BL);
         r = sprintf(buffer, never_template, never_buffer, never_buffer);
-        ADD_AND_CHECK("adding never template");
+        ADD_AND_CHECK_NEVER("adding never template");
 
         memset(buffer, 0, __BL);
         r = sprintf(buffer, template_if, never_buffer, warningCheck, name_buffer, name_buffer, never_buffer);
@@ -224,7 +248,7 @@ char *codegen_generate_header_constants()
         r = sprintf(buffer, template_else, name_buffer, pAlsoResp);
         ADD_AND_CHECK("adding else template");
 
-        memset(prev_name_buffer, 0, 256);
+        memset(prev_name_buffer, 0, __BL2);
         memcpy(prev_name_buffer, name_buffer, name_len);
 
         for (i = 1; i < SZZZ; i++)
@@ -237,8 +261,8 @@ char *codegen_generate_header_constants()
             char *pCurrentName = codegen_header_constants[i].name;
             pAlsoResp = codegen_header_constants[i].also_response ? " /*!< also response */" : "";
 
-            memset(name_buffer, 0, 256);
-            memset(never_buffer, 0, 256);
+            memset(name_buffer, 0, __BL2);
+            memset(never_buffer, 0, __BL2);
 
             name_len = sprintf(name_buffer, "%s%s", reqPrefix, pCurrentName);
             sprintf(never_buffer, "%s%s", neverPrefix, pCurrentName);
@@ -246,7 +270,7 @@ char *codegen_generate_header_constants()
             // NEVER...
             memset(buffer, 0, __BL);
             r = sprintf(buffer, never_template, never_buffer, never_buffer);
-            ADD_AND_CHECK("adding never template");
+            ADD_AND_CHECK_NEVER("adding never template");
 
             // never,cur,prev, warning, name,name, never
             memset(buffer, 0, __BL);
@@ -257,24 +281,46 @@ char *codegen_generate_header_constants()
             r = sprintf(buffer, template_else2, pCurrentName, prevName, name_buffer, pCurrentName, pAlsoResp);
             ADD_AND_CHECK("adding else template");
 
-            memset(prev_name_buffer, 0, 256);
+            memset(prev_name_buffer, 0, __BL2);
             memcpy(prev_name_buffer, name_buffer, name_len);
 
             prevName = pCurrentName;
         }
+        const char *last_template = "#define REQ_HEADER_LAST_VALUE (0x1ul << __IMPL_RHK_%s_LS)\n\n";
+
+        memset(buffer, 0, __BL);
+        r = sprintf(buffer, last_template, prevName);
+        ADD_AND_CHECK("adding last template");
 
         totalSize = string_buffer.used + 10;
-        printf("//RUN:%d|size:%ld\n", runs, totalSize);
+        totalSizeForNever = string_buffer_for_never.used + 10;
+        printf("//RUN:%d |size:%ld |size(never):%ld\n", runs, totalSize, totalSizeForNever);
     }
 
 #undef ADD_AND_CHECK
 #undef SZZZ
 
+    char *pResult = 0;
+
     if (hasError == 0)
     {
-        return string_buffer.data;
+        size_t s1 = strlen(string_buffer_for_never.data);
+        size_t s2 = strlen(string_buffer.data);
+        size_t sum = s1 + s2 + 10;
+        pResult = (char *)calloc(sum, 1);
+        if (pResult != 0)
+        {
+            memcpy(pResult, string_buffer_for_never.data, s1);
+            memcpy(pResult + s1, "\n\n", 2);
+            memcpy(pResult + s1 + 2, string_buffer.data, s2);
+        }
+        // return string_buffer.data;
     }
-    return 0;
+
+    freeTestStringBuffer(&string_buffer);
+    freeTestStringBuffer(&string_buffer_for_never);
+
+    return pResult;
 }
 
 #endif

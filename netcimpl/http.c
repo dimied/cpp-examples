@@ -129,10 +129,12 @@ int main()
 
     // createAlignedHeadersText();
     printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.\n");
-    printf("\033[33;1mTODO: Header nach Groesse sortieren, oofset|size speichern, iterieren\n\033[33;0m");
-    printf("\n");
+    printf("TODO: Nicht nur Groesse, sondern auch den ersten Buchstaben nutzen .\n");
+    printf("TODO: (Offset berechnen 2 bits pro Zeichen, 00 nichts, 0x1-0x3 für offset ) .\n");
+    printf("TODO: (Signature nur für den ersten Buchstaben? ) .\n");
+    
 
-#if 1
+#if 0
     {
         char *code = codegen_generate_header_constants();
         if (code != 0)
@@ -147,10 +149,9 @@ int main()
             color_text(COLOR_RED|TEXT_EFFECT_UNDERLINE, "//ERROR: header constants codegen failed.\n\n");
         }
     }
-#endif
-
     printHeaderConstants();
-    return 0;
+#endif
+    //return 0;
 
 #if 1
     // bench_parse_method();

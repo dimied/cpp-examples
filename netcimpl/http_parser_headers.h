@@ -6,7 +6,6 @@ int parseAcceptLanguageCC(MyServerClientConnection *pCC, char *data, int len);
 int parseNotImplemented(MyServerClientConnection *pCC, char *data, int len);
 
 
-
 #include "http_parser_header_constants.h"
 
 #include "http_parser_header_assigned_data.h"

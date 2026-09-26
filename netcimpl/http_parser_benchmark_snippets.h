@@ -132,7 +132,7 @@ void freeMemAllocsWithMessage(TestMemAllocations *pM, const char *msg)
 #include "snippets/bench_text.h"
 
 #define NUM_BENCH_HEADERS_ENTRIES 1000
-#define NUM_BENCH_HEADERS_RUNS 100
+#define NUM_BENCH_HEADERS_RUNS 10
 #include "snippets/bench_headers.h"
 
 #endif

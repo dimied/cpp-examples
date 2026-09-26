@@ -16,6 +16,15 @@ void clearTestStringBuffer(TestStringBuffer *pBuffer)
     memset(pBuffer, 0, sizeof(TestStringBuffer));
 }
 
+void freeTestStringBuffer(TestStringBuffer *pBuffer)
+{
+    if (pBuffer->data != 0)
+    {
+        free(pBuffer->data);
+        pBuffer->data = (char *)0;
+    }
+}
+
 int addToTestStringBuffer(TestStringBuffer *pBuffer, char *data, size_t len)
 {
     if (pBuffer != 0)
