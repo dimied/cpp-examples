@@ -1,16 +1,21 @@
 #ifndef HTTP_PARSER_HEADER_INIT_FUNCTIONS
 #define HTTP_PARSER_HEADER_INIT_FUNCTIONS
+#include <ctype.h>
 
-#define IMPL_GET_HEADER_NAME_BY_IDX(IDX) (headerHandlers[IDX].name)
+#define IMPL_GET_HEADER_NAME_BY_IDX(IDX) (header_names[IDX])
 
 #ifndef INIT_HEADER_DATA_VALIDATE
 #define INIT_HEADER_DATA_VALIDATE 1
 #endif
 
+#define INIT_HEADER_DATA_ERROR_HEADER_NAMES_SIZE_MISMATCH 1
+#define INIT_HEADER_DATA_ERROR_HEADER_NAMES_LC_SIZE_MISMATCH 2
+
+#if HEADER_DATA_SORTED_NAMES
 // #define INIT_HEADER_DATA_
 struct ps
 {
-    char *name;
+    char const *name;
     size_t size;
     int i;
 };
@@ -31,9 +36,8 @@ int init_cmp_by_size_and_name(const void *a, const void *b)
     return strcmp(pA->name, pB->name);
     // return 0;
 }
-
-#define INIT_HEADER_DATA_ERROR_HEADER_NAMES_SIZE_MISMATCH 1
-#define INIT_HEADER_DATA_ERROR_HEADER_NAMES_LC_SIZE_MISMATCH 2
+int init_header_data_sorted();
+#endif
 
 int init_header_data()
 {
@@ -54,13 +58,14 @@ int init_header_data()
     uint64_t first_chars = 0;
 #endif
     int size_counts[64];
-    memset(size_counts, 0, sizeof(size_counts));
 
     int runs = 2;
-    char *pDst = &header_comp_data.header_names_aligned8[0];
+
     memset(&header_comp_data, 0, sizeof(header_comp_data));
 
-    struct ps sorted[NUM_HEADER_HANDLERS];
+    char *pDst = &header_comp_data.header_names_aligned8[0];
+    char *pDstLC = &header_comp_data.header_names_lowercase_mem[0];
+    char **pDstAddr = &header_comp_data.header_names_lowercase[0];
 
     while (runs != 0)
     {
@@ -69,10 +74,11 @@ int init_header_data()
         size_t aligned_size = 0;
         size_t real_size = 0;
         uint64_t i;
+        memset(size_counts, 0, sizeof(size_counts));
 
         for (i = 0; i < NUM_HEADER_HANDLERS; i++)
         {
-            char *pSrc = IMPL_GET_HEADER_NAME_BY_IDX(i);
+            const char *pSrc = IMPL_GET_HEADER_NAME_BY_IDX(i);
             size_t s = strlen(pSrc);
 
 #if INIT_HEADER_DATA_VALIDATE
@@ -86,9 +92,9 @@ int init_header_data()
                 return 20;
             }
 #endif
-            real_size += (s+1);
-
             size_t padding = (s & 0x7);
+
+            real_size += (s + 1);
 
             if (padding != 0)
             {
@@ -97,10 +103,6 @@ int init_header_data()
 
             if (runs == 1)
             {
-                sorted[i].name = pSrc;
-                sorted[i].size = s;
-                sorted[i].i = i;
-
 #if INIT_HEADER_DATA_VALIDATE
                 if (min_size > s)
                 {
@@ -115,22 +117,16 @@ int init_header_data()
 #if INIT_HEADER_DATA_VALIDATE
                 if (s < 64)
                 {
-
-                    first_chars |= (0x1ul) << ((*pSrc) & 0x3F);
-                    sizes |= (0x1ul << (s - 1));
 #endif
-                    size_t sz = size_counts[s];
+
 #if INIT_HEADER_DATA_VALIDATE
+                    size_t sz = size_counts[s];
                     if (sz > 5)
                     {
                         return 7;
                     }
-#endif
-
                     size_counts[s] = sz + 1;
-                    sz <<= 3;
-                    header_comp_data.header_names_values8[s] |= (i << sz);
-                    header_comp_data.header_names_offsets8[s] |= ((aligned_size >> 3) << sz);
+#endif
 
 #if INIT_HEADER_DATA_VALIDATE
                 }
@@ -139,22 +135,47 @@ int init_header_data()
                     return 3;
                 }
 #endif
-#if 1
-                uint64_t sig = 0;
-
-                while (*pSrc != 0)
-                {
-                    int shift = (*pSrc) & 0x3F;
-                    sig |= (0x1ul) << shift;
-                    ++pSrc;
-                }
-
-                header_comp_data.header_names_signatures8[s] |= sig;
-#endif
                 s += padding;
             }
             else
             {
+                pDstAddr[i] = pDstLC;
+                size_t c2 = s;
+
+                memcpy(pDstLC, pSrc, s);
+
+                char *pT = pDstLC;
+
+                while (c2 != 0)
+                {
+
+#if 0
+                    char c = *pDstLC;
+                    if (c >= 'A' && c <= 'Z')
+                    {
+                        *pDstLC = c + 32;
+                    }
+#else
+                    *pDstLC = tolower(*pDstLC);
+#endif
+                    ++pDstLC;
+                    c2--;
+                }
+                //
+                // pDstLC += s;
+                ++pDstLC;
+
+                first_chars |= (0x1ul) << ((*pT) & 0x3F);
+                sizes |= (0x1ul << (s - 1));
+                size_t sz = size_counts[s];
+
+                size_counts[s] = sz + 1;
+                sz <<= 3;
+                header_comp_data.header_names_values8[s] |= (i << sz);
+                header_comp_data.header_names_offsets8[s] |= ((aligned_size >> 3) << sz);
+
+                uint64_t *pSig = &header_comp_data.header_names_signatures8[s];
+
 #if 0
                 size_t j = 0;
                 char* pSrc2 = pSrc;
@@ -166,24 +187,40 @@ int init_header_data()
                 }
                 pDst += padding;
 #else
-                memcpy(pDst, pSrc, s);
+                memcpy(pDst, pT, s);
                 s += padding;
                 pDst += s;
+#endif
+
+#if 1
+                uint64_t sig = 0;
+
+                while (*pT != 0)
+                {
+                    int shift = (*pT) & 0x3F;
+                    sig |= (0x1ul) << shift;
+                    ++pT;
+                }
+
+                *pSig |= sig;
 #endif
             }
             aligned_size += s;
         }
 
+#if INIT_HEADER_DATA_VALIDATE
         if (runs == 1)
         {
-#if INIT_HEADER_DATA_VALIDATE
             if (min_size != HEADER_NAME_MIN_LEN || max_size > HEADER_NAME_MAX_LEN)
             {
                 return 4;
             }
+        }
+        else
+        {
             if (sizes != HEADER_SIZE_BITS_CONSTANT)
             {
-                // printf("S:%x|%x\n", sizes, HEADER_SIZE_BITS_CONSTANT);
+                printf("S:%lx|%lx\n", sizes, HEADER_SIZE_BITS_CONSTANT);
                 return 5;
             }
             if (first_chars != HEADER_FIRST_CHAR_BITS_CONSTANT)
@@ -191,19 +228,50 @@ int init_header_data()
                 printf("S:%lx | %lx\n", first_chars, HEADER_FIRST_CHAR_BITS_CONSTANT);
                 return 51;
             }
-
-            if (aligned_size > sizeof(header_comp_data.header_names_aligned8))
-            {
-                return 6;
-            }
-#endif
-            printf("//REAL_SIZE: %ld\n", real_size);
         }
+
+        if (real_size > sizeof(header_comp_data.header_names_lowercase_mem))
+        {
+            return 122;
+        }
+
+        if (aligned_size > sizeof(header_comp_data.header_names_aligned8))
+        {
+            return 6;
+        }
+#endif
+        printf("//REAL_SIZE: %ld\n", real_size);
+    }
+#if HEADER_DATA_SORTED_NAMES
+    return init_header_data_sorted();
+#else
+    return 0;
+#endif
+}
+#undef IMPL_GET_HEADER_NAME_BY_IDX
+
+#if HEADER_DATA_SORTED_NAMES
+int init_header_data_sorted()
+{
+    struct ps sorted[NUM_HEADER_HANDLERS];
+
+    uint64_t i;
+    char **pDstAddr = &header_comp_data.header_names_lowercase[0];
+    int size_counts[64];
+    memset(size_counts, 0, sizeof(size_counts));
+
+    for (i = 0; i < NUM_HEADER_HANDLERS; i++)
+    {
+        char *p = pDstAddr[i];
+        size_t s = strlen(p);
+        sorted[i].name = p;
+        sorted[i].size = s;
+        sorted[i].i = i;
+        size_counts[i] = s;
     }
 
     qsort(sorted, NUM_HEADER_HANDLERS, sizeof(struct ps), init_cmp_by_size_and_name);
 
-    uint64_t i;
 #if 1
     printf("//SIZES:");
     for (i = 0; i < 64; i++)
@@ -225,7 +293,7 @@ int init_header_data()
     }
     printf("\n");
 #endif
-    pDst = &header_comp_data.header_names_aligned8_sorted[0];
+    char *pDst = &header_comp_data.header_names_aligned8_sorted[0];
 
     uint64_t *pOffsets = &header_comp_data.header_names_offsets8_sorted[0];
     uint64_t *pCurOffset = pOffsets;
@@ -238,7 +306,7 @@ int init_header_data()
 
     for (i = 0; i < NUM_HEADER_HANDLERS; i++)
     {
-        char *pSrc = sorted[i].name;
+        const char *pSrc = sorted[i].name;
 
         size_t s = sorted[i].size;
         size_t padding = (s & 0x7);
@@ -292,6 +360,6 @@ int init_header_data()
 
     return 0;
 }
-#undef IMPL_GET_HEADER_NAME_BY_IDX
+#endif
 
 #endif

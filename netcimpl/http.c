@@ -20,6 +20,8 @@ int retValue = 0;
 
 // #define SERVER_NONBLOCKING 1
 
+#define HEADER_DATA_SORTED_NAMES 0
+
 #ifndef TESTING
 #define TESTING 0
 #endif
@@ -157,7 +159,8 @@ int main()
     // bench_parse_method();
     // bench_parse_protocol();
     // bench_parse_text();
-    bench_parse_headers();
+    //bench_parse_headers();
+    bench_parse_headers_parse_field();
     return 0;
 #endif
 

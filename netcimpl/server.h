@@ -745,7 +745,7 @@ void printTypeSizes()
     printf("Request:size:%ld\n", sizeof(HttpRequest));
     printf("Headers:size:%ld\n", sizeof(HeadersDataHeader));
     printf("---\n");
-    printf("Headers:handlers:%d |#sec=%ld |#hints=%ld |#names=%d\n",
+    printf("Headers:handlers:%d |#sec=%d |#hints=%d |#names=%d\n",
            NUM_HEADER_HANDLERS,
            NUM_HEADER_HANDLERS_SEC,
            NUM_HEADER_HANDLERS_CLIENT_HINTS,

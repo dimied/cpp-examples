@@ -816,6 +816,7 @@
 #define HEADER_NAMES_TEXT_LEN 872
 
 #define NUM_HEADER_HANDLERS (56)
+#define NUM_HEADER_CHS_HANDLERS 41
 
 void printHeaderConstants()
 {

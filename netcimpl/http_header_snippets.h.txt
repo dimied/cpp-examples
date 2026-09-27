@@ -1,5 +1,84 @@
 
 #if 0
+HeaderHandler headerHandlers[] = {
+    DESCRIBE_HEADER_HANDLER("accept", parseAcceptCC),
+    DESCRIBE_HEADER_HANDLER("accept-encoding", parseAcceptEncodingCC),
+    DESCRIBE_HEADER_HANDLER("accept-language", parseAcceptLanguageCC),
+    DESCRIBE_HEADER_HANDLER("access-control-request-headers", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("access-control-request-method", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("alt-used", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("authorization", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("available-dictionary", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("cache-control", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("connection", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("content-digest", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("content-disposition", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("content-encoding", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("content-length", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("content-location", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("content-type", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("cookie", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("date", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("dictionary-id", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("early-data", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("expect", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("forwarded", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("from", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("idempotency-key", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("if-match", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("if-modified-since", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("if-none-match", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("if-range", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("if-unmodified-since", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("keep-alive", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("link", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("max-forwards", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("origin", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("pragma", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("prefer", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("priority", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("proxy-authorization", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("range", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("referer", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("repr-digest", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("rtt", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("save-data", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("service-worker", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("service-worker-navigation-preload", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("te", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("trailer", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("transfer-encoding", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("upgrade", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("upgrade-insecure-requests", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("user-agent", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("via", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("want-content-digest", parseNotImplemented),
+    /**/
+    DESCRIBE_HEADER_HANDLER("want-repr-digest", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("x-forwarded-for", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("x-forwarded-host", parseNotImplemented),
+    DESCRIBE_HEADER_HANDLER("x-forwarded-proto", parseNotImplemented),
+};
+#endif
+
+
+
+
+
+
+#if 0
 
 #define NEVER_REQ_HEADER_KEEP_ACCEPT 0
 #define NEVER_REQ_HEADER_KEEP_ACCEPT_ENCODING 0

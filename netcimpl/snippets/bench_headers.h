@@ -3,34 +3,34 @@
 
 #include <string.h>
 
+size_t lastSize = 0;
+
+#define bench_header_names_lc(idx) (header_comp_data.header_names_lowercase[idx])
+
+#define bench_header_names header_comp_data.header_names_aligned8
+#define bench_header_offsets header_comp_data.header_names_offsets8
+#define bench_header_values header_comp_data.header_names_values8
+#define bench_header_signatures header_comp_data.header_names_signatures8
+
+#if HEADER_DATA_SORTED_NAMES
+#define bench_header_names_sorted header_comp_data.header_names_aligned8_sorted
+#define bench_header_offsets_sorted header_comp_data.header_names_offsets8_sorted
+#endif
+
+
 int impl_headers_normal(char *pathStart)
 {
     size_t idx = 0;
+    
     for (idx = 0; idx < NUM_HEADER_HANDLERS; idx++)
     {
-        if (0 == strcmp(pathStart, headerHandlers[idx].name))
+        if (0 == strcmp(pathStart, header_comp_data.header_names_lowercase[idx]))
         {
             return idx;
         }
     }
     return idx;
 }
-
-size_t lastSize = 0;
-
-#if 0
-#define bench_header_names headerNamesAligned8
-#define bench_header_offsets headerNamesOffsets8
-#define bench_header_values headerNamesValues8
-#else
-#define bench_header_names header_comp_data.header_names_aligned8
-#define bench_header_offsets header_comp_data.header_names_offsets8
-#define bench_header_values header_comp_data.header_names_values8
-#define bench_header_signatures header_comp_data.header_names_signatures8
-
-#define bench_header_names_sorted header_comp_data.header_names_aligned8_sorted
-#define bench_header_offsets_sorted header_comp_data.header_names_offsets8_sorted
-#endif
 
 int impl_headers_aligned(char *pathStart)
 {
@@ -154,7 +154,7 @@ int impl_headers_aligned3(char *pathStart)
 
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
-        lastSize = s;
+        //lastSize = s;
         return NUM_HEADER_HANDLERS;
     }
     // size test
@@ -432,6 +432,7 @@ int impl_headers_aligned4(const char *pathStart, uint64_t sig)
 }
 #endif
 
+#if HEADER_DATA_SORTED_NAMES
 int impl_headers_sorted_by_size(char *pathStart, uint64_t sig)
 {
     size_t s = strlen(pathStart);
@@ -682,7 +683,8 @@ int impl_headers_sorted_by_size(char *pathStart, uint64_t sig)
     return NUM_HEADER_HANDLERS;
 }
 
-#undef BENCH_FREE_MEM
+#endif
+
 
 void bench_parse_headers()
 {
@@ -749,7 +751,7 @@ void bench_parse_headers()
         // different strings
         int r = rand();
         r %= NUM_HEADER_HANDLERS;
-        char *pM = headerHandlers[r].name;
+        char *pM = bench_header_names_lc(r);
         size_t l = strlen(pM);
         memcpy(p, pM, l);
 
@@ -984,7 +986,7 @@ void bench_parse_headers()
         times[offset][4] = ((double)(end - start));
 #endif
 
-#if 1
+#if HEADER_DATA_SORTED_NAMES
         printf("Sorted...\n");
         start = clock();
 
@@ -1095,16 +1097,16 @@ void bench_parse_headers()
 #undef NUM_BENCH_HEADERS_IMPLEMENTATIONS
 }
 
-/*
-#define TEST_MEASURE_STRUCT(NAME, ROWS, VALS)            \
-    struct                                                  \
-    {                                                       \
-        double times[ROWS][sizeof(VALS) / sizeof(VALS[0])]; \
-        char *names[sizeof(VALS) / sizeof(VALS[0])] = VALS; \
-    } NAME;                                                 \
-    memset(NAME.times, 0, sizeof(NAME.times));              \
-    // memcpy(NAME.times, VALS, sizeof(VALS))
+#undef bench_header_names_lc
+#undef bench_header_names
+#undef bench_header_offsets
+#undef bench_header_values
+#undef bench_header_values
+#undef bench_header_signatures
 
-    TEST_MEASURE_STRUCT(my, 8, ((char *[5]){"Norm", "IMP1", "IMP2", "IMP3", "IMP4"}));
-    */
+#if HEADER_DATA_SORTED_NAMES
+#undef bench_header_names_sorted
+#undef bench_header_offsets_sorted
+#endif
+
 #endif

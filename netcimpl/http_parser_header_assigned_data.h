@@ -415,134 +415,65 @@ HEADER_NAMES_LINK_TYPE const char *header_names[(NUM_HEADER_HANDLERS + 1)] = {
 
 #define DESCRIBE_HEADER_HANDLER(S, H) {S, H}
 
-HeaderHandler headerHandlers[] = {
-    DESCRIBE_HEADER_HANDLER("accept", parseAcceptCC),
-    DESCRIBE_HEADER_HANDLER("accept-encoding", parseAcceptEncodingCC),
-    DESCRIBE_HEADER_HANDLER("accept-language", parseAcceptLanguageCC),
-    DESCRIBE_HEADER_HANDLER("access-control-request-headers", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("access-control-request-method", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("alt-used", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("authorization", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("available-dictionary", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("cache-control", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("connection", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("content-digest", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("content-disposition", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("content-encoding", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("content-length", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("content-location", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("content-type", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("cookie", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("date", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("dictionary-id", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("early-data", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("expect", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("forwarded", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("from", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("idempotency-key", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("if-match", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("if-modified-since", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("if-none-match", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("if-range", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("if-unmodified-since", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("keep-alive", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("link", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("max-forwards", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("origin", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("pragma", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("prefer", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("priority", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("proxy-authorization", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("range", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("referer", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("repr-digest", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("rtt", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("save-data", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("service-worker", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("service-worker-navigation-preload", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("te", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("trailer", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("transfer-encoding", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("upgrade", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("upgrade-insecure-requests", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("user-agent", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("via", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("want-content-digest", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("want-repr-digest", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("x-forwarded-for", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("x-forwarded-host", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("x-forwarded-proto", parseNotImplemented),
-};
-
-HeaderHandler headerHandlersSec[] = {
-    DESCRIBE_HEADER_HANDLER("sec-fetch-dest", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-fetch-mode", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-fetch-site", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-fetch-storage-access", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-fetch-user", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-gpc", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-private-state-token", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-private-state-token-crypto-version", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-purpose", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-purpose-redemption-record", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-speculation-tags", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-websocket-extensions", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-websocket-key", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-websocket-protocol", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-websocket-version", parseNotImplemented),
-};
-#define NUM_HEADER_HANDLERS_SEC (sizeof(headerHandlersSec) / sizeof(headerHandlersSec[0]))
-
-HeaderHandler headerHandlersClientHints[] = {
-    DESCRIBE_HEADER_HANDLER("device-memory", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("dnt", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("downlink", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("dpr", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("ect", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-device-memory", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-dpr", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-prefers-color-scheme", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("sec-ch-prefers-reduced-motion", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-prefers-reduced-transparency", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-arch", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-bitness", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-form-factors", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-full-version", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-full-version-list", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-mobile", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-model", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-platform", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-ua-platform-version", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("sec-ch-viewport-height", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-viewport-width", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("sec-ch-width", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("viewport-width", parseNotImplemented),
-    /**/
-    DESCRIBE_HEADER_HANDLER("warning", parseNotImplemented),
-    DESCRIBE_HEADER_HANDLER("width", parseNotImplemented),
-};
-
 #undef DESCRIBE_HEADER_HANDLER
 
-#define NUM_HEADER_HANDLERS_CLIENT_HINTS (sizeof(headerHandlersClientHints) / sizeof(headerHandlersClientHints[0]))
+char* header_names_ch_and_sec[NUM_HEADER_CHS_HANDLERS+1] = {
+    "Device-Memory",
+    "DNT",
+    "Downlink",
+    "DPR", 
+    /**/
+    "ECT",
+    "Sec-CH-Device-Memory", 
+    "Sec-CH-DPR", 
+    "Sec-CH-Prefers-Color-Scheme", 
+    /**/
+    "Sec-CH-Prefers-Reduced-Motion", 
+    "Sec-CH-Prefers-Reduced-Transparency", 
+    "Sec-CH-UA", 
+    "Sec-CH-UA-Arch", 
+    /**/
+    "Sec-CH-UA-Bitness", 
+    "Sec-CH-UA-Form-Factors", 
+    "Sec-CH-UA-Full-Version", 
+    "Sec-CH-UA-Full-Version-List", 
+    /**/
+    "Sec-CH-UA-Mobile", 
+    "Sec-CH-UA-Model", 
+    "Sec-CH-UA-Platform", 
+    "Sec-CH-UA-Platform-Version", 
+    /**/
+    "Sec-CH-UA-WoW64", 
+    "Sec-CH-Viewport-Height", 
+    "Sec-CH-Viewport-Width", 
+    "Sec-CH-Width", 
+    /**/
+    "Sec-Fetch-Dest", 
+    "Sec-Fetch-Mode", 
+    "Sec-Fetch-Site", 
+    "Sec-Fetch-Storage-Access", 
+    /**/
+    "Sec-Fetch-User", 
+    "Sec-GPC", 
+    "Sec-Private-State-Token", 
+    "Sec-Private-State-Token-Crypto-Version", 
+    /**/
+    "Sec-Purpose", 
+    "Sec-Purpose-Redemption-Record", 
+    "Sec-Speculation-Tags", 
+    "Sec-WebSocket-Extensions", 
+    /**/
+    "Sec-WebSocket-Key",
+    "Sec-WebSocket-Protocol", 
+    "Sec-WebSocket-Version",
+    /**/
+    "Viewport-Width",     
+    "Warning", 
+    "Width", 
+};
+
+#define NUM_HEADER_HANDLERS_SEC (15)
+
+#define NUM_HEADER_HANDLERS_CLIENT_HINTS (26)
 
 #endif

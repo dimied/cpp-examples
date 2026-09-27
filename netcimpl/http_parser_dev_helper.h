@@ -26,7 +26,7 @@ int getAlignedHeadersTextStats(DevAlignedHeadersText *state)
 
     for (i = 0; i < NUM_HEADER_HANDLERS; i++)
     {
-        size_t s = strlen(headerHandlers[i].name);
+        size_t s = strlen(header_comp_data.header_names_lowercase[i]);
         if (s == 0)
         {
             printf("Error: empty name @idx=%ld\n", i);
@@ -80,7 +80,7 @@ void showAlignedStrings(DevAlignedHeadersText *state)
         {
             if (state->hits[i])
             {
-                printf("|%s|\n", headerHandlers[i].name);
+                printf("|%s|\n", header_comp_data.header_names_lowercase[i]);
             }
         }
     }
@@ -215,7 +215,7 @@ char *generateTextForAlignedValues(DevAlignedHeadersText *state)
 
         for (i = 0; i < NUM_HEADER_HANDLERS; i++)
         {
-            char *pStr = headerHandlers[i].name;
+            char *pStr = header_comp_data.header_names_lowercase[i];
             const size_t s = strlen(pStr);
             size_t padding = (s & 0x7);
 
