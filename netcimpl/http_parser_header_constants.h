@@ -1,7 +1,34 @@
 #ifndef HTTP_PARSER_HEADER_CONSTANTS
 #define HTTP_PARSER_HEADER_CONSTANTS
 
-#define ENABLE_EMPTY_HEADER_MASK_WARNING 1
+// #define ENABLE_EMPTY_HEADER_MASK_WARNING 1
+
+#define REQ_METHOD_SUPPORT_CONNECT 0x1
+#define REQ_METHOD_SUPPORT_DELETE 0x2
+#define REQ_METHOD_SUPPORT_GET 0x4
+#define REQ_METHOD_SUPPORT_HEAD 0x8
+
+#define REQ_METHOD_SUPPORT_OPTIONS 0x10
+#define REQ_METHOD_SUPPORT_PATCH 0x20
+#define REQ_METHOD_SUPPORT_POST 0x40
+#define REQ_METHOD_SUPPORT_PUT 0x80
+#define REQ_METHOD_SUPPORT_TRACE 0x100
+
+/*!< for custom HTTP verbs defined by developer */
+#define REQ_METHOD_SUPPORT_CUSTOM 0x200
+
+/*
+GET: The GET method requests a representation of the specified resource. Requests using GET should only retrieve data and should not contain a request content.
+HEAD: The HEAD method asks for a response identical to a GET request, but without a response body.
+POST: The POST method submits an entity to the specified resource, often causing a change in state or side effects on the server.
+PUT: The PUT method replaces all current representations of the target resource with the request content.
+DELETE: The DELETE method deletes the specified resource.
+CONNECT: The CONNECT method establishes a tunnel to the server identified by the target resource.
+OPTIONS: The OPTIONS method describes the communication options for the target resource.
+TRACE: The TRACE method performs a message loop-back test along the path to the target resource.
+PATCH: The PATCH method applies partial modifications to a resource.
+*/
+#define NUM_HTTP_METHODS 9
 
 #ifndef ENABLE_EMPTY_HEADER_MASK_WARNING
 #define ENABLE_EMPTY_HEADER_MASK_WARNING 0
@@ -230,10 +257,6 @@
 #ifndef NEVER_REQ_HEADER_KEEP_X_FORWARDED_PROTO
 #define NEVER_REQ_HEADER_KEEP_X_FORWARDED_PROTO 0
 #endif
-
-
-
-
 
 /*----*/
 #define __IMPL_RHK_ACCEPT_LS 0
@@ -798,8 +821,6 @@
 
 #define REQ_HEADER_LAST_VALUE (0x1ul << __IMPL_RHK_X_FORWARDED_PROTO_LS)
 
-//#endif
-
 #define REQ_HEADER_KEEP_ALL ((REQ_HEADER_LAST_VALUE)<<1)-1)
 
 // to ignore host during requests
@@ -807,16 +828,30 @@
 
 #define HEADER_NAME_MIN_LEN (2)
 #define HEADER_NAME_MAX_LEN (33)
+
+/*!< stores bits for acceptable header name lengths, e.g for accept bit@5 is set */
 #define HEADER_SIZE_BITS_CONSTANT (5117968382ul)
 #define HEADER_FIRST_CHAR_BITS_CONSTANT (0x1fdba7a00000000ul)
-
-// Sizes:bitmask: 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 19 20 25 29 30 33
-// uint64_t header_sizes_bits = 5117968382ul;
 
 #define HEADER_NAMES_TEXT_LEN 872
 
 #define NUM_HEADER_HANDLERS (56)
 #define NUM_HEADER_CHS_HANDLERS 41
+
+//
+//
+//
+//
+//
+#define MIME_TYPE_HTML 1
+#define MIME_TYPE_XHTML_XML 2
+#define MIME_TYPE_XML 3
+
+#define MIME_TYPE_IMAGE_ANY 126
+#define MIME_TYPE_ANY 127
+
+
+
 
 void printHeaderConstants()
 {

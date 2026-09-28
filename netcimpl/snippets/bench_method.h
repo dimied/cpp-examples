@@ -15,7 +15,7 @@ void printHttpMethods2()
     printf("V64:");
     for (j = 0; j < NUM_HTTP_METHODS; j++)
     {
-        uint64_t v = HttpMethods2[j];
+        uint64_t v = http_methods_aligned[j];
         vals.v64[0] = v;
         printf("%s|", vals.v8);
     }
@@ -59,7 +59,7 @@ int impl_parse_method1(char *buffer, char *method, int i, int recvRes)
         //--i;
         for (j = 0; j < NUM_HTTP_METHODS; j++)
         {
-            if (0 == strcmp(HttpMethods[j], buffer))
+            if (0 == strcmp(http_methods[j], buffer))
             {
                 break;
             }
@@ -83,7 +83,7 @@ int impl_parse_method2(uint64_t method)
         m = (UINT64_MAX) >> m;
         m &= method;
 
-        if (m == HttpMethods2[j])
+        if (m == http_methods_aligned[j])
         {
             break;
         }
@@ -112,7 +112,7 @@ int impl_parse_method23(uint64_t method)
     {
         uint64_t m = method & masks[j];
 
-        if (m == HttpMethods2[j])
+        if (m == http_methods_aligned[j])
         {
             break;
         }
@@ -134,7 +134,7 @@ int impl_parse_method22(uint64_t method)
         m = (UINT64_MAX) >> m;
         m &= method;
 
-        if (m == HttpMethods2[j])
+        if (m == http_methods_aligned[j])
         {
             break;
         }
@@ -183,7 +183,7 @@ void bench_parse_method()
                 // different strings
                 int r = rand();
                 r %= NUM_HTTP_METHODS;
-                char *pM = HttpMethods[r];
+                char *pM = http_methods[r];
                 size_t l = strlen(pM);
                 memcpy(p, pM, l);
                 p[l] = ' ';

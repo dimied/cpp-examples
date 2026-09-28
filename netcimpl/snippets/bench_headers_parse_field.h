@@ -37,7 +37,7 @@ quoted-pair    = "\" CHAR
 
 */
 
-#define INVALID_FIELD_NAME_CHARS "()<>@,:;\\\"/[]?={} \t"
+#define INVALID_FIELD_NAME_CHARS "()<>@,;:\\\"/[]?={} \t"
 
 #define BENCH_HEADERS_PARSE_FIELD_MEM_SIZE 48
 
@@ -132,7 +132,7 @@ void generate_masks()
 {
     int c;
 
-    uint64_t mask1 = 0, mask2 = 0;
+    uint64_t mask1 = 0, mask2 = 0, mask3 = 0;
 
     for (c = 0; c < 127; c++)
     {
@@ -165,17 +165,19 @@ void generate_masks()
         else
         {
             mask2 |= (0x1ul) << (c - 64);
+            if (c >= 'A' && c <= 'Z')
+            {
+                // to allow same shift to right and & with 32
+                mask3 |= (32) << (c - 64);
+            }
         }
     }
 
-    printf("/*!< MASK1:0-64*/\n#define MASK1 (0x%lxul)\n", mask1);
-    printf("/*!< MASK2:65-128*/\n#define MASK2 (0x%lxul)\n", mask2);
+    printf("/*!< HEADER_FIELD_NAME_VALID_CHARS1_BITS:bits 0-64*/\n#define HEADER_FIELD_NAME_VALID_CHARS1_BITS (0x%lxul)\n", mask1);
+    printf("/*!< HEADER_FIELD_NAME_VALID_CHARS2_BITS:bits 65-128*/\n#define HEADER_FIELD_NAME_VALID_CHARS2_BITS (0x%lxul)\n", mask2);
+    printf("/*!< HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS:for uppercase*/\n#define HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS (0x%lxul)\n", mask3);
 }
 
-/*!< MASK1:0-64*/
-#define MASK1 (0x7ff6cfa00000000ul)
-/*!< MASK2:65-128*/
-#define MASK2 (0x57ffffffc7fffffeul)
 
 void bench_parse_headers_parse_field()
 {
@@ -320,15 +322,17 @@ void bench_parse_headers_parse_field()
                 while (*pTest != 0)
                 {
                     char c = *pTest;
+
                     if (c < 0 || c == 127)
                     {
                         r = BENCH_HEADERS_PARSE_FIELD_RES_NEG;
-                        // printf("NEG-FOUND:%ld\n", i);
+                        // printf("NEG-FOUND:%ld|%c\n", i, c);
                         break;
                     }
                     if (c < 33)
                     {
                         r = BENCH_HEADERS_PARSE_FIELD_RES_INVALID_CHAR;
+                        // printf("INV-FOUND:%ld|%c\n", i, c);
                         break;
                     }
 
@@ -359,7 +363,7 @@ void bench_parse_headers_parse_field()
 #if 1
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("FAILED: %ld|%ld|%s|(exp=%d,got=%d)\n", testRun, i, testsReal[i], expected[i], r);
                     break;
                 }
 #endif
@@ -379,9 +383,11 @@ void bench_parse_headers_parse_field()
             for (i = 0; i < NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES; i++)
             {
                 char *pTest = testsReal[i];
+
                 r = BENCH_HEADERS_PARSE_FIELD_RES_OK;
 
                 uint64_t v;
+                int shift;
 
                 while (*pTest != 0)
                 {
@@ -389,19 +395,25 @@ void bench_parse_headers_parse_field()
                     if (c < 33)
                     {
                         r = BENCH_HEADERS_PARSE_FIELD_RES_NEG;
+                        // printf("NEG-FOUND:%ld|%c|%d\n", i, c, c);
                         break;
                     }
 
-                    v = (0x1ul) << (c & 0x1F);
+                    shift = (c & 0x3F);
+                    v = (0x1ul) << shift;
+                    char off = (c & 0x40);
 
-                    if ((c & 0x40) != 0)
+                    if (off != 0)
                     {
-                        v &= MASK2;
+                        v &= HEADER_FIELD_NAME_VALID_CHARS2_BITS;
                         // offset 32, if v valid
+                        off = (HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS >> shift) & 0x20;
                     }
                     else
                     {
-                        v &= MASK1;
+                        // no lower case for values 0-64
+                        v &= HEADER_FIELD_NAME_VALID_CHARS1_BITS;
+                        off = 0;
                     }
 
                     if (v)
@@ -411,6 +423,7 @@ void bench_parse_headers_parse_field()
                             break;
                         }
                         // if offset, add it.
+                        // c |= (off>>1);
                     }
                     else
                     {
@@ -420,6 +433,13 @@ void bench_parse_headers_parse_field()
 
                     ++pTest;
                 }
+#if 1
+                if (r != expected[i])
+                {
+                    printf("FAILED: %ld|%ld|%s|(exp=%d,got=%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    break;
+                }
+#endif
             }
         }
 

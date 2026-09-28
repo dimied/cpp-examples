@@ -130,12 +130,8 @@ int main()
     }
 
     // createAlignedHeadersText();
-    printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.\n");
-    printf("TODO: Nicht nur Groesse, sondern auch den ersten Buchstaben nutzen .\n");
-    printf("TODO: (Offset berechnen 2 bits pro Zeichen, 00 nichts, 0x1-0x3 für offset ) .\n");
-    printf("TODO: (Signature nur für den ersten Buchstaben? ) .\n");
+    //printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.\n");
     
-
 #if 0
     {
         char *code = codegen_generate_header_constants();
@@ -160,8 +156,8 @@ int main()
     // bench_parse_protocol();
     // bench_parse_text();
     //bench_parse_headers();
-    bench_parse_headers_parse_field();
-    return 0;
+    //bench_parse_headers_parse_field();
+    //return 0;
 #endif
 
 #if TESTING

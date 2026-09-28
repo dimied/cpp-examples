@@ -13,143 +13,18 @@
 #define THREAD_LOCAL
 #endif
 
-#ifndef HTTP_PARSER_MACROS
-#if HTTP_PARSER_DECLARATIONS
-#define HTTP_PARSER_MACROS 1
-#endif
-#endif
-
-#if HTTP_PARSER_MACROS
-#define WORD_ES(BC) ((unsigned long)' ' << BC)
-
-#define WORD3_TO_UINT64(C1, C2, C3) (C1 | (C2 << 8) | (C3 << 16))
-#define WORD3_TO_UINT64_ES_END(C1, C2, C3) (WORD3_TO_UINT64(C1, C2, C3) | WORD_ES(24))
-#define WORD4_TO_UINT64(C1, C2, C3, C4) (WORD3_TO_UINT64(C1, C2, C3) | (C4) << 24)
-#define WORD4_TO_UINT64_ES_END(C1, C2, C3, C4) (WORD4_TO_UINT64(C1, C2, C3, C4) | WORD_ES(32))
-#define WORD5_TO_UINT64_ES_END(C1, C2, C3, C4, C5) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | WORD_ES(40))
-#define WORD6_TO_UINT64_ES_END(C1, C2, C3, C4, C5, C6) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | WORD_ES(48))
-#define WORD7_TO_UINT64_ES_END(C1, C2, C3, C4, C5, C6, C7) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | WORD_ES(56))
-
-#define WORD8_TO_UINT64(C1, C2, C3, C4, C5, C6, C7, C8) (WORD3_TO_UINT64(C1, C2, C3) | (C4 << 24) | ((unsigned long)C5 << 32) | ((unsigned long)C6 << 40) | ((unsigned long)C7 << 48) | ((unsigned long)C8 << 56))
-#endif
-
-#ifndef HTTP_PARSER_CONSTANTS
-#define HTTP_PARSER_CONSTANTS
-
-#define MIME_TYPE_HTML 1
-#define MIME_TYPE_XHTML_XML 2
-#define MIME_TYPE_XML 3
-
-#define MIME_TYPE_IMAGE_ANY 126
-#define MIME_TYPE_ANY 127
-#endif
+#include "http_parser_header_constants.h"
+#include "http_parser_macros.h"
+#include "http_parser_types.h"
+#include "http_parser_header_functions.h"
 
 #ifdef HTTP_PARSER_DECLARATIONS
 #if HTTP_PARSER_DECLARATIONS
-typedef struct RequestHttpHeaders
-{
-    unsigned short acceptedTypes[4]; // pairs (quality,type)
-} RequestHttpHeaders;
-
-#ifndef HTTP_REQUEST_NUM_PTRS
-#define HTTP_REQUEST_NUM_PTRS 4
-#endif
-
-#define PROTOCOL_MAJOR_VERSION(M) ((M >> 12) & 0x7)
-#define PROTOCOL_MINOR_VERSION(M) ((M >> 8) & 0xF)
-
-#define HTTP_REQUEST_RI_HAS_HOST (0x1 << 16)
-#define HTTP_REQUEST_RI_HAS_PARSED_HEADERS (0x1 << 17)
 
 #define ADD_HEADERS_OK 0
 #define ADD_HEADERS_INVALID_ARGS 1
 #define ADD_HEADERS_NOMEM 2
 #define ADD_HEADERS_TOO_LARGE 3
-
-typedef struct HeadersDataHeader
-{
-    void *next;
-    unsigned int size_and_used;
-    unsigned int options;
-} HeadersDataHeader;
-
-typedef struct HeadersDataInfo
-{
-    unsigned int size;
-    unsigned int used;
-    unsigned int num_chunks;
-} HeadersDataInfo;
-
-#define HTTP_REQUEST_STATE_PARSING 1
-
-typedef struct HttpRequest
-{
-    // Bits:0-7:for request method
-    // Bits:8-11: HTTP minor version
-    // Bits:12-15: HTTP major version
-    // Bits:16: flag - has host
-    // Bits:17: flag - headers parsed (at least partially)
-    // Bits:18: flag -  ...
-    // Bits:24-29: custom
-    // Bits:30-31: connection (0:unknown, 2: close, 1: keep-alive, )
-    unsigned int requestInfo;
-    // Bits:0-7: real state
-    // Bits:8... custom
-    unsigned int __state;
-    uint64_t __validation; /*!< e.g. for validating connection */
-    char *path;
-    void *__clientConnection;
-    uint64_t acceptedHeaders; /*< collection(bitmask) of header to collect */
-    void *__headers;
-    void *__content;
-    void *pCustom1;
-} HttpRequest;
-
-void clearHeadersDataInfo(HeadersDataInfo *pInfo)
-{
-    if (pInfo != 0)
-    {
-        memset(pInfo, 0, sizeof(HeadersDataInfo));
-    }
-}
-
-void printHeadersDataInfo(HeadersDataInfo *pInfo)
-{
-    if (pInfo != 0)
-    {
-        printf("HI: size:%d | used:%d | chunks:%d\n", pInfo->size, pInfo->used, pInfo->num_chunks);
-    }
-    else
-    {
-        printf("HI: (nil)\n");
-    }
-}
-
-int getHeadersDataInfo(HttpRequest *pReq, HeadersDataInfo *pInfo)
-{
-    if (pReq != 0 && pInfo != 0)
-    {
-        void *headers = pReq->__headers;
-        if (headers != 0)
-        {
-            unsigned int size = 0, used = 0, chunks = 0;
-
-            while (headers != 0)
-            {
-                HeadersDataHeader *pH = (HeadersDataHeader *)headers;
-                used += pH->size_and_used & 0xFFFF;
-                size += pH->size_and_used >> 16;
-                ++chunks;
-                headers = pH->next;
-            }
-            pInfo->size = size;
-            pInfo->used = used;
-            pInfo->num_chunks = chunks;
-        }
-        return 0;
-    }
-    return 1;
-}
 
 #define HEADER_CHUNK_SIZE 128
 
@@ -166,9 +41,9 @@ size_t header_size(int len)
     }
 }
 
-//TODO:instead of saving full header name, 
-// we can save (0x80 | HEADER_IDX) as first byte and reducing the amount of bytes
-//for unknown headers we save full header name.
+// TODO:instead of saving full header name,
+//  we can save (0x80 | HEADER_IDX) as first byte and reducing the amount of bytes
+// for unknown headers we save full header name.
 int addHeadersData(HttpRequest *pReq, char *data, int len)
 {
     if (pReq != 0 && data != 0 && len >= 0 && len < (0x1 << 20))
@@ -359,30 +234,6 @@ typedef struct AcceptType
     const char *str;
 } AcceptType;
 
-#define REQ_METHOD_SUPPORT_CONNECT 0x1
-#define REQ_METHOD_SUPPORT_DELETE 0x2
-#define REQ_METHOD_SUPPORT_GET 0x4
-#define REQ_METHOD_SUPPORT_HEAD 0x8
-
-#define REQ_METHOD_SUPPORT_OPTIONS 0x10
-#define REQ_METHOD_SUPPORT_PATCH 0x20
-#define REQ_METHOD_SUPPORT_POST 0x40
-#define REQ_METHOD_SUPPORT_PUT 0x80
-#define REQ_METHOD_SUPPORT_TRACE 0x100
-
-/*
-GET: The GET method requests a representation of the specified resource. Requests using GET should only retrieve data and should not contain a request content.
-HEAD: The HEAD method asks for a response identical to a GET request, but without a response body.
-POST: The POST method submits an entity to the specified resource, often causing a change in state or side effects on the server.
-PUT: The PUT method replaces all current representations of the target resource with the request content.
-DELETE: The DELETE method deletes the specified resource.
-CONNECT: The CONNECT method establishes a tunnel to the server identified by the target resource.
-OPTIONS: The OPTIONS method describes the communication options for the target resource.
-TRACE: The TRACE method performs a message loop-back test along the path to the target resource.
-PATCH: The PATCH method applies partial modifications to a resource.
-*/
-#define NUM_HTTP_METHODS 9
-
 #endif
 #endif
 
@@ -401,39 +252,6 @@ AcceptType acceptTypes[] = {
 
 #define NUM_ACCEPT_TYPES (sizeof(acceptTypes) / sizeof(acceptTypes[0]))
 
-char *HttpMethods[NUM_HTTP_METHODS] = {
-    "CONNECT",
-    "DELETE",
-    "GET",
-    "HEAD",
-    "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
-    "TRACE",
-};
-
-#if 1
-uint64_t HttpMethods2[NUM_HTTP_METHODS] = {
-    WORD7_TO_UINT64_ES_END('C', 'O', 'N', 'N', 'E', 'C', 'T'),
-    WORD6_TO_UINT64_ES_END('D', 'E', 'L', 'E', 'T', 'E'),
-    WORD3_TO_UINT64_ES_END('G', 'E', 'T'),
-    WORD4_TO_UINT64_ES_END('H', 'E', 'A', 'D'),
-    WORD7_TO_UINT64_ES_END('O', 'P', 'T', 'I', 'O', 'N', 'S'),
-    WORD5_TO_UINT64_ES_END('P', 'A', 'T', 'C', 'H'),
-    WORD4_TO_UINT64_ES_END('P', 'O', 'S', 'T'),
-    WORD3_TO_UINT64_ES_END('P', 'U', 'T'),
-    WORD5_TO_UINT64_ES_END('T', 'R', 'A', 'C', 'E'),
-};
-#endif
-#endif
-
-#ifdef HTTP_PARSER_IMPLEMENTATION
-#if HTTP_PARSER_IMPLEMENTATION
-
-// TODOs: accept empty spaces
-
-#endif
 #endif
 
 #include "http_parser_headers.h"
@@ -458,16 +276,6 @@ uint64_t HttpMethods2[NUM_HTTP_METHODS] = {
 #define INC_STATE_OR_SET(STATE, NEW_STATE) (STATE++)
 #endif
 
-#if 0
-#define LENGTH_INDEX_MASK3 ((unsigned long)(REQ_METHOD_SUPPORT_GET | REQ_METHOD_SUPPORT_PUT))
-#define LENGTH_INDEX_MASK4 ((unsigned long)(REQ_METHOD_SUPPORT_HEAD | REQ_METHOD_SUPPORT_POST))
-#define LENGTH_INDEX_MASK5 ((unsigned long)(REQ_METHOD_SUPPORT_PATCH)
-#define LENGTH_INDEX_MASK6 ((unsigned long)(REQ_METHOD_SUPPORT_DELETE)
-#define LENGTH_INDEX_MASK7 ((unsigned long)(REQ_METHOD_SUPPORT_CONNECT|REQ_METHOD_SUPPORT_OPTIONS)
-// Warning: 'TRACE' excluded
-#define LENGTH_INDEX_MASK ((LENGTH_INDEX_MASK3 << 24) | (LENGTH_INDEX_MASK4 << 32) | (LENGTH_INDEX_MASK5 << 40) | (LENGTH_INDEX_MASK5 << 48) | (LENGTH_INDEX_MASK5 << 56))
-#endif
-
 #define PARSE_STATE_REQ_LINE 0
 #define PARSE_STATE_REQ_LINE_HAS_METHOD 1
 #define PARSE_STATE_REQ_LINE_PATH 2
@@ -485,12 +293,16 @@ void printRequest(HttpRequest *p)
     if (p != 0)
     {
         printf(">Req:\n");
-        char *s = noneString;
 
         int m = p->requestInfo & 0x1F;
+        const char *s;
         if (m < 9)
         {
-            s = HttpMethods[m];
+            s = http_methods[m];
+        }
+        else
+        {
+            s = noneString;
         }
         printf(">METHOD|%s|\n", s);
         s = noneString;
@@ -558,6 +370,20 @@ int processRequestLine(HttpRequest *pRequest)
 
 #define HTTP_PARSER_DEV_LOG 1
 #include "http_parser_dev_log.h"
+
+/*!< HEADER_FIELD_NAME_VALID_CHARS1_BITS:bits 0-64*/
+#define HEADER_FIELD_NAME_VALID_CHARS1_BITS (0x7ff6cfa00000000ul)
+/*!< HEADER_FIELD_NAME_VALID_CHARS2_BITS:bits 65-128*/
+#define HEADER_FIELD_NAME_VALID_CHARS2_BITS (0x57ffffffc7fffffeul)
+/*!< HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS:for uppercase*/
+#define HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS (0xffffffffffffffc0ul)
+// #define HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS (0xffffffffffffff80ul)
+
+#define HOST_CHECK ('h' | ('o' << 8) | ('s' << 16) | ('t' << 24))
+
+#ifndef SKIP_SECOND_HOST_ENTRY_CHECK
+#define SKIP_SECOND_HOST_ENTRY_CHECK 0
+#endif
 
 int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
 {
@@ -676,7 +502,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                 //--i;
                 for (j = 0; j < NUM_HTTP_METHODS; j++)
                 {
-                    if (0 == strcmp(HttpMethods[j], inBuffer.data))
+                    if (0 == strcmp(http_methods[j], inBuffer.data))
                     {
                         break;
                     }
@@ -817,53 +643,141 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         if (state == PARSE_STATE_REQ_LINE_PROTOCOL)
         {
             printInfo(PARSE_HEADERS_CODE, 0, NUM_HEADER_HANDLERS);
+            union
+            {
+                uint64_t ui64[8];
+                char c8[64];
+            } header_name_buffer;
+            memset(header_name_buffer.c8, 0, 64);
 
 #define HO_LEN 32
-            //uint32_t headerOffsets[HO_LEN];
+            // uint32_t headerOffsets[HO_LEN];
             size_t pIdx = 0;
             int hasHost = 0;
-            // char *pHeadersBefore = pathStart;
-            int headerState = 0;
+
+#define HEADER_STATE_FINE 0
+#define HEADER_STATE_INVALID_CHAR 1
+
+            int headerState = HEADER_STATE_FINE;
             // TODO: Check i and recvRes
             int hIdx = 0;
+            char *pHeaderStoreC8 = header_name_buffer.c8;
+
+            const uint64_t keep_headers = REQ_HEADER_KEEP_ACCEPT | REQ_HEADER_KEEP_CONNECTION;
 
             while (headerState == 0 && recvRes - i >= 2 && *pathStart != '\r' && pathStart[1] != '\n')
             {
-                char *pHeader = pathStart;
+                {
+                    int64_t j = pHeaderStoreC8 - &header_name_buffer.c8[0];
+                    // We clear using 8 bytes, should be faster this way.
+                    if (j > 0)
+                    {
+                        if (j > 8)
+                        {
+                            j >>= 3;
+                            uint64_t *pHeaderStore64 = &header_name_buffer.ui64[j];
+
+                            while (pHeaderStore64 > &header_name_buffer.ui64[0])
+                            {
+                                *pHeaderStore64 = 0;
+                                --pHeaderStore64;
+                            }
+                            *pHeaderStore64 = 0;
+                        }
+                        else
+                        {
+                            header_name_buffer.ui64[0] = 0;
+                        }
+
+                        pHeaderStoreC8 = header_name_buffer.c8;
+                    }
+                }
+
+                const char *pHeader = pathStart;
                 char *pSep = (char *)0;
-                printf("READ:HEADER:%d\n", hIdx);
+                printf("READ:HEADER:%d: (%d < %ld)\n", hIdx, i, recvRes);
                 hIdx++;
 
-                // find separator
-                while (i < recvRes && *pathStart != '\n')
+                uint64_t v;
+                int hl = 0;
+
+                while (*pathStart != 0 && i < recvRes && hl < 64)
                 {
                     char c = *pathStart;
-                    if (c < 0)
+                    if (c < 33)
                     {
-                        headerState++;
+                        headerState = HEADER_STATE_INVALID_CHAR;
                         break;
                     }
 
-                    if (c == ':')
+                    register int shift = (c & 0x3F);
+                    v = (0x1ul) << shift;
+                    char off;
+
+                    if (c > 64)
                     {
-                        pSep = pathStart;
-                        break;
+                        v &= HEADER_FIELD_NAME_VALID_CHARS2_BITS;
+                        off = (HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS >> shift) & 0x20;
+                    }
+                    else
+                    {
+                        // no lower case for values 0-64
+                        v &= HEADER_FIELD_NAME_VALID_CHARS1_BITS;
+                        off = 0;
                     }
 
-                    if (c >= 'A' && c <= 'Z')
+                    if (v)
                     {
-                        *pathStart = (char)(c + 32);
+                        if (c == ':')
+                        {
+                            pSep = pathStart;
+                            break;
+                        }
+                        if (off)
+                        {
+                            *pHeaderStoreC8 = c | off;
+                        }
+                        else
+                        {
+                            *pHeaderStoreC8 = c;
+                        }
+                    }
+                    else
+                    {
+                        headerState = HEADER_STATE_INVALID_CHAR;
+                        break;
                     }
 
                     ++pathStart;
+                    ++pHeaderStoreC8;
                     ++i;
+                    ++hl;
+                }
+
+                if (i == recvRes)
+                {
+                    break;
                 }
 
                 if (headerState != 0)
                 {
-                    printf("INVALID CHAR!\n");
+                    // char c = *pathStart;
+                    while (recvRes - i >= 2 && *pathStart != '\r' && pathStart[1] != '\n')
+                    {
+                        ++pathStart;
+                        i++;
+                    }
+                    if (i < recvRes)
+                    {
+                        i += 2;
+                        pathStart += 2;
+                        headerState = 0;
+                        continue;
+                    }
+                    // otherwise buffer exhausted
                     break;
                 }
+                // Now: pHeader ... pSep: header name
 
                 if (pSep != 0)
                 {
@@ -873,47 +787,205 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                         ++i;
                     }
                     --pathStart;
+
                     if (*pathStart == '\r')
                     {
                         *pathStart = 0;
                         *pSep = 0;
-                        printf("H|%s||%s|\n", pHeader, pSep + 1);
 
-                        if (hasHost)
+                        printf("HDR|%s|':'|%s|\n", header_name_buffer.c8, pSep + 1);
+
+                        int parseNotHost = 1;
+
+                        if (hasHost == 0)
                         {
-                            // printf("PRS:%s|\n", pHeader);
-                            if (strcmp(pHeader, "host") == 0)
+                            if (HOST_CHECK == header_name_buffer.ui64[0])
                             {
-                                // 400 Bad Request, more than one Host
-                                return 0;
-                            }
-                        }
-                        else
-                        {
-                            if (strcmp(pHeader, "host") == 0)
-                            {
-                                printf("HOST!%s\n", pSep + 1);
                                 int hostRes = isValidHost(pCC, pSep + 1);
+                                printf("HOST!%s|%d\n", pSep + 1, hostRes);
                                 if (IS_VALID_HOST_OK != hostRes)
                                 {
                                     // 400 Bad Request
-                                    return 0;
+                                    headerState = 3;
+                                    break;
                                 }
                                 hasHost++;
+                                parseNotHost = 0;
                             }
-                            else
+                        }
+                        if (parseNotHost)
+                        {
+                            int header_idx = NUM_HEADER_HANDLERS;
+
+                            ssize_t s = pHeaderStoreC8 - header_name_buffer.c8;
+
+                            // size within range
+                            if (s >= HEADER_NAME_MIN_LEN && s <= HEADER_NAME_MAX_LEN)
                             {
-                                if (pIdx < HO_LEN)
+                                const uint64_t bit = (0x1ul) << (s - 1);
+                                // Has size?
+                                if ((bit & HEADER_SIZE_BITS_CONSTANT) != 0)
                                 {
-                                    uint32_t val = (uint32_t)(pathStart - pHeader);
-                                    if (val >= 0x1000000)
+
+                                    uint64_t offsets = header_comp_data.header_names_offsets8[s];
+                                    uint64_t values = header_comp_data.header_names_values8[s];
+
+                                    if (s > 8)
                                     {
-                                        val = 0;
+                                        const int s2 = (s + 7) >> 3;
+
+                                        uint64_t *vals = (uint64_t *)&header_comp_data.header_names_aligned8[0];
+                                        uint64_t *pVals = header_name_buffer.ui64;
+                                        int sawPrefix = 0;
+                                        const uint64_t myValue = *pVals;
+
+                                        // using loop unrolling
+                                        while (values != 0)
+                                        {
+                                            uint64_t *checkValues = vals + (offsets & 0xFF);
+                                            // checkValue = *checkValues;
+
+                                            // 8 bytes equal?
+                                            if (myValue == *checkValues)
+                                            // if (*pVals == *checkValues)
+                                            {
+                                                sawPrefix |= 1;
+
+                                                uint64_t *pVals2 = pVals + 1;
+                                                ++checkValues;
+                                                // 16 bytes equal?
+                                                if (*pVals2 == *checkValues)
+                                                {
+                                                    sawPrefix |= 2;
+
+                                                    if (s2 == 2)
+                                                    {
+                                                        header_idx = (values & 0xFF);
+                                                        offsets = 0;
+                                                        values = 0;
+                                                        break;
+                                                    }
+#if HEADER_NAME_MAX_LEN > 16
+                                                    else
+                                                    {
+                                                        ++pVals2;
+                                                        ++checkValues;
+                                                        // 24 bytes equal?
+                                                        if (*pVals2 == *checkValues)
+                                                        {
+                                                            sawPrefix |= 4;
+                                                            if (s2 == 3)
+                                                            {
+                                                                header_idx = (values & 0xFF);
+                                                                offsets = 0;
+                                                                values = 0;
+                                                                break;
+                                                            }
+#if HEADER_NAME_MAX_LEN > 24
+                                                            else
+                                                            {
+                                                                ++pVals2;
+                                                                ++checkValues;
+                                                                // 32 bytes equal?
+                                                                if (*pVals2 == *checkValues)
+                                                                {
+                                                                    if (s2 == 4)
+                                                                    {
+                                                                        header_idx = (values & 0xFF);
+                                                                        values = 0;
+                                                                        offsets = 0;
+                                                                        break;
+                                                                    }
+#if HEADER_NAME_MAX_LEN > 32
+                                                                    else
+                                                                    {
+                                                                        ++pVals2;
+                                                                        ++checkValues;
+                                                                        // 33-40 bytes equal?
+                                                                        if (*pVals2 == *checkValues)
+                                                                        {
+                                                                            header_idx = (values & 0xFF);
+                                                                            values = 0;
+                                                                            offsets = 0;
+                                                                            break;
+                                                                        }
+                                                                    }
+#endif
+                                                                }
+                                                            }
+#endif
+                                                        }
+                                                        else if ((sawPrefix & 0x4) != 0)
+                                                        {
+                                                            break;
+                                                        }
+                                                    }
+#endif
+                                                }
+                                                else if ((sawPrefix & 0x2) != 0)
+                                                {
+                                                    break;
+                                                }
+                                            }
+                                            else if (sawPrefix != 0)
+                                            {
+                                                break;
+                                            }
+
+                                            offsets >>= 8;
+                                            values >>= 8;
+                                        }
                                     }
-                                    //headerOffsets[pIdx] = val;
-                                    pIdx++;
+                                    else
+                                    {
+                                        const uint64_t val = header_name_buffer.ui64[0];
+                                        uint64_t *vals = (uint64_t *)&header_comp_data.header_names_aligned8[0];
+
+                                        while (values != 0)
+                                        {
+                                            uint64_t checkValue = vals[(offsets & 0xFF)];
+                                            if (checkValue == val)
+                                            {
+                                                header_idx = (values & 0xFF);
+                                                offsets = 0;
+                                                break;
+                                            }
+
+                                            offsets >>= 8;
+                                            values >>= 8;
+                                        }
+                                    }
                                 }
                             }
+
+                            printf("HDR-IDX: %d < %d\n", header_idx, NUM_HEADER_HANDLERS);
+
+                            if (header_idx < NUM_HEADER_HANDLERS)
+                            {
+#if 0
+                                uint64_t bit = (0x1ul) << header_idx;
+                                if ((bit & keep_headers) != 0)
+                                {
+                                    printf("KEEP!\n");
+                                }
+                                else
+                                {
+                                    printf("IGNORE!\n");
+                                }
+#endif
+                            }
+
+                            // uint32_t val = (uint32_t)(pathStart - pHeader);
+
+#if SKIP_SECOND_HOST_ENTRY_CHECK != 1
+                            // printf("PRS:%s|\n", pHeader);
+                            if (HOST_CHECK == header_name_buffer.ui64[0])
+                            {
+                                // 400 Bad Request, more than one Host
+                                headerState = 2;
+                                break;
+                            }
+#endif
                         }
                         *pSep = ':';
                         *pathStart = '\r';
@@ -927,6 +999,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                     ++i;
                 }
             }
+
             if (headerState == 1)
             {
                 printf("Parse error.\n");
@@ -937,6 +1010,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             if (hasHost == 0)
             {
                 printf("NO HOST!\n");
+                closeCC(pCC);
                 return 0;
             }
             INC_STATE_OR_SET(state, PARSE_STATE_REQ_HEADERS);
@@ -1006,4 +1080,31 @@ SSL_write(ssl, response, 1024);
 SSL_shutdown(ssl);
 */
 
+#endif
+
+#if 0
+                // find separator
+                while (i < recvRes && *pathStart != '\n')
+                {
+                    char c = *pathStart;
+                    if (c < 0)
+                    {
+                        headerState++;
+                        break;
+                    }
+
+                    if (c == ':')
+                    {
+                        pSep = pathStart;
+                        break;
+                    }
+
+                    if (c >= 'A' && c <= 'Z')
+                    {
+                        *pathStart = (char)(c + 32);
+                    }
+
+                    ++pathStart;
+                    ++i;
+                }
 #endif

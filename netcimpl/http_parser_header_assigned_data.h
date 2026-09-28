@@ -417,59 +417,83 @@ HEADER_NAMES_LINK_TYPE const char *header_names[(NUM_HEADER_HANDLERS + 1)] = {
 
 #undef DESCRIBE_HEADER_HANDLER
 
-char* header_names_ch_and_sec[NUM_HEADER_CHS_HANDLERS+1] = {
+static const char *http_methods[NUM_HTTP_METHODS] = {
+    "CONNECT",
+    "DELETE",
+    "GET",
+    "HEAD",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+    "TRACE",
+};
+
+static const uint64_t http_methods_aligned[NUM_HTTP_METHODS] = {
+    WORD7_TO_UINT64_ES_END('C', 'O', 'N', 'N', 'E', 'C', 'T'),
+    WORD6_TO_UINT64_ES_END('D', 'E', 'L', 'E', 'T', 'E'),
+    WORD3_TO_UINT64_ES_END('G', 'E', 'T'),
+    WORD4_TO_UINT64_ES_END('H', 'E', 'A', 'D'),
+    WORD7_TO_UINT64_ES_END('O', 'P', 'T', 'I', 'O', 'N', 'S'),
+    WORD5_TO_UINT64_ES_END('P', 'A', 'T', 'C', 'H'),
+    WORD4_TO_UINT64_ES_END('P', 'O', 'S', 'T'),
+    WORD3_TO_UINT64_ES_END('P', 'U', 'T'),
+    WORD5_TO_UINT64_ES_END('T', 'R', 'A', 'C', 'E'),
+};
+
+char *header_names_ch_and_sec[NUM_HEADER_CHS_HANDLERS + 1] = {
     "Device-Memory",
     "DNT",
     "Downlink",
-    "DPR", 
+    "DPR",
     /**/
     "ECT",
-    "Sec-CH-Device-Memory", 
-    "Sec-CH-DPR", 
-    "Sec-CH-Prefers-Color-Scheme", 
+    "Sec-CH-Device-Memory",
+    "Sec-CH-DPR",
+    "Sec-CH-Prefers-Color-Scheme",
     /**/
-    "Sec-CH-Prefers-Reduced-Motion", 
-    "Sec-CH-Prefers-Reduced-Transparency", 
-    "Sec-CH-UA", 
-    "Sec-CH-UA-Arch", 
+    "Sec-CH-Prefers-Reduced-Motion",
+    "Sec-CH-Prefers-Reduced-Transparency",
+    "Sec-CH-UA",
+    "Sec-CH-UA-Arch",
     /**/
-    "Sec-CH-UA-Bitness", 
-    "Sec-CH-UA-Form-Factors", 
-    "Sec-CH-UA-Full-Version", 
-    "Sec-CH-UA-Full-Version-List", 
+    "Sec-CH-UA-Bitness",
+    "Sec-CH-UA-Form-Factors",
+    "Sec-CH-UA-Full-Version",
+    "Sec-CH-UA-Full-Version-List",
     /**/
-    "Sec-CH-UA-Mobile", 
-    "Sec-CH-UA-Model", 
-    "Sec-CH-UA-Platform", 
-    "Sec-CH-UA-Platform-Version", 
+    "Sec-CH-UA-Mobile",
+    "Sec-CH-UA-Model",
+    "Sec-CH-UA-Platform",
+    "Sec-CH-UA-Platform-Version",
     /**/
-    "Sec-CH-UA-WoW64", 
-    "Sec-CH-Viewport-Height", 
-    "Sec-CH-Viewport-Width", 
-    "Sec-CH-Width", 
+    "Sec-CH-UA-WoW64",
+    "Sec-CH-Viewport-Height",
+    "Sec-CH-Viewport-Width",
+    "Sec-CH-Width",
     /**/
-    "Sec-Fetch-Dest", 
-    "Sec-Fetch-Mode", 
-    "Sec-Fetch-Site", 
-    "Sec-Fetch-Storage-Access", 
+    "Sec-Fetch-Dest",
+    "Sec-Fetch-Mode",
+    "Sec-Fetch-Site",
+    "Sec-Fetch-Storage-Access",
     /**/
-    "Sec-Fetch-User", 
-    "Sec-GPC", 
-    "Sec-Private-State-Token", 
-    "Sec-Private-State-Token-Crypto-Version", 
+    "Sec-Fetch-User",
+    "Sec-GPC",
+    "Sec-Private-State-Token",
+    "Sec-Private-State-Token-Crypto-Version",
     /**/
-    "Sec-Purpose", 
-    "Sec-Purpose-Redemption-Record", 
-    "Sec-Speculation-Tags", 
-    "Sec-WebSocket-Extensions", 
+    "Sec-Purpose",
+    "Sec-Purpose-Redemption-Record",
+    "Sec-Speculation-Tags",
+    "Sec-WebSocket-Extensions",
     /**/
     "Sec-WebSocket-Key",
-    "Sec-WebSocket-Protocol", 
+    "Sec-WebSocket-Protocol",
     "Sec-WebSocket-Version",
     /**/
-    "Viewport-Width",     
-    "Warning", 
-    "Width", 
+    "Viewport-Width",
+    "Warning",
+    "Width",
 };
 
 #define NUM_HEADER_HANDLERS_SEC (15)
