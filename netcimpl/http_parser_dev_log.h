@@ -9,21 +9,21 @@
 #define PARSE_CONTENT_CODE 10
 
 #if HTTP_PARSER_DEV_LOG
-void printInfo(int code, char *data, ssize_t val)
+void printInfo(int code, /*@null@*/ char *data, int val)
 {
     switch (code)
     {
     case RECV_CODE:
-        printf("RECV: %ld\n", val);
+        printf("RECV: %d\n", val);
         return;
     case METHOD_CODE:
-        printf("METHOD: %s|%ld\n", data, val);
+        printf("METHOD: %s|%d\n", data, val);
         return;
     case METHOD_INVALID_CODE:
         printf("Invalid method found! (%s)\n", data);
         return;
     case PATH_CODE:
-        printf("PATH:%s|(#%ld)\n", data, val);
+        printf("PATH:%s|(#%d)\n", data, val);
         return;
     case PARSE_HEADERS_CODE:
         printf("PARSE HEADERS! #%d\n", NUM_HEADER_HANDLERS);
@@ -32,7 +32,7 @@ void printInfo(int code, char *data, ssize_t val)
         printf("PARSE CONTENT\n");
         return;
     default:
-        printf("Unknown: %d|%p|%ld\n", code, data, val);
+        printf("Unknown: %d|%p|%d\n", code, data, val);
     }
 }
 #else

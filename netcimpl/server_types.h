@@ -72,8 +72,8 @@ typedef struct MyServerConnection
     unsigned int options;
     MyServerConnectionInfo common;
     unsigned short port;
-    char *name;
-    void *custom;
+    /*@observer@*/ char *name;
+    /*@null@*/ void *custom;
     SecureOptions secure;
     uint64_t normal_headers;     /*!< bitmask for normal headers*/
     uint64_t additional_headers; /*! bitmask for security and client-hint headers*/

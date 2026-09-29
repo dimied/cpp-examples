@@ -89,19 +89,19 @@ size_t generate_test_data_for_bench_parse_headers_parse_field(TestAlignedText **
             }
             else if (r2 < 50)
             {
-                pStr[r3 % (l - 1)] = -1;
+                pStr[r3 % (l - 1)] = (signed char)-1;
                 expected[i] = BENCH_HEADERS_PARSE_FIELD_RES_NEG;
                 states[1]++;
             }
             else if (r2 < 75)
             {
-                pStr[r3 % (l - 1)] = 20;
+                pStr[r3 % (l - 1)] = (signed char)20;
                 expected[i] = BENCH_HEADERS_PARSE_FIELD_RES_INVALID_CHAR;
                 states[2]++;
             }
             else
             {
-                pStr[r3 % (l - 1)] = 'Z' + 1;
+                pStr[r3 % (l - 1)] = (char)('Z' + 1);
                 expected[i] = BENCH_HEADERS_PARSE_FIELD_RES_INVALID_CHAR;
                 states[2]++;
             }
@@ -127,7 +127,6 @@ size_t generate_test_data_for_bench_parse_headers_parse_field(TestAlignedText **
 static char invalid_chars[] = INVALID_FIELD_NAME_CHARS;
 
 #define INV_CHAR_LEN (sizeof(INVALID_FIELD_NAME_CHARS) - 1)
-
 
 void bench_parse_headers_parse_field()
 {
@@ -212,7 +211,7 @@ void bench_parse_headers_parse_field()
 
     size_t total = NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES * NUM_BENCH_HEADERS_PARSE_FIELD_RUNS;
 
-    printf("CASES!#runs:%d|#tests:%d|#total:%ld\n", NUM_BENCH_HEADERS_PARSE_FIELD_RUNS, NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES, total);
+    printf("CASES!#runs:%d|#tests:%d|#total:%d\n", (int)NUM_BENCH_HEADERS_PARSE_FIELD_RUNS, (int)NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES, (int)total);
 
 #define NUM_BENCH_HEADERS_PARSE_FIELD_IMPLEMENTATIONS 2
 
@@ -241,13 +240,13 @@ void bench_parse_headers_parse_field()
         }
         if (err != TEST_ALIGNED_TEXT_OK)
         {
-            printf("Realign: failed: %ld | ERROR: %d\n", i, err);
+            printf("Realign: failed: %d | ERROR: %d\n", (int)i, err);
             break;
         }
 
         end = clock();
 
-        printf("Align:%ld", offset);
+        printf("Align:%d", (int)offset);
         printTimes("", start, end, total);
         // printf("Hits: %ld\n", hits);
         //
@@ -268,17 +267,17 @@ void bench_parse_headers_parse_field()
                 r = BENCH_HEADERS_PARSE_FIELD_RES_OK;
                 size_t j;
 
-                while (*pTest != 0)
+                while (*pTest != '\0')
                 {
                     char c = *pTest;
 
-                    if (c < 0 || c == 127)
+                    if (c < (char)0 || c == (char)127)
                     {
                         r = BENCH_HEADERS_PARSE_FIELD_RES_NEG;
                         // printf("NEG-FOUND:%ld|%c\n", i, c);
                         break;
                     }
-                    if (c < 33)
+                    if (c < (char)33)
                     {
                         r = BENCH_HEADERS_PARSE_FIELD_RES_INVALID_CHAR;
                         // printf("INV-FOUND:%ld|%c\n", i, c);
@@ -312,7 +311,7 @@ void bench_parse_headers_parse_field()
 #if 1
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(exp=%d,got=%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("FAILED: %d|%d|%s|(exp=%d,got=%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
                     break;
                 }
 #endif
@@ -338,17 +337,17 @@ void bench_parse_headers_parse_field()
                 uint64_t v;
                 int shift;
 
-                while (*pTest != 0)
+                while (*pTest != '\0')
                 {
                     char c = *pTest;
-                    if (c < 33)
+                    if (c < (char)33)
                     {
                         r = BENCH_HEADERS_PARSE_FIELD_RES_NEG;
                         // printf("NEG-FOUND:%ld|%c|%d\n", i, c, c);
                         break;
                     }
 
-                    shift = (c & 0x3F);
+                    shift = (int)(c & 0x3F);
                     v = (0x1ul) << shift;
                     char off = (c & 0x40);
 
@@ -385,7 +384,7 @@ void bench_parse_headers_parse_field()
 #if 1
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(exp=%d,got=%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("FAILED: %d|%d|%s|(exp=%d,got=%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
                     break;
                 }
 #endif

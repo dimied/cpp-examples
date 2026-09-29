@@ -237,7 +237,7 @@ static const char *http_methods[NUM_HTTP_METHODS] = {
     "TRACE",
 };
 
-static const uint64_t http_methods_aligned[NUM_HTTP_METHODS] = {
+const uint64_t http_methods_aligned[NUM_HTTP_METHODS] = {
     WORD7_TO_UINT64_ES_END('C', 'O', 'N', 'N', 'E', 'C', 'T'),
     WORD6_TO_UINT64_ES_END('D', 'E', 'L', 'E', 'T', 'E'),
     WORD3_TO_UINT64_ES_END('G', 'E', 'T'),

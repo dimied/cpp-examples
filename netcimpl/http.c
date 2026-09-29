@@ -85,10 +85,25 @@ size_t writeFile(char *data, int len, int cnt)
 
 MyServer myServer;
 
+#define SIGHANDLER_MSG "Caught SIGINT (    )\n"
+
+static char sighandler_msg_orig[] = SIGHANDLER_MSG;
+
 void signalHandler(int sig)
 {
-    (void)(sig);
-    const char msg[] = "Caught SIGINT\n";
+    char sighandler_msg[sizeof(SIGHANDLER_MSG)];
+    memcpy(sighandler_msg, sighandler_msg_orig, sizeof(SIGHANDLER_MSG));
+
+#define S2 (sizeof(SIGHANDLER_MSG))
+    if (sig < 0)
+    {
+        sighandler_msg[S2 - 7] = '-';
+        sig = -sig;
+    }
+    sighandler_msg[S2 - 4] = (char)((sig % 10) + (int)'0');
+    sighandler_msg[S2 - 5] = (char)((sig / 10) % 10 + (int)'0');
+    sighandler_msg[S2 - 6] = (char)((sig / 100) % 10 + (int)'0');
+#undef S2
 
     int closeRes = cfc_close(&myServer);
     printf("Close res: %d\n", closeRes);
@@ -105,11 +120,10 @@ void signalHandler(int sig)
         write(STDOUT_FILENO, msg2, sizeof(msg2) - 1);
     }
 #endif
-    write(STDOUT_FILENO, msg, sizeof(msg) - 1);
+    write(STDOUT_FILENO, sighandler_msg, sizeof(sighandler_msg) - 1);
 #pragma GCC diagnostic pop
     running = 0;
     retValue = 1;
-    //_exit(sig);
 }
 
 int yes = 1;
@@ -160,7 +174,7 @@ int main()
     nullify(&myServer, sizeof(myServer));
     myServer.conns[0].name = "localhost";
     myServer.conns[0].port = 8080;
-    myServer.conns[0].options = SERVER_OPTION_TCP | SERVER_OPTION_IPV4;
+    myServer.conns[0].options = (unsigned int)(SERVER_OPTION_TCP | SERVER_OPTION_IPV4);
     myServer.conns[0].handleCommand = basicHandle;
     myServer.conns[0].handleClientCommand = basicHandleClientConnection;
 

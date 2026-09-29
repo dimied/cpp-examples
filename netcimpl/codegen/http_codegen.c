@@ -25,6 +25,8 @@ int main()
 {
     signal(SIGINT, signalHandler);
 
+    //printHeaderConstants();
+
     printf("//#http_methods: %ld\n", sizeof(http_methods) / (sizeof(http_methods[0])));
     printf("//#header_names: %ld\n", sizeof(header_names) / (sizeof(header_names[0])));
 #if 1

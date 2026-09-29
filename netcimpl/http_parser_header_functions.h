@@ -1,17 +1,17 @@
 
-void clearHeadersDataInfo(HeadersDataInfo *pInfo)
+void clearHeadersDataInfo(/*@null@*/ /*@out@*/ HeadersDataInfo *pInfo)
 {
-    if (pInfo != 0)
+    if (pInfo != (HeadersDataInfo *)0)
     {
         memset(pInfo, 0, sizeof(HeadersDataInfo));
     }
 }
 
-void printHeadersDataInfo(HeadersDataInfo *pInfo)
+void printHeadersDataInfo(/*@null@*/ HeadersDataInfo *pInfo)
 {
-    if (pInfo != 0)
+    if (pInfo != (HeadersDataInfo *)0)
     {
-        printf("HI: size:%d | used:%d | chunks:%d\n", pInfo->size, pInfo->used, pInfo->num_chunks);
+        printf("HI: size:%d | used:%d | chunks:%d\n", (int)pInfo->size, (int)pInfo->used, (int)pInfo->num_chunks);
     }
     else
     {
@@ -19,7 +19,7 @@ void printHeadersDataInfo(HeadersDataInfo *pInfo)
     }
 }
 
-int getHeadersDataInfo(HttpRequest *pReq, HeadersDataInfo *pInfo)
+int getHeadersDataInfo(/*@null@*/ HttpRequest *pReq, HeadersDataInfo *pInfo)
 {
     if (pReq != 0 && pInfo != 0)
     {

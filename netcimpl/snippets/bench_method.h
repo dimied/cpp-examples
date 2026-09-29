@@ -1,6 +1,8 @@
 #ifndef BENCH_METHOD_SNIPPETS
 #define BENCH_METHOD_SNIPPETS
 
+#include "../http_parser_header_assigned_data.h"
+
 void printHttpMethods2()
 {
     union
@@ -213,7 +215,7 @@ void bench_parse_method()
             if (i == NUM_BENCH_METHOD_ENTRIES)
             {
                 size_t total = NUM_BENCH_METHOD_RUNS * NUM_BENCH_METHOD_ENTRIES;
-                
+
                 printf("CASES!#runs:%d|#tests:%d|#total:%ld\n", NUM_BENCH_METHOD_RUNS, NUM_BENCH_METHOD_ENTRIES, total);
                 size_t testRun;
 

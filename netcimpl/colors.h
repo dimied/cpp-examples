@@ -22,20 +22,20 @@
 
 void color_text(unsigned char color, char *text)
 {
-    if (color == 0)
+    if (color == (unsigned char)0)
     {
         printf("\x1B[0m%s\033[0m", text);
         return;
     }
     unsigned char effect = (color >> 4);
 
-    if (effect == 0)
+    if (effect == (unsigned char)0)
     {
-        printf("\033[%dm%s\033[0m", (color & 0x7) + 30, text);
+        printf("\033[%dm%s\033[0m", (int)(color & 0x7) + 30, text);
     }
     else
     {
-        printf("\033[%d;%dm%s\033[0m", (color & 0x7) + 30, effect, text);
+        printf("\033[%d;%dm%s\033[0m", (int)(color & 0x7) + 30, (int)effect, text);
     }
 }
 void test_colors()
@@ -50,7 +50,8 @@ void test_colors()
         printf("%12s", effects[eIdx]);
     }
     printf("\n");
-    char example[12] = "  example   ";
+
+    char example[] = "  example   ";
 
     size_t cIdx;
     for (cIdx = 0; cIdx < sizeof(colors) / sizeof(colors[0]); cIdx++)
@@ -58,21 +59,20 @@ void test_colors()
         printf("%8s  ", colors[cIdx]);
         for (eIdx = 0; eIdx < 8; eIdx++)
         {
-
-            unsigned char c = (eIdx << 4) | (unsigned char)cIdx;
+            unsigned char c = (unsigned char)cIdx | ((unsigned char)eIdx << 4);
             color_text(c, example);
         }
         printf("\n");
     }
     printf("\n");
 }
-#define print_colors_va(COLOR, TEXT, ARGS...)    \
-    do                                           \
-    {                                            \
-        char text_buffer[128];                   \
-        memset(text_buffer, 0, 128);             \
-        sprintf(text_buffer, TEXT, ARGS); \
-        color_text(COLOR, text_buffer);          \
+#define print_colors_va(COLOR, TEXT, ARGS...) \
+    do                                        \
+    {                                         \
+        char text_buffer[128];                \
+        memset(text_buffer, 0, 128);          \
+        sprintf(text_buffer, TEXT, ARGS);     \
+        color_text(COLOR, text_buffer);       \
     } while (0)
 
 #endif

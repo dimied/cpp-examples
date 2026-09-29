@@ -1121,16 +1121,6 @@ void printHeaderConstants()
 #endif
     }
 #endif
-    char format[32];
-    memset(format, 0, 32);
-    {
-        int r = snprintf(format, 32, "//%%-%lds ", (long int)max_size);
-        if(r < 0 || r >= (int)max_size) {
-            return;
-        }
-    }
-    
-
     for (i = 0; i < sizeof(vals) / sizeof(struct pt); i++)
     {
         if (i != 0 && (i % 4) == 0)
@@ -1140,9 +1130,9 @@ void printHeaderConstants()
         uint64_t c = vals[i].constant;
 
         printf("//%-68s %d\n", vals[i].never_name, vals[i].never);
-
-        printf(format, vals[i].name);
         
+        printf("//%-*s", (int)max_size, vals[i].name);
+
         if (c != 0)
         {
             int shift = -1;

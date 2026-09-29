@@ -3,12 +3,12 @@
 
 typedef struct TestRecvState
 {
-    size_t result;
-    void *data;
+    ssize_t result;
+    /*@null@*/ void *data;
     size_t size;
     size_t errorCode;
     size_t numChunks;
-    size_t *chunks;
+    /*@null@*/ size_t *chunks;
 } TestRecvState;
 
 TestRecvState testRecvState;
@@ -22,45 +22,45 @@ TestRecvState testRecvState;
 
 #define TEST_CASE_NO_DATA(EXPECTED) \
     {                               \
-        TEST_NOT_SKIPPED,           \
-        1,                          \
-        EXPECTED,                   \
-        0,                          \
+        (int)TEST_NOT_SKIPPED,      \
+        (int)1,                     \
+        (int)EXPECTED,              \
+        (int)0,                     \
         TEST_NO_DATA,               \
-        0,                          \
+        (ssize_t)0,                 \
         TEST_NO_ERRNO,              \
         TEST_NO_CHUNKS}
 
 #define TEST_CASE_RAW_DATA(DATA, EXPECTED) \
     {                                      \
-        TEST_NOT_SKIPPED,                  \
-        1,                                 \
-        EXPECTED,                          \
-        0,                                 \
+        (int)TEST_NOT_SKIPPED,             \
+        (int)1,                            \
+        (int)EXPECTED,                     \
+        (int)0,                            \
         DATA,                              \
-        sizeof(DATA) - 1,                  \
+        (ssize_t)(sizeof(DATA) - 1),       \
         TEST_NO_ERRNO,                     \
         TEST_NO_CHUNKS}
 
 #define SKIP_TEST_CASE_RAW_DATA(DATA, EXPECTED) \
     {                                           \
-        TEST_SKIPPED,                           \
-        1,                                      \
-        EXPECTED,                               \
-        0,                                      \
+        (int)TEST_SKIPPED,                      \
+        (int)1,                                 \
+        (int)EXPECTED,                          \
+        (int)0,                                 \
         DATA,                                   \
-        sizeof(DATA) - 1,                       \
+        (ssize_t)(sizeof(DATA) - 1),            \
         TEST_NO_ERRNO,                          \
         TEST_NO_CHUNKS}
 
 #define TEST_CASE_ERRNO(ERRNO, EXPECTED) \
     {                                    \
-        TEST_NOT_SKIPPED,                \
-        1,                               \
-        EXPECTED,                        \
-        0,                               \
+        (int)TEST_NOT_SKIPPED,           \
+        (int)1,                          \
+        (int)EXPECTED,                   \
+        (int)0,                          \
         TEST_NO_DATA,                    \
-        TEST_RECV_FAILED,                \
+        (ssize_t)TEST_RECV_FAILED,       \
         ERRNO,                           \
         TEST_NO_CHUNKS}
 
@@ -78,11 +78,11 @@ typedef struct TestCase
     int expected;
     int reserved;
 
-    char *rawData;
+    /*@null@*/ char *rawData;
     ssize_t result;
     int errno_value;
 
-    TestCaseChunkInfo *chunks;
+    /*@null@*/ TestCaseChunkInfo *chunks;
 } TestCase;
 
 TestCase testCases[] = {
@@ -108,18 +108,18 @@ TestCase testCases[] = {
 
 void testParser()
 {
-    printf("TESTING! %ld\n----\n", NUM_TEST_CASES);
+    printf("TESTING! #tests=%d\n----\n", (int)NUM_TEST_CASES);
 
-    size_t testIdx;
+    int testIdx;
     TestCase *pTC;
-    size_t numSkipped = 0, numFails = 0;
+    int numSkipped = 0, numFails = 0;
 
-    for (testIdx = 0; testIdx < NUM_TEST_CASES; testIdx++)
+    for (testIdx = 0; testIdx < (int)NUM_TEST_CASES; testIdx++)
     {
-        printf("TEST: %ld", testIdx);
+        printf("TEST: %d", (int)testIdx);
         pTC = &testCases[testIdx];
 
-        if (pTC->skipped)
+        if (pTC->skipped != 0)
         {
             printf(" skipped!\n");
             ++numSkipped;
@@ -139,9 +139,14 @@ void testParser()
         test_errno = pTC->errno_value;
 #endif
         MyServerClientConnection *pCC = newClientConnection();
+        if (pCC == (MyServerClientConnection *)0)
+        {
+            break;
+        }
+
         pCC->socketId = pTC->socket;
 
-        int res;
+        int res = -1;
 
         if (pTC->chunks != 0)
         {
@@ -168,7 +173,7 @@ void testParser()
     }
 
     printf("----\n");
-    printf("Completed(done/fails/skipped/total): %ld/%ld/%ld/%ld\n", testIdx - numFails, numFails, numSkipped, NUM_TEST_CASES);
+    printf("Completed(done/fails/skipped/total): %d/%d/%d/%d\n", testIdx - numFails, numFails, numSkipped, (int)NUM_TEST_CASES);
     printf("----\n");
 }
 
@@ -206,8 +211,11 @@ void testHeaders()
     HttpRequest *pRequest = newRequest();
 
     HeadersDataInfo info;
+
     clearHeadersDataInfo(&info);
+
     printHeadersDataInfo(&info);
+
     char *test_dataValues[] = {
         "my data",
         "no data",
@@ -231,7 +239,7 @@ void testHeaders()
         size_t i;
         for (i = 0; i < numValues; i++)
         {
-            int l = strlen(test_dataValues[i]);
+            int l = (int)strlen(test_dataValues[i]);
 
             int r = addHeadersData(pRequest, test_dataValues[i], l);
 
@@ -250,9 +258,9 @@ void testHeaders()
                 keepRuning = 0;
                 break;
             }
-            if (info.used != expected)
+            if (info.used != (unsigned int)expected)
             {
-                printf("Fail: exp=%ld | cur=%d\n", expected, info.used);
+                printf("Fail: exp=%u | cur=%u\n", (unsigned int)expected, info.used);
                 keepRuning = 0;
                 break;
             }

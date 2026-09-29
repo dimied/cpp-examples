@@ -25,23 +25,23 @@
 
 #define HEADER_CHUNK_SIZE 128
 
-size_t header_size(int len)
+size_t header_size(unsigned int len)
 {
-    unsigned int ds = (len + 7) & 0xFFFFFF0;
+    unsigned int ds = (len + 7) & 0xFFFFF8;
     if (ds < HEADER_CHUNK_SIZE)
     {
         return HEADER_CHUNK_SIZE;
     }
     else
     {
-        return (ds + 63) & 0xFFFFFFC0; // 64 byte aligned
+        return (size_t)(ds + 63) & 0xFFFFC0; // 64 byte aligned
     }
 }
 
 // TODO:instead of saving full header name,
 //  we can save (0x80 | HEADER_IDX) as first byte and reducing the amount of bytes
 // for unknown headers we save full header name.
-int addHeadersData(HttpRequest *pReq, char *data, int len)
+int addHeadersData(/*@null@*/ HttpRequest *pReq, char *data, int len)
 {
     if (pReq != 0 && data != 0 && len >= 0 && len < (0x1 << 20))
     {
@@ -54,7 +54,7 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
 
         if (headers == 0)
         {
-            size_t s = header_size(len + sizeof(HeadersDataHeader));
+            size_t s = header_size((unsigned int)len + (unsigned int)sizeof(HeadersDataHeader));
             // printf("SZ:%d>%ld\n", len, s);
 
             if (s >= 0x8000)
@@ -69,9 +69,9 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
             {
                 HeadersDataHeader *pHeader = (HeadersDataHeader *)headers;
                 char *dstData = (char *)headers + sizeof(HeadersDataHeader);
-                memcpy(dstData, data, len);
+                memcpy(dstData, data, (size_t)len);
                 s -= sizeof(HeadersDataHeader);
-                pHeader->size_and_used = (s << 16) | len;
+                pHeader->size_and_used = ((unsigned int)(s << 16)) | ((unsigned int)len);
                 pReq->__headers = headers;
                 return ADD_HEADERS_OK;
             }
@@ -83,8 +83,8 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
 
             if (pHeader->next == 0)
             {
-                size_t newSize = pHeader->size_and_used >> 16;
-                size_t used = pHeader->size_and_used & 0xFFFF;
+                size_t newSize = (size_t)(pHeader->size_and_used >> 16);
+                size_t used = (size_t)(pHeader->size_and_used & 0xFFFF);
                 // can insert?
                 if (len + used < newSize)
                 {
@@ -92,13 +92,13 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
                     char *dstData = (char *)headers + sizeof(HeadersDataHeader);
                     dstData += used;
                     // printf("COPY: [%p,%p) -> [%p,%p]\n", dstData, dstData + len, headers, (char *)headers + sizeof(HeadersDataHeader) + newSize);
-                    memcpy(dstData, data, len);
+                    memcpy(dstData, data, (size_t)len);
                     used += len;
                     pHeader->size_and_used = (pHeader->size_and_used & 0xFFFF0000) | used;
                     return ADD_HEADERS_OK;
                 }
-                newSize += header_size(len) + sizeof(HeadersDataHeader);
-                newSize = header_size(newSize);
+                newSize += header_size((unsigned int)len) + sizeof(HeadersDataHeader);
+                newSize = header_size((unsigned int)newSize);
 
                 if (newSize >= 0x8000)
                 {
@@ -120,11 +120,11 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
                     char *dstData = (char *)res + dontTouchSize;
                     // clear new memory
                     memset(dstData, 0, newSize - dontTouchSize);
-                    memcpy(dstData, data, len);
+                    memcpy(dstData, data, (size_t)len);
 
                     used = dontTouchSize - sizeof(HeadersDataHeader) + len;
                     newSize -= sizeof(HeadersDataHeader);
-                    pHeader->size_and_used = (newSize << 16) | used;
+                    pHeader->size_and_used = ((unsigned int)(newSize << 16)) | ((unsigned int)used);
                     pReq->__headers = res;
                     return 0;
                 }
@@ -139,7 +139,7 @@ int addHeadersData(HttpRequest *pReq, char *data, int len)
     return ADD_HEADERS_INVALID_ARGS;
 }
 
-void freeHeadersData(HttpRequest *pReq)
+static void freeHeadersData(HttpRequest *pReq)
 {
     if (pReq != 0)
     {
@@ -150,7 +150,7 @@ void freeHeadersData(HttpRequest *pReq)
             if (pH->next != 0)
             {
                 perror("Header->next not implemented!\n");
-                exit(1);
+                exit(EXIT_FAILURE);
             }
 
             while (headers != 0)
@@ -161,24 +161,27 @@ void freeHeadersData(HttpRequest *pReq)
                 headers = next;
             }
 
-            free(headers);
+            // free(headers);
             pReq->__headers = 0;
         }
     }
 }
 
-char *memoryForPath(int size)
+/*@null@*/ static char *memoryForPath(int size)
 {
-    if (size > 0 && size < (0x1 << 20))
+#define MAX_SIZE (0x1 << 20)
+    if (size > 0 && size < MAX_SIZE)
     {
         ++size; // if the user forgot place for '\0'
         size = (size + 7) & 0xFFFFFFF8;
-        return (char *)calloc(size >> 3, 8);
+        size_t alloc_size = (size_t)size;
+        return (char *)calloc(alloc_size >> 3, 8);
     }
     return 0;
+#undef MAX_SIZE
 }
 
-void freeMemoryForPath(void *pMem)
+static void freeMemoryForPath(/*@special@*/ /*@null@*/ void *pMem) /*@releases pMem*/
 {
     if (pMem != 0)
     {
@@ -186,15 +189,15 @@ void freeMemoryForPath(void *pMem)
     }
 }
 
-HttpRequest *newRequest()
+/*@null@*/ HttpRequest *newRequest()
 {
     // size_t s = (sizeof(HttpRequest) + 31) & 0xFD0;
     size_t s = sizeof(HttpRequest);
-    printf("RA: %ld\n", s);
+    // printf("RA: %d\n", (int)s);
     return (HttpRequest *)calloc((s + 7) >> 3, 8);
 }
 
-void freeRequest(void *p)
+void freeRequest(/*@null@*/ void *p)
 {
     if (p != 0)
     {
@@ -252,7 +255,7 @@ typedef struct HeaderHandler
 #define PARSE_STATE_REQ_LINE_PROTOCOL 3
 #define PARSE_STATE_REQ_HEADERS 4
 
-char *noneString = "(nil)";
+static char *noneString = "(nil)";
 
 void printRequest(HttpRequest *p)
 {
@@ -339,7 +342,7 @@ int processRequestLine(HttpRequest *pRequest)
 #define HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS (0xffffffffffffffc0ul)
 // #define HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS (0xffffffffffffff80ul)
 
-#define HOST_CHECK ('h' | ('o' << 8) | ('s' << 16) | ('t' << 24))
+#define HOST_CHECK ((uint64_t)'h' | ((uint64_t)'o' << 8) | ((uint64_t)'s' << 16) | ((uint64_t)'t' << 24))
 
 #ifndef SKIP_SECOND_HOST_ENTRY_CHECK
 #define SKIP_SECOND_HOST_ENTRY_CHECK 0
@@ -357,9 +360,15 @@ THREAD_LOCAL union
     char c8[64];
 } header_name_buffer;
 
-int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
+typedef unsigned long ui64bit_t;
+
+int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ void *pServerConnection)
 {
     (void)(pServerConnection);
+    if (pClientConnection == 0)
+    {
+        return 100;
+    }
     MyServerClientConnection *pCC = (MyServerClientConnection *)pClientConnection;
 
     const int clientSocketId = pCC->socketId;
@@ -377,22 +386,22 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
     while (readChunks != 0)
     {
         --readChunks;
-        ssize_t recvRes;
+        ssize_t recvRes_real;
 
         if (IS_SECURE_CONNECTION(pCC))
         {
             //<=0 means error
-            recvRes = SSL_read(pCC->secure.ssl, inBuffer.data, BUF_LEN_IN);
+            recvRes_real = SSL_read(pCC->secure.ssl, inBuffer.data, BUF_LEN_IN);
         }
         else
         {
-            recvRes = RECV_FUNC(clientSocketId, inBuffer.data, BUF_LEN_IN, 0);
+            recvRes_real = RECV_FUNC(clientSocketId, inBuffer.data, BUF_LEN_IN, 0);
         }
-        printInfo(RECV_CODE, 0, recvRes);
+        printInfo(RECV_CODE, 0, (int)recvRes_real);
 
-        if (recvRes <= 0)
+        if (recvRes_real <= 0)
         {
-            if (recvRes == 0)
+            if (recvRes_real == 0)
             {
                 return RECV_PARSE_ERROR_END_OF_FILE;
             }
@@ -408,6 +417,8 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             // should 'actually' never happen, errno value use only 1 byte
             return RECV_PARSE_ERRNO_BIG;
         }
+
+        int recvRes = (int)recvRes_real;
 
         HttpRequest *pReq = pCC->request;
 
@@ -620,7 +631,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
 #define HO_LEN 32
             // uint32_t headerOffsets[HO_LEN];
-            size_t pIdx = 0;
+            // size_t pIdx = 0;
             int hasHost = 0;
 
 #define HEADER_STATE_FINE 0
@@ -662,9 +673,9 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                     }
                 }
 
-                const char *pHeader = pathStart;
+                // const char *pHeader = pathStart;
                 char *pSep = (char *)0;
-                printf("READ:HEADER:%d: (%d < %ld)\n", hIdx, i, recvRes);
+                printf("READ:HEADER:%d: (%d < %d)\n", hIdx, i, recvRes);
                 hIdx++;
 
                 uint64_t v;
@@ -792,7 +803,8 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                             // size within range
                             if (s >= HEADER_NAME_MIN_LEN && s <= HEADER_NAME_MAX_LEN)
                             {
-                                const uint64_t bit = (0x1ul) << (s - 1);
+
+                                const ui64bit_t bit = (0x1ul) << ((unsigned int)(s - 1));
                                 // Has size?
                                 if ((bit & HEADER_SIZE_BITS_CONSTANT) != 0)
                                 {
@@ -802,7 +814,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
                                     if (s > 8)
                                     {
-                                        const int s2 = (s + 7) >> 3;
+                                        const unsigned int s2 = ((unsigned int)(s + 7)) >> 3;
 
                                         uint64_t *vals = (uint64_t *)&header_comp_data.header_names_aligned8[0];
                                         uint64_t *pVals = header_name_buffer.ui64;
@@ -830,7 +842,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
                                                     if (s2 == 2)
                                                     {
-                                                        header_idx = (values & 0xFF);
+                                                        header_idx = (int)(values & 0xFF);
                                                         offsets = 0;
                                                         values = 0;
                                                         break;
@@ -846,7 +858,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                                                             sawPrefix |= 4;
                                                             if (s2 == 3)
                                                             {
-                                                                header_idx = (values & 0xFF);
+                                                                header_idx = (int)(values & 0xFF);
                                                                 offsets = 0;
                                                                 values = 0;
                                                                 break;
@@ -861,7 +873,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                                                                 {
                                                                     if (s2 == 4)
                                                                     {
-                                                                        header_idx = (values & 0xFF);
+                                                                        header_idx = (int)(values & 0xFF);
                                                                         values = 0;
                                                                         offsets = 0;
                                                                         break;
@@ -874,7 +886,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                                                                         // 33-40 bytes equal?
                                                                         if (*pVals2 == *checkValues)
                                                                         {
-                                                                            header_idx = (values & 0xFF);
+                                                                            header_idx = (int)(values & 0xFF);
                                                                             values = 0;
                                                                             offsets = 0;
                                                                             break;
@@ -916,7 +928,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                                             uint64_t checkValue = vals[(offsets & 0xFF)];
                                             if (checkValue == val)
                                             {
-                                                header_idx = (values & 0xFF);
+                                                header_idx = (int)(values & 0xFF);
                                                 offsets = 0;
                                                 break;
                                             }
@@ -933,7 +945,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
                             if (header_idx > 0 && header_idx < NUM_HEADER_HANDLERS + 1)
                             {
 #if 1
-                                uint64_t bit = (0x1ul) << (header_idx - 1);
+                                ui64bit_t bit = (0x1ul) << (unsigned int)(header_idx - 1);
                                 if ((bit & keep_headers) != 0)
                                 {
                                     printf("KEEP!\n");
@@ -1000,7 +1012,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
         if (strlen(pStart) == 0 || strcmp("/", pStart) == 0)
         {
-            sleep(1);
+            // sleep(1);
             pStart = "index.html";
         }
 
@@ -1009,16 +1021,14 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
         if (cacheData != 0 && resSize != 0)
         {
-            int s =
-                send(clientSocketId, cacheData, resSize, 0);
-            printf("SENT:C: %d | %ld\n", s, resSize);
+            ssize_t s = send(clientSocketId, cacheData, resSize, 0);
+            printf("SENT:C: %d | %d\n", (int)s, (int)resSize);
         }
         else
         {
             char *data = "HTTP/1.0 404 Not Found\r\nConnection: close\r\n\r\n";
-            // int s =
-            send(clientSocketId, data, strlen(data), 0);
-            printf("NOT FOUND!\n");
+            ssize_t s = send(clientSocketId, data, strlen(data), 0);
+            printf("NOT FOUND! (%d)\n", (int)s);
         }
     }
 

@@ -488,7 +488,7 @@ int basicHandle(void *pConnection, int cmd, void *param)
     return 1;
 }
 
-void freeRequest(void *p);
+void freeRequest(/*@null@*/ void *p);
 
 int verbose = 1;
 
@@ -581,6 +581,7 @@ void removeClientConnection(MyServerClientConnection *pCC)
                 pLast = p;
                 p = next;
             }
+
             if (pCon->clients.last == pCC)
             {
                 pCon->clients.last = pLast;
@@ -744,18 +745,18 @@ void printProto()
 
 void printTypeSizes()
 {
-    printf("Server:size:%ld\n", sizeof(MyServer));
-    printf("Ser-Con:size:%ld\n", sizeof(MyServerConnection));
-    printf("Cli-Con:size:%ld\n", sizeof(MyServerClientConnection));
-    printf("Request:size:%ld\n", sizeof(HttpRequest));
-    printf("Headers:size:%ld\n", sizeof(HeadersDataHeader));
+    printf("Server:size:%d\n", (int)sizeof(MyServer));
+    printf("Ser-Con:size:%d\n", (int)sizeof(MyServerConnection));
+    printf("Cli-Con:size:%d\n", (int)sizeof(MyServerClientConnection));
+    printf("Request:size:%d\n", (int)sizeof(HttpRequest));
+    printf("Headers:size:%d\n", (int)sizeof(HeadersDataHeader));
     printf("---\n");
     printf("Headers:handlers:%d |#sec=%d |#hints=%d |#names=%d\n",
-           NUM_HEADER_HANDLERS,
-           NUM_HEADER_HANDLERS_SEC,
-           NUM_HEADER_HANDLERS_CLIENT_HINTS,
-           HEADER_NAMES_TEXT_LEN);
-    printf("Headers:static:data:%d |#aligned=%ld\n", 272 + 272 + 872, sizeof(header_comp_data));
+           (int)NUM_HEADER_HANDLERS,
+           (int)NUM_HEADER_HANDLERS_SEC,
+           (int)NUM_HEADER_HANDLERS_CLIENT_HINTS,
+           (int)HEADER_NAMES_TEXT_LEN);
+    printf("Headers:static:data:%d |#aligned=%d\n", 272 + 272 + 872, (int)sizeof(header_comp_data));
     printf("\n");
 }
 #endif

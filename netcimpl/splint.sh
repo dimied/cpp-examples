@@ -1,3 +1,3 @@
 #!/bin/bash
 
-splint -mustfreefresh -D__unix__= http.c +posixlib > splint.temp.txt
+splint -mustfreefresh +charintliteral -D__unix__= http.c +posixlib > splint.temp.txt

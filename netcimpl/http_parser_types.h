@@ -1,7 +1,6 @@
 #ifndef HTTP_PARSER_TYPES_INCLUDED
 #define HTTP_PARSER_TYPES_INCLUDED
 
-
 #ifndef HTTP_REQUEST_NUM_PTRS
 #define HTTP_REQUEST_NUM_PTRS 4
 #endif
@@ -43,12 +42,12 @@ typedef struct HttpRequest
     // Bits:8... custom
     unsigned int __state;
     uint64_t __validation; /*!< e.g. for validating connection */
-    char *path;
+    /*@null@*/ char *path;
     void *__clientConnection;
     uint64_t acceptedHeaders; /*< collection(bitmask) of header to collect */
-    void *__headers;
-    void *__content;
-    void *pCustom1;
+    /*@null@*/ void *__headers;
+    /*@null@*/ void *__content;
+    /*@null@*/ void *pCustom1;
 } HttpRequest;
 
 #endif

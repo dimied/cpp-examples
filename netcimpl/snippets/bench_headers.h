@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-size_t lastSize = 0;
+static size_t lastSize = 0;
 
 #define bench_header_names_lc(idx) (header_comp_data.header_names_lowercase[idx])
 
@@ -17,35 +17,34 @@ size_t lastSize = 0;
 #define bench_header_offsets_sorted header_comp_data.header_names_offsets8_sorted
 #endif
 
-
-int impl_headers_normal(char *pathStart)
+static int impl_headers_normal(char *pathStart)
 {
     size_t idx = 0;
-    
+
     for (idx = 0; idx < NUM_HEADER_HANDLERS; idx++)
     {
         if (0 == strcmp(pathStart, header_comp_data.header_names_lowercase[idx]))
         {
-            return idx+1;
+            return idx + 1;
         }
     }
-    return idx+1;
+    return idx + 1;
 }
 
-int impl_headers_aligned(char *pathStart)
+static int impl_headers_aligned(char *pathStart)
 {
     const size_t s = strlen(pathStart);
 
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         lastSize = s;
-        return NUM_HEADER_HANDLERS+1;
+        return NUM_HEADER_HANDLERS + 1;
     }
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS+1;
+            return NUM_HEADER_HANDLERS + 1;
         }
     }
 
@@ -66,24 +65,24 @@ int impl_headers_aligned(char *pathStart)
         values >>= 8;
     }
 
-    return NUM_HEADER_HANDLERS+1;
+    return NUM_HEADER_HANDLERS + 1;
 }
 
-int impl_headers_aligned2(char *pathStart)
+static int impl_headers_aligned2(char *pathStart)
 {
     const size_t s = strlen(pathStart);
 
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         lastSize = s;
-        return NUM_HEADER_HANDLERS+1;
+        return NUM_HEADER_HANDLERS + 1;
     }
     // size test
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS+1;
+            return NUM_HEADER_HANDLERS + 1;
         }
     }
 
@@ -141,28 +140,28 @@ int impl_headers_aligned2(char *pathStart)
         }
     }
 
-    return NUM_HEADER_HANDLERS+1;
+    return NUM_HEADER_HANDLERS + 1;
 }
 
 #if HEADER_NAME_MAX_LEN > 40
 #error "Unrolled version does't support strings of length greater than 40"
 #else
 
-int impl_headers_aligned3(char *pathStart)
+static int impl_headers_aligned3(char *pathStart)
 {
     const size_t s = strlen(pathStart);
 
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
-        //lastSize = s;
-        return NUM_HEADER_HANDLERS+1;
+        // lastSize = s;
+        return NUM_HEADER_HANDLERS + 1;
     }
     // size test
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS+1;
+            return NUM_HEADER_HANDLERS + 1;
         }
     }
 
@@ -280,26 +279,26 @@ int impl_headers_aligned3(char *pathStart)
         }
     }
 
-    return NUM_HEADER_HANDLERS+1;
+    return NUM_HEADER_HANDLERS + 1;
 }
 
-size_t sigHits = 0;
+//static size_t sigHits = 0;
 
-int impl_headers_aligned4(const char *pathStart, uint64_t sig)
+static int impl_headers_aligned4(const char *pathStart, uint64_t sig)
 {
     size_t s = strlen(pathStart);
 
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         lastSize = s;
-        return NUM_HEADER_HANDLERS+1;
+        return NUM_HEADER_HANDLERS + 1;
     }
     // size test
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS+1;
+            return NUM_HEADER_HANDLERS + 1;
         }
     }
 
@@ -307,12 +306,11 @@ int impl_headers_aligned4(const char *pathStart, uint64_t sig)
     if ((bench_header_signatures[s] & sig) != sig)
     {
         // printf("SIG:%s|%ld <> %ld\n", pathStart, sig, header_names_signatures8[s]);
-        return NUM_HEADER_HANDLERS+1;
+        return NUM_HEADER_HANDLERS + 1;
     }
 
     uint64_t offsets = bench_header_offsets[s];
     uint64_t values = bench_header_values[s];
-
 
     if (s > 8)
     {
@@ -428,12 +426,12 @@ int impl_headers_aligned4(const char *pathStart, uint64_t sig)
         }
     }
 
-    return NUM_HEADER_HANDLERS+1;
+    return NUM_HEADER_HANDLERS + 1;
 }
 #endif
 
 #if HEADER_DATA_SORTED_NAMES
-int impl_headers_sorted_by_size(char *pathStart, uint64_t sig)
+static int impl_headers_sorted_by_size(char *pathStart, uint64_t sig)
 {
     size_t s = strlen(pathStart);
 
@@ -685,7 +683,6 @@ int impl_headers_sorted_by_size(char *pathStart, uint64_t sig)
 
 #endif
 
-
 void bench_parse_headers()
 {
     printf("----\n");
@@ -759,11 +756,11 @@ void bench_parse_headers()
         {
             int r2 = rand();
             p[r2 % l] = 'X';
-            expected[i] = NUM_HEADER_HANDLERS+1;
+            expected[i] = NUM_HEADER_HANDLERS + 1;
         }
         else
         {
-            expected[i] = r+1;
+            expected[i] = r + 1;
         }
 
         size_t sIdx;
@@ -877,7 +874,7 @@ void bench_parse_headers()
                 r = impl_headers_normal(p);
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
+                    printf("FAILED: %d|%d|%s|(%d,%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
                     break;
                 }
             }
@@ -898,8 +895,8 @@ void bench_parse_headers()
                 r = impl_headers_aligned(testsReal[i]);
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
-                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("FAILED: %d|%d|%s|(%d,%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%d\n", (int)lastSize);
                     printf("T:%s|%s|\n", tests[i], testsReal[i]);
                     break;
                 }
@@ -923,8 +920,8 @@ void bench_parse_headers()
                 r = impl_headers_aligned2(testsReal[i]);
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
-                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("FAILED: %d|%d|%s|(%d,%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%d\n", (int)lastSize);
                     printf("T:%s|%s|\n", tests[i], testsReal[i]);
                     break;
                 }
@@ -948,8 +945,8 @@ void bench_parse_headers()
                 r = impl_headers_aligned3(testsReal[i]);
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
-                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("FAILED: %d|%d|%s|(%d,%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%d\n", (int)lastSize);
                     printf("T:%s|%s|\n", tests[i], testsReal[i]);
                     break;
                 }
@@ -973,8 +970,8 @@ void bench_parse_headers()
                 r = impl_headers_aligned4(testsReal[i], signatures[i]);
                 if (r != expected[i])
                 {
-                    printf("FAILED: %ld|%ld|%s|(%d,%d)\n", testRun, i, testsReal[i], expected[i], r);
-                    printf("LAST-SIZE:%ld\n", lastSize);
+                    printf("FAILED: %d|%d|%s|(%d,%d)\n", (int)testRun, (int)i, testsReal[i], expected[i], r);
+                    printf("LAST-SIZE:%d\n", (int)lastSize);
                     printf("T:%s|%s|\n", tests[i], testsReal[i]);
                     break;
                 }
@@ -1024,7 +1021,7 @@ void bench_parse_headers()
                     const uint64_t bit = (0x1ul) << ((*pathStart) & 0x3F);
                     if ((bit & HEADER_FIRST_CHAR_BITS_CONSTANT) == 0)
                     {
-                        r = NUM_HEADER_HANDLERS+1;
+                        r = NUM_HEADER_HANDLERS + 1;
                     }
                     else
                     {
@@ -1048,7 +1045,7 @@ void bench_parse_headers()
     }
 
     uint64_t addr = (uint64_t)&bench_header_names[0];
-    printf("Alignment: %ld\n", addr & 0x7);
+    printf("Alignment: %d\n", (int)(addr & 0x7));
 
     printf("Offset\t");
 
@@ -1060,7 +1057,7 @@ void bench_parse_headers()
 
     for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
-        printf("%6ld\t", offset);
+        printf("%6d\t", (int)offset);
         for (i = 0; i < NUM_BENCH_HEADERS_IMPLEMENTATIONS; i++)
         {
             double t = times[offset][i] / CLOCKS_PER_SEC;
@@ -1071,7 +1068,7 @@ void bench_parse_headers()
     printf("----\n");
     for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
-        printf("%5ld+\t", offset);
+        printf("%5d+\t", (int)offset);
         for (i = 0; i < NUM_BENCH_HEADERS_IMPLEMENTATIONS; i++)
         {
             double t = perTestTime(times[offset][i], total);
