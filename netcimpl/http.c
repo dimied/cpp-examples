@@ -53,18 +53,30 @@ int socketId;
 int networkExample();
 #endif
 
-void writeFile(char *data, int len, int cnt)
+size_t writeFile(char *data, int len, int cnt)
 {
     char buf[64];
     memset(buf, 0, 64);
-    sprintf(buf, "./request_%d.temp.txt", cnt);
-    printf("W: %s\n", buf);
-    FILE *fp = fopen(buf, "wb");
-    if (fp != 0)
+
+    const int r = snprintf(buf, 64, "./request_%d.temp.txt", cnt);
+
+    size_t res = 0;
+
+    if (data != 0 && len > 0)
     {
-        fwrite(data, 1, len, fp);
-        fclose(fp);
+        if (r < 64)
+        {
+            printf("W: %s\n", buf);
+            FILE *fp = fopen(buf, "wb");
+            if (((FILE *)0) != fp)
+            {
+                res = fwrite(data, 1, (size_t)len, fp);
+
+                (void)fclose(fp);
+            }
+        }
     }
+    return res;
 }
 
 #define INIT_HEADER_DATA_VALIDATE 1
@@ -110,8 +122,6 @@ char buffer[1024];
 
 #include "colors.h"
 
-#include "http_header_codegen.h"
-
 int main()
 {
     signal(SIGINT, signalHandler);
@@ -120,44 +130,23 @@ int main()
     printf("Cache files: %d\n\n", cfr);
 
     printTypeSizes();
+
+    int r = init_header_data();
+    printf("INIT-HEADER-DATA: %d\n", r);
+    if (r != 0)
     {
-        int r = init_header_data();
-        printf("INIT-HEADER-DATA: %d\n", r);
-        if (r != 0)
-        {
-            return 2;
-        }
+        return 2;
     }
 
-    // createAlignedHeadersText();
-    //printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.\n");
-    
+    // printf("TODO: GUARD-BITS in header konstanten einbauen, sodass OR mit sec-header bits erkennbar wird.\n");
+
 #if 0
-    {
-        char *code = codegen_generate_header_constants();
-        if (code != 0)
-        {
-            printf("//CODE\n");
-            printf("%s", code);
-            printf("//CODE-END\n");
-            free(code);
-        }
-        else
-        {
-            color_text(COLOR_RED|TEXT_EFFECT_UNDERLINE, "//ERROR: header constants codegen failed.\n\n");
-        }
-    }
-    printHeaderConstants();
-#endif
-    //return 0;
-
-#if 1
     // bench_parse_method();
     // bench_parse_protocol();
     // bench_parse_text();
-    //bench_parse_headers();
-    //bench_parse_headers_parse_field();
-    //return 0;
+    bench_parse_headers();
+    bench_parse_headers_parse_field();
+    return 0;
 #endif
 
 #if TESTING

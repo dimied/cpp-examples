@@ -225,9 +225,11 @@ void testHeaders()
 
     size_t keepRuning = 1, expected = 0;
 
-    for (int run = 0; keepRuning != 0 && run < 1000; run++)
+    int run;
+    for (run = 0; keepRuning != 0 && run < 1000; run++)
     {
-        for (size_t i = 0; i < numValues; i++)
+        size_t i;
+        for (i = 0; i < numValues; i++)
         {
             int l = strlen(test_dataValues[i]);
 

@@ -22,15 +22,15 @@ typedef struct MyServerClientConnection
                         Bits:16-23: errno
                          */
     uint64_t __validation;
-    void *next;              /*!< next pointer in the linked list*/
-    void *request;           /*!< request object */
-    void *pServerConnection; /*!< pointer to server connection object */
+    /*@null@*/ void *next;              /*!< next pointer in the linked list*/
+    /*@null@*/ void *request;           /*!< request object */
+    /*@null@*/ void *pServerConnection; /*!< pointer to server connection object */
     union
     {
 #if USING_SSL
-        SSL *ssl;
+        /*@null@*/ SSL *ssl;
 #endif
-        void *reserved;
+        /*@null@*/ void *reserved;
     } secure; /*!< used for security */
     union
     {
@@ -41,8 +41,8 @@ typedef struct MyServerClientConnection
 typedef struct MyServerClientConnections
 {
     size_t numCons;
-    void *first;
-    void *last;
+    /*@only@*/ /*@null@*/ void *first;
+    /*@shared@*/ /*@null@*/ void *last;
 } MyServerClientConnections;
 
 typedef struct SecureOptions
@@ -82,18 +82,15 @@ typedef struct MyServerConnection
     handleClientConnection handleClientCommand;
 } MyServerConnection;
 
-
-
 typedef struct MyServer
 {
-    //void *next;
+    // void *next;
     MyServerConnection conns[NUM_SOCKET_CONNECTIONS];
     struct
     {
         unsigned long status;
         unsigned int options;
     } common;
-    
 
 } MyServer;
 

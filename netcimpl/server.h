@@ -46,14 +46,19 @@ int closeClientConnections(MyServerConnection *pCon)
         while (p != 0)
         {
             MyServerClientConnection *next = p->next;
-            if (p->state & SECURE_STATE)
+            if ((p->state & SECURE_STATE) != 0)
             {
-                SSL_shutdown(p->secure.ssl);
-                SSL_free(p->secure.ssl);
+                if (p->secure.ssl != (SSL *)0)
+                {
+                    SSL_shutdown(p->secure.ssl);
+                    SSL_free(p->secure.ssl);
+                    p->secure.ssl = 0;
+                }
             }
-            if (p->socketId)
+            if (p->socketId != 0)
             {
                 close(p->socketId);
+                p->socketId = 0;
             }
             free(p);
             p = next;
@@ -77,10 +82,10 @@ int cfc_close(MyServer *pServer)
     int conIdx;
     for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
     {
-        if (pConnections->common.socketId)
+        if (pConnections->common.socketId != 0)
         {
             closeClientConnections(pConnections);
-            if (pConnections->secure.ctx)
+            if (pConnections->secure.ctx != (SSL_CTX *)0)
             {
                 SSL_CTX_free(pConnections->secure.ctx);
                 pConnections->secure.ctx = 0;
@@ -96,8 +101,6 @@ int cfc_close(MyServer *pServer)
 
 // place in read-only memory
 const int yesOption = 1;
-
-
 
 /*
  */
@@ -127,7 +130,8 @@ int cfc_connect(MyServer *pServer)
 
     unsigned long status = 0;
 
-    for (size_t conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    size_t conIdx;
+    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
     {
 #if 0
         nullify(&hints, sizeof(hints));
@@ -139,18 +143,18 @@ int cfc_connect(MyServer *pServer)
             continue;
         }
 
-        if (pConnection->options & SERVER_OPTION_IPV4)
+        if ((pConnection->options & SERVER_OPTION_IPV4) != 0)
         {
             ai_family = AF_INET;
         }
-        else if (pConnection->options & SERVER_OPTION_IPV6)
+        else if ((pConnection->options & SERVER_OPTION_IPV6) != 0)
         {
             ai_family = AF_INET6;
         }
 
         int assigned = 0;
 
-        if (pConnection->options & SERVER_OPTION_TCP)
+        if ((pConnection->options & SERVER_OPTION_TCP) != 0)
         {
             ++assigned;
             ai_socktype = SOCK_STREAM;
@@ -159,7 +163,7 @@ int cfc_connect(MyServer *pServer)
 #endif
             // printf("Connect TCP\n");
         }
-        else if (pConnection->options & SERVER_OPTION_UDP)
+        else if ((pConnection->options & SERVER_OPTION_UDP) != 0)
         {
             ++assigned;
             ai_socktype = SOCK_DGRAM;
@@ -173,7 +177,7 @@ int cfc_connect(MyServer *pServer)
             continue;
         }
 
-        if (assigned)
+        if (assigned != 0)
         {
             assigned = 0;
             if (ai_family == AF_UNSPEC)
@@ -245,7 +249,7 @@ int cfc_connect(MyServer *pServer)
             else
             {
                 // to avoid already in use error
-                int res = setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &yesOption, sizeof(yesOption));
+                int res = setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &yesOption, (socklen_t)sizeof(yesOption));
                 if (res != 0)
                 {
                     close(socketId);
@@ -264,8 +268,8 @@ int cfc_connect(MyServer *pServer)
 
                 nullify(&mySockaddr, sizeof(mySockaddr));
 
-                socklen_t sockLen = sizeof(mySockaddr.addrV4);
-                in_port_t bindPort = htons(pConnection->port);
+                socklen_t sockLen = (socklen_t)sizeof(mySockaddr.addrV4);
+                in_port_t bindPort = htons((uint16_t)pConnection->port);
 
                 if (ai_family == AF_INET)
                 {
@@ -279,7 +283,7 @@ int cfc_connect(MyServer *pServer)
                     // mySockaddr.addrV6.sin6_addr = IN6ADDR_ANY_INIT;
                     memcpy(&mySockaddr.addrV6.sin6_addr, &in6addr_any, sizeof(in6addr_any));
                     mySockaddr.addrV6.sin6_port = bindPort;
-                    sockLen = sizeof(mySockaddr.addrV6);
+                    sockLen = (socklen_t)sizeof(mySockaddr.addrV6);
                 }
 
                 res = bind(socketId, (struct sockaddr *)&mySockaddr, sockLen);
@@ -319,7 +323,8 @@ int cfc_listen(MyServer *pServer)
     int backlogSize = 16;
     MyServerConnection *pConnections = pServer->conns;
 
-    for (size_t conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    size_t conIdx;
+    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
     {
         const int socketId = pConnections->common.socketId;
 
@@ -359,15 +364,17 @@ int cfc_accept(MyServer *pServer)
 
     printf("RUN...\n");
 
-    for (size_t conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    size_t conIdx;
+    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
     {
         printf("ACCEPT?: %d\n", pConnections->common.socketId);
 
-        if (pConnections->common.socketId)
+        if (pConnections->common.socketId != 0)
         {
-            if (pConnections->handleCommand)
+            handleConnection cmd = pConnections->handleCommand;
+            if (0 != cmd)
             {
-                int r = pConnections->handleCommand(pConnections, CMD_ACCEPT, pServer);
+                int r = cmd(pConnections, CMD_ACCEPT, pServer);
                 printf("H: %d\n", r);
             }
         }
@@ -385,11 +392,9 @@ int basicHandle(void *pConnection, int cmd, void *param)
     {
         MyServerConnection *pCon = (MyServerConnection *)pConnection;
         struct sockaddr_storage otherAddr;
-        socklen_t otherAddrLen;
+        socklen_t otherAddrLen = (socklen_t)sizeof(otherAddr);
 
-        otherAddrLen = sizeof(otherAddr);
-
-        if (pCon->common.socketId)
+        if (pCon->common.socketId != 0)
         {
             handleClientConnection pCCfunc = pCon->handleClientCommand;
 
@@ -408,7 +413,7 @@ int basicHandle(void *pConnection, int cmd, void *param)
                 if (clientFd != -1)
                 {
                     printf("Accepted: %d\n", clientFd);
-                    printf("STORAGE: %ld\n", sizeof(otherAddr));
+                    printf("STORAGE: %d\n", (int)sizeof(otherAddr));
 
                     MyServerClientConnection *pCC = newClientConnection();
 
@@ -417,7 +422,7 @@ int basicHandle(void *pConnection, int cmd, void *param)
                         return 3;
                     }
 
-                    if (pCon->options & SERVER_OPTION_SECURE)
+                    if ((pCon->options & SERVER_OPTION_SECURE) != 0)
                     {
                         SSL_CTX *ctx = pCon->secure.ctx;
 
@@ -455,7 +460,7 @@ int basicHandle(void *pConnection, int cmd, void *param)
 
                     if (r != 0)
                     {
-                        if (pCC->state & SECURE_STATE)
+                        if ((pCC->state & SECURE_STATE) != 0)
                         {
                             SSL_shutdown(pCC->secure.ssl);
                             SSL_free(pCC->secure.ssl);
@@ -513,7 +518,7 @@ void closeBadRequest(MyServerClientConnection *pCC)
 {
     printf("CLOSE BAD!\n");
 #if TESTING == 0
-    if (pCC->socketId)
+    if (pCC->socketId != 0)
     {
         // TODO: error handling
         send(pCC->socketId, badRequest, strlen(badRequest), 0);
@@ -602,26 +607,26 @@ int isValidHost(MyServerClientConnection *pCC, char *hostname)
             return IS_VALID_HOST_ERROR_SERVER_CON;
         }
 
-        while (*hostname != 0 && *hostname == ' ')
+        while (*hostname != '\0' && *hostname == ' ')
         {
             ++hostname;
         }
 
-        if (*hostname == 0)
+        if (*hostname == '\0')
         {
             return IS_VALID_HOST_ERROR_INVALID_HOST;
         }
 
         const char *domain = hostname;
 
-        while (*hostname != 0 && *hostname != ':')
+        while (*hostname != '\0' && *hostname != ':')
         {
             ++hostname;
         }
 
         if (hostname > domain)
         {
-            const size_t l = (hostname - domain);
+            const size_t l = (size_t)(hostname - domain);
             const size_t l2 = strlen(pSC->name);
 
             if (l == l2 && strncmp(pSC->name, domain, l) == 0)
@@ -629,7 +634,7 @@ int isValidHost(MyServerClientConnection *pCC, char *hostname)
                 const int expectedPort = (int)pSC->port;
                 int host_port = -1;
 
-                if (*hostname != 0)
+                if (*hostname != '\0')
                 {
                     ++hostname;
                     ++host_port;
@@ -642,13 +647,13 @@ int isValidHost(MyServerClientConnection *pCC, char *hostname)
                         printf("Aligned!\n");
                     }
 #endif
-                    while (*hostname != 0 && host_port < 0x10000)
+                    while (*hostname != '\0' && host_port < 0x10000)
                     {
                         if (*hostname < '0' || *hostname > '9')
                         {
                             return IS_VALID_HOST_ERROR_PARSE_PORT;
                         }
-                        host_port = host_port * 10 + (*hostname - '0');
+                        host_port = host_port * 10 + (int)(*hostname - '0');
                         ++hostname;
                     }
 

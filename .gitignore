@@ -49,6 +49,7 @@ temp/*.png
 linux_dltest
 linux_epoll
 pthreads_test
+net_codegen
 a.out
 
 # debug information files

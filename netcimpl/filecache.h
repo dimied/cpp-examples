@@ -3,16 +3,16 @@
 
 typedef struct CachedFile
 {
-    unsigned int state;
-    int dataLen;
+    int state;
+    size_t dataLen;
     char *path;
     char *type;
-    void *data;
-    char *response;
+    /*@null@*/ void *data;
+    /*@null@*/ char *response;
     int responseLen;
 } CachedFile;
 
-#define CFE(PATH, TYPE) {0, 0, PATH, TYPE, 0, 0, 0}
+#define CFE(PATH, TYPE) {0, 0, PATH, TYPE, (void *)0, (char *)0, 0}
 
 CachedFile fileCache[3] = {
     CFE("index.html", "text/html"),
@@ -23,28 +23,54 @@ CachedFile fileCache[3] = {
 /**
  *
  */
-void *readFile(char *p, int *pSize)
+
+/*@null@*/ void *close_file_and_return(FILE *fp)
+{
+#ifdef S_SPLINT_S
+    (void)fclose(fp);
+#else
+    fclose(fp);
+#endif
+    return (void *)0;
+}
+
+/*@null@*/ void *readFile(char *p, size_t *pSize)
 {
     if (p != 0)
     {
-
         FILE *fp = fopen(p, "r");
-        if (fp == 0)
+        if (((FILE *)0) == fp)
         {
-            return 0;
+            return (void *)0;
         }
 
         // calculating the size of the file
-        fseek(fp, 0L, SEEK_END);
-        int res = (int)ftell(fp);
-        fseek(fp, 0L, SEEK_SET);
+        {
+            int r = fseek(fp, 0L, SEEK_END);
+            if (r != 0)
+            {
+                return close_file_and_return(fp);
+            }
+        }
+        long res = ftell(fp);
+        if (res < 0)
+        {
+            return close_file_and_return(fp);
+        }
+        {
+            int r = fseek(fp, 0L, SEEK_SET);
+            if (r != 0)
+            {
+                return close_file_and_return(fp);
+            }
+        }
 
-        void *result = malloc(res);
+        void *result = malloc((size_t)res);
 
         if (result != 0)
         {
-            int r = fread(result, 1, res, fp);
-            if (r != res)
+            size_t r = fread(result, 1, (size_t)res, fp);
+            if (r != (size_t)res)
             {
                 free(result);
                 result = 0;
@@ -53,11 +79,15 @@ void *readFile(char *p, int *pSize)
             {
                 if (pSize != 0)
                 {
-                    *pSize = res;
+                    *pSize = (size_t)res;
                 }
             }
         }
+#ifdef S_SPLINT_S
+        (void)fclose(fp);
+#else
         fclose(fp);
+#endif
         return result;
     }
     return 0;
@@ -66,7 +96,8 @@ void *readFile(char *p, int *pSize)
 int cacheFiles()
 {
     int loaded = 0;
-    for (int i = 0; i < 3; i++)
+    int i;
+    for (i = 0; i < 3; i++)
     {
         if (0 == fileCache[i].state)
         {
@@ -74,7 +105,7 @@ int cacheFiles()
             int state = 3;
             if (p != 0)
             {
-                int size = 0;
+                size_t size = 0;
                 void *data = readFile(p, &size);
                 printf("Load: %s", p);
 
@@ -98,12 +129,15 @@ int cacheFiles()
     return loaded;
 }
 
-char *headerTmpl = "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %d\r\nContent-Encoding: identity\r\nConnection: close\r\n\r\n";
+#define FILECACHE_HEADER_TEMPLATE "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nContent-Encoding: identity\r\nConnection: close\r\n\r\n"
 
-void *searchPathInCache(char *path, int *pSize)
+const char *headerTmpl = FILECACHE_HEADER_TEMPLATE;
+
+/*@null@*/ void *searchPathInCache(char *path, size_t *pSize)
 {
     void *result = 0;
-    for (int i = 0; i < 3; i++)
+    int i;
+    for (i = 0; i < 3; i++)
     {
         if (1 == fileCache[i].state)
         {
@@ -113,12 +147,18 @@ void *searchPathInCache(char *path, int *pSize)
                 printf("FOUND: %s | %s\n", fileCache[i].path, path);
 
                 void *pData = fileCache[i].data;
-                int dSize = fileCache[i].dataLen;
-                int size = dSize + 100 + strlen(headerTmpl);
+                if (pData == 0)
+                {
+                    continue;
+                }
+
+                size_t dSize = fileCache[i].dataLen;
+                size_t size = dSize + 100 + strlen(FILECACHE_HEADER_TEMPLATE);
+
                 char *pMem = (char *)malloc(size);
                 if (pMem != 0)
                 {
-                    int w = snprintf(pMem, size, headerTmpl, fileCache[i].type, dSize);
+                    int w = snprintf(pMem, size, FILECACHE_HEADER_TEMPLATE, fileCache[i].type, (unsigned long)dSize);
                     char *p = pMem + w;
                     memcpy(p, pData, dSize);
                     dSize += w;
@@ -136,15 +176,16 @@ void *searchPathInCache(char *path, int *pSize)
     return result;
 }
 
-void *searchInCache(char *path, int *pSize)
+/*@null@*/ void *searchInCache(char *path, size_t *pSize)
 {
 
     char *s1 = strstr(path, "\r\n");
-    if (s1 == 0)
+
+    if (s1 == (char *)0)
     {
         return 0;
     }
-    *s1 = 0;
+    *s1 = '\0';
 
     void *result = searchPathInCache(path, pSize);
 
@@ -152,31 +193,45 @@ void *searchInCache(char *path, int *pSize)
     return result;
 }
 
-char *favData = 0;
-int favDataLen = 0;
-char *favResponse = 0;
-int favResponseLen = 0;
-char *favHeader = "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: %d\r\nContent-Encoding: identity\r\n\r\n";
+/*@null@*/ char *favData = 0;
+size_t favDataLen = 0;
+/*@null@*/ char *favResponse = 0;
+size_t favResponseLen = 0;
+#define FILECACHE_HTTP_FAVICON_HEADER "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: %d\r\nContent-Encoding: identity\r\n\r\n"
+const char *favHeader = FILECACHE_HTTP_FAVICON_HEADER;
 
 int loadFAV()
 {
     int result = 0;
 
-    if (favData == 0)
+    if (favData == (char *)0)
     {
         FILE *fp = fopen("./favicon.ico", "r");
-        if (fp != 0)
+        if (fp != ((FILE *)0))
         {
-            fseek(fp, 0L, SEEK_END);
+            {
+                int r = fseek(fp, 0L, SEEK_END);
+                if (r != 0)
+                {
+                    return 100;
+                }
+            }
 
             // calculating the size of the file
             long int res = ftell(fp);
-            fseek(fp, 0L, SEEK_SET);
-            favData = malloc(res);
+            {
+                int r = fseek(fp, 0L, SEEK_SET);
+                if (r != 0)
+                {
+                    return 100;
+                }
+            }
+
+            favData = malloc((size_t)res);
             if (favData != 0)
             {
-                int r = fread(favData, 1, res, fp);
-                if (r != res)
+                const size_t r = fread(favData, 1, (size_t)res, fp);
+                if (r != (size_t)res)
                 {
                     printf("Reading failed!\n");
                     free(favData);
@@ -185,14 +240,18 @@ int loadFAV()
                 }
                 else
                 {
-                    favDataLen = res;
+                    favDataLen = (size_t)res;
                 }
             }
             else
             {
                 result = 2;
             }
+#ifdef S_SPLINT_S
+            (void)fclose(fp);
+#else
             fclose(fp);
+#endif
             return result;
         }
         else
@@ -201,16 +260,24 @@ int loadFAV()
             result = 3;
         }
     }
-    if (result == 0 && favResponse == 0)
+
+    if (result == 0 && favResponse == 0 && favData != (char *)0)
     {
-        int s = strlen(favHeader) + 16;
-        char *resp = malloc(s + favDataLen);
+        size_t s = strlen(favHeader) + 16;
+        size_t resp_size = s + favDataLen;
+        char *resp = malloc(resp_size);
 
         if (resp != 0)
         {
             memset(resp, 0, s + favDataLen);
-            sprintf(resp, favHeader, favDataLen);
-            s = strlen(resp);
+
+            int res = snprintf(resp, resp_size, FILECACHE_HTTP_FAVICON_HEADER, (int)favDataLen);
+            if (res >= (int)resp_size)
+            {
+                free(resp);
+                return 200;
+            }
+            s = (size_t)res;
             memcpy(resp + s, favData, favDataLen);
             favResponseLen = s + favDataLen;
             favResponse = resp;

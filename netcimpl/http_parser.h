@@ -18,9 +18,6 @@
 #include "http_parser_types.h"
 #include "http_parser_header_functions.h"
 
-#ifdef HTTP_PARSER_DECLARATIONS
-#if HTTP_PARSER_DECLARATIONS
-
 #define ADD_HEADERS_OK 0
 #define ADD_HEADERS_INVALID_ARGS 1
 #define ADD_HEADERS_NOMEM 2
@@ -227,33 +224,6 @@ typedef struct HeaderHandler
     HeaderHandlerFunc func;
 } HeaderHandler;
 
-typedef struct AcceptType
-{
-    unsigned int size;
-    unsigned int type;
-    const char *str;
-} AcceptType;
-
-#endif
-#endif
-
-#ifndef HTTP_PARSER_LOOKUP
-#define HTTP_PARSER_LOOKUP
-
-#define ENTRY_AcceptType(T, S) {(unsigned int)sizeof(S), T, S}
-// to speed up decide by first char (range: '*' - 'z')
-AcceptType acceptTypes[] = {
-    ENTRY_AcceptType(MIME_TYPE_ANY, "*/*"),
-    ENTRY_AcceptType(MIME_TYPE_XHTML_XML, "application/xhtml+xml"),
-    ENTRY_AcceptType(MIME_TYPE_XML, "application/xml"),
-    ENTRY_AcceptType(MIME_TYPE_HTML, "text/html"),
-    ENTRY_AcceptType(MIME_TYPE_IMAGE_ANY, "image/*"),
-};
-
-#define NUM_ACCEPT_TYPES (sizeof(acceptTypes) / sizeof(acceptTypes[0]))
-
-#endif
-
 #include "http_parser_headers.h"
 
 #ifndef BUF_LEN_IN
@@ -282,10 +252,6 @@ AcceptType acceptTypes[] = {
 #define PARSE_STATE_REQ_LINE_PROTOCOL 3
 #define PARSE_STATE_REQ_HEADERS 4
 
-char *parseStates[] = {
-    "Line",
-    "Method",
-};
 char *noneString = "(nil)";
 
 void printRequest(HttpRequest *p)
@@ -355,12 +321,6 @@ ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags);
 
 #define ONLY_STANDARD_HTTP_VERBS 1
 
-THREAD_LOCAL union
-{
-    uint64_t data64[BUF_LEN_IN_64];
-    char data[BUF_LEN_IN];
-} inBuffer;
-
 int processRequestLine(HttpRequest *pRequest)
 {
     (void)(pRequest);
@@ -384,6 +344,18 @@ int processRequestLine(HttpRequest *pRequest)
 #ifndef SKIP_SECOND_HOST_ENTRY_CHECK
 #define SKIP_SECOND_HOST_ENTRY_CHECK 0
 #endif
+
+THREAD_LOCAL union
+{
+    uint64_t data64[BUF_LEN_IN_64];
+    char data[BUF_LEN_IN];
+} inBuffer;
+
+THREAD_LOCAL union
+{
+    uint64_t ui64[8];
+    char c8[64];
+} header_name_buffer;
 
 int basicHandleClientConnection(void *pClientConnection, void *pServerConnection)
 {
@@ -643,11 +615,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
         if (state == PARSE_STATE_REQ_LINE_PROTOCOL)
         {
             printInfo(PARSE_HEADERS_CODE, 0, NUM_HEADER_HANDLERS);
-            union
-            {
-                uint64_t ui64[8];
-                char c8[64];
-            } header_name_buffer;
+
             memset(header_name_buffer.c8, 0, 64);
 
 #define HO_LEN 32
@@ -664,6 +632,7 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             char *pHeaderStoreC8 = header_name_buffer.c8;
 
             const uint64_t keep_headers = REQ_HEADER_KEEP_ACCEPT | REQ_HEADER_KEEP_CONNECTION;
+            int ignore_host = keep_headers & REQ_HEADER_IGNORE_HOST;
 
             while (headerState == 0 && recvRes - i >= 2 && *pathStart != '\r' && pathStart[1] != '\n')
             {
@@ -797,11 +766,12 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
                         int parseNotHost = 1;
 
-                        if (hasHost == 0)
+                        if (hasHost == 0 && ignore_host == 0)
                         {
                             if (HOST_CHECK == header_name_buffer.ui64[0])
                             {
                                 int hostRes = isValidHost(pCC, pSep + 1);
+
                                 printf("HOST!%s|%d\n", pSep + 1, hostRes);
                                 if (IS_VALID_HOST_OK != hostRes)
                                 {
@@ -960,10 +930,10 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
 
                             printf("HDR-IDX: %d < %d\n", header_idx, NUM_HEADER_HANDLERS);
 
-                            if (header_idx < NUM_HEADER_HANDLERS)
+                            if (header_idx > 0 && header_idx < NUM_HEADER_HANDLERS + 1)
                             {
-#if 0
-                                uint64_t bit = (0x1ul) << header_idx;
+#if 1
+                                uint64_t bit = (0x1ul) << (header_idx - 1);
                                 if ((bit & keep_headers) != 0)
                                 {
                                     printf("KEEP!\n");
@@ -1034,14 +1004,14 @@ int basicHandleClientConnection(void *pClientConnection, void *pServerConnection
             pStart = "index.html";
         }
 
-        int resSize = 0;
+        size_t resSize = 0;
         void *cacheData = searchPathInCache(pStart, &resSize);
 
         if (cacheData != 0 && resSize != 0)
         {
             int s =
                 send(clientSocketId, cacheData, resSize, 0);
-            printf("SENT:C: %d | %d\n", s, resSize);
+            printf("SENT:C: %d | %ld\n", s, resSize);
         }
         else
         {

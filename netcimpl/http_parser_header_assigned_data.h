@@ -225,198 +225,6 @@
 #define NEVER_REQ_HEADER_KEEP_X_FORWARDED_PROTO 0
 #endif
 
-#ifndef HEADER_NAMES_LINK_TYPE
-#define HEADER_NAMES_LINK_TYPE static
-#endif
-
-HEADER_NAMES_LINK_TYPE const char *header_names[(NUM_HEADER_HANDLERS + 1)] = {
-#if NEVER_REQ_HEADER_KEEP_ACCEPT == 0
-    "Accept",
-#endif
-#if NEVER_REQ_HEADER_KEEP_ACCEPT_ENCODING == 0
-    "Accept-Encoding",
-#endif
-#if NEVER_REQ_HEADER_KEEP_ACCEPT_LANGUAGE == 0
-    "Accept-Language",
-#endif
-#if NEVER_REQ_HEADER_KEEP_ACCESS_CONTROL_REQUEST_HEADERS == 0
-    "Access-Control-Request-Headers",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_ACCESS_CONTROL_REQUEST_METHOD == 0
-    "Access-Control-Request-Method",
-#endif
-#if NEVER_REQ_HEADER_KEEP_ALT_USED == 0
-    "Alt-Used",
-#endif
-#if NEVER_REQ_HEADER_KEEP_AUTHORIZATION == 0
-    "Authorization",
-#endif
-#if NEVER_REQ_HEADER_KEEP_AVAILABLE_DICTIONARY == 0
-    "Available-Dictionary",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_CACHE_CONTROL == 0
-    "Cache-Control",
-#endif
-#if NEVER_REQ_HEADER_KEEP_CONNECTION == 0
-    "Connection",
-#endif
-#if NEVER_REQ_HEADER_KEEP_CONTENT_DIGEST == 0
-    "Content-Digest",
-#endif
-#if NEVER_REQ_HEADER_KEEP_CONTENT_DISPOSITION == 0
-    "Content-Disposition",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_CONTENT_ENCODING == 0
-    "Content-Encoding",
-#endif
-#if NEVER_REQ_HEADER_KEEP_CONTENT_LENGTH == 0
-    "Content-Length",
-#endif
-#if NEVER_REQ_HEADER_KEEP_CONTENT_LOCATION == 0
-    "Content-Location",
-#endif
-#if NEVER_REQ_HEADER_KEEP_CONTENT_TYPE == 0
-    "Content-Type",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_COOKIE == 0
-    "Cookie",
-#endif
-#if NEVER_REQ_HEADER_KEEP_DATE == 0
-    "Date",
-#endif
-#if NEVER_REQ_HEADER_KEEP_DICTIONARY_ID == 0
-    "Dictionary-ID",
-#endif
-#if NEVER_REQ_HEADER_KEEP_EARLY_DATA == 0
-    "Early-Data",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_EXPECT == 0
-    "Expect",
-#endif
-#if NEVER_REQ_HEADER_KEEP_FORWARDED == 0
-    "Forwarded",
-#endif
-#if NEVER_REQ_HEADER_KEEP_FROM == 0
-    "From",
-#endif
-#if NEVER_REQ_HEADER_KEEP_IDEMPOTENCY_KEY == 0
-    "Idempotency-Key",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_IF_MATCH == 0
-    "If-Match",
-#endif
-#if NEVER_REQ_HEADER_KEEP_IF_MODIFIED_SINCE == 0
-    "If-Modified-Since",
-#endif
-#if NEVER_REQ_HEADER_KEEP_IF_NONE_MATCH == 0
-    "If-None-Match",
-#endif
-#if NEVER_REQ_HEADER_KEEP_IF_RANGE == 0
-    "If-Range",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_IF_UNMODIFIED_SINCE == 0
-    "If-Unmodified-Since",
-#endif
-#if NEVER_REQ_HEADER_KEEP_KEEP_ALIVE == 0
-    "Keep-Alive",
-#endif
-#if NEVER_REQ_HEADER_KEEP_LINK == 0
-    "Link",
-#endif
-#if NEVER_REQ_HEADER_KEEP_MAX_FORWARDS == 0
-    "Max-Forwards",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_ORIGIN == 0
-    "Origin",
-#endif
-#if NEVER_REQ_HEADER_KEEP_PRAGMA == 0
-    "Pragma",
-#endif
-#if NEVER_REQ_HEADER_KEEP_PREFER == 0
-    "Prefer",
-#endif
-#if NEVER_REQ_HEADER_KEEP_PRIORITY == 0
-    "Priority",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_PROXY_AUTHORIZATION == 0
-    "Proxy-Authorization",
-#endif
-#if NEVER_REQ_HEADER_KEEP_RANGE == 0
-    "Range",
-#endif
-#if NEVER_REQ_HEADER_KEEP_REFERER == 0
-    "Referer",
-#endif
-#if NEVER_REQ_HEADER_KEEP_REPR_DIGEST == 0
-    "Repr-Digest",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_RTT == 0
-    "RTT",
-#endif
-#if NEVER_REQ_HEADER_KEEP_SAVE_DATA == 0
-    "Save-Data",
-#endif
-#if NEVER_REQ_HEADER_KEEP_SERVICE_WORKER == 0
-    "Service-Worker",
-#endif
-#if NEVER_REQ_HEADER_KEEP_SERVICE_WORKER_NAVIGATION_PRELOAD == 0
-    "Service-Worker-Navigation-Preload",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_TE == 0
-    "TE",
-#endif
-#if NEVER_REQ_HEADER_KEEP_TRAILER == 0
-    "Trailer",
-#endif
-#if NEVER_REQ_HEADER_KEEP_TRANSFER_ENCODING == 0
-    "Transfer-Encoding",
-#endif
-#if NEVER_REQ_HEADER_KEEP_UPGRADE == 0
-    "Upgrade",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_UPGRADE_INSECURE_REQUESTS == 0
-    "Upgrade-Insecure-Requests",
-#endif
-#if NEVER_REQ_HEADER_KEEP_USER_AGENT == 0
-    "User-Agent",
-#endif
-#if NEVER_REQ_HEADER_KEEP_VIA == 0
-    "Via",
-#endif
-#if NEVER_REQ_HEADER_KEEP_WANT_CONTENT_DIGEST == 0
-    "Want-Content-Digest",
-#endif
-/**/
-#if NEVER_REQ_HEADER_KEEP_WANT_REPR_DIGEST == 0
-    "Want-Repr-Digest",
-#endif
-#if NEVER_REQ_HEADER_KEEP_X_FORWARDED_FOR == 0
-    "X-Forwarded-For",
-#endif
-#if NEVER_REQ_HEADER_KEEP_X_FORWARDED_HOST == 0
-    "X-Forwarded-Host",
-#endif
-#if NEVER_REQ_HEADER_KEEP_X_FORWARDED_PROTO == 0
-    "X-Forwarded-Proto",
-#endif
-    "" /*!<Dummy*/};
-
-#define DESCRIBE_HEADER_HANDLER(S, H) {S, H}
-
-#undef DESCRIBE_HEADER_HANDLER
-
 static const char *http_methods[NUM_HTTP_METHODS] = {
     "CONNECT",
     "DELETE",
@@ -440,6 +248,205 @@ static const uint64_t http_methods_aligned[NUM_HTTP_METHODS] = {
     WORD3_TO_UINT64_ES_END('P', 'U', 'T'),
     WORD5_TO_UINT64_ES_END('T', 'R', 'A', 'C', 'E'),
 };
+
+#ifndef HEADER_NAMES_LINK_TYPE
+#define HEADER_NAMES_LINK_TYPE static
+#endif
+
+
+#ifndef NEVER_REQ_HEADER_KEEP_CHECK_USED
+#define __IMPL_CHECK_NEVER_REQ_HEADER(C) (1)
+#else
+#if NEVER_REQ_HEADER_KEEP_CHECK_USED
+#define __IMPL_CHECK_NEVER_REQ_HEADER(C) (C == 0)
+#else
+#define __IMPL_CHECK_NEVER_REQ_HEADER(C) (1)
+#endif
+#endif
+
+HEADER_NAMES_LINK_TYPE const char *header_names[(NUM_HEADER_HANDLERS + 1)] = {
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ACCEPT)
+    "Accept",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ACCEPT_ENCODING)
+    "Accept-Encoding",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ACCEPT_LANGUAGE)
+    "Accept-Language",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ACCESS_CONTROL_REQUEST_HEADERS)
+    "Access-Control-Request-Headers",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ACCESS_CONTROL_REQUEST_METHOD)
+    "Access-Control-Request-Method",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ALT_USED)
+    "Alt-Used",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_AUTHORIZATION)
+    "Authorization",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_AVAILABLE_DICTIONARY)
+    "Available-Dictionary",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CACHE_CONTROL)
+    "Cache-Control",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONNECTION)
+    "Connection",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONTENT_DIGEST)
+    "Content-Digest",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONTENT_DISPOSITION)
+    "Content-Disposition",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONTENT_ENCODING)
+    "Content-Encoding",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONTENT_LENGTH)
+    "Content-Length",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONTENT_LOCATION)
+    "Content-Location",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_CONTENT_TYPE)
+    "Content-Type",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_COOKIE)
+    "Cookie",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_DATE)
+    "Date",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_DICTIONARY_ID)
+    "Dictionary-ID",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_EARLY_DATA)
+    "Early-Data",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_EXPECT)
+    "Expect",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_FORWARDED)
+    "Forwarded",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_FROM)
+    "From",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_IDEMPOTENCY_KEY)
+    "Idempotency-Key",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_IF_MATCH)
+    "If-Match",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_IF_MODIFIED_SINCE)
+    "If-Modified-Since",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_IF_NONE_MATCH)
+    "If-None-Match",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_IF_RANGE)
+    "If-Range",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_IF_UNMODIFIED_SINCE)
+    "If-Unmodified-Since",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_KEEP_ALIVE)
+    "Keep-Alive",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_LINK)
+    "Link",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_MAX_FORWARDS)
+    "Max-Forwards",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_ORIGIN)
+    "Origin",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_PRAGMA)
+    "Pragma",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_PREFER)
+    "Prefer",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_PRIORITY)
+    "Priority",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_PROXY_AUTHORIZATION)
+    "Proxy-Authorization",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_RANGE)
+    "Range",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_REFERER)
+    "Referer",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_REPR_DIGEST)
+    "Repr-Digest",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_RTT)
+    "RTT",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_SAVE_DATA)
+    "Save-Data",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_SERVICE_WORKER)
+    "Service-Worker",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_SERVICE_WORKER_NAVIGATION_PRELOAD)
+    "Service-Worker-Navigation-Preload",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_TE)
+    "TE",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_TRAILER)
+    "Trailer",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_TRANSFER_ENCODING)
+    "Transfer-Encoding",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_UPGRADE)
+    "Upgrade",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_UPGRADE_INSECURE_REQUESTS)
+    "Upgrade-Insecure-Requests",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_USER_AGENT)
+    "User-Agent",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_VIA)
+    "Via",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_WANT_CONTENT_DIGEST)
+    "Want-Content-Digest",
+#endif
+/**/
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_WANT_REPR_DIGEST)
+    "Want-Repr-Digest",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_X_FORWARDED_FOR)
+    "X-Forwarded-For",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_X_FORWARDED_HOST)
+    "X-Forwarded-Host",
+#endif
+#if __IMPL_CHECK_NEVER_REQ_HEADER(NEVER_REQ_HEADER_KEEP_X_FORWARDED_PROTO)
+    "X-Forwarded-Proto",
+#endif
+    "" /*!<Dummy*/};
 
 char *header_names_ch_and_sec[NUM_HEADER_CHS_HANDLERS + 1] = {
     "Device-Memory",
@@ -496,8 +503,33 @@ char *header_names_ch_and_sec[NUM_HEADER_CHS_HANDLERS + 1] = {
     "Width",
 };
 
+#undef __IMPL_CHECK_NEVER_REQ_HEADER
+
 #define NUM_HEADER_HANDLERS_SEC (15)
 
 #define NUM_HEADER_HANDLERS_CLIENT_HINTS (26)
+
+typedef struct AcceptType
+{
+    unsigned int size;
+    unsigned int type;
+    const char *str;
+} AcceptType;
+
+#define ENTRY_AcceptType(T, S) {(unsigned int)sizeof(S), T, S}
+
+// to speed up decide by first char (range: '*' - 'z')
+AcceptType acceptTypes[] = {
+    ENTRY_AcceptType(MIME_TYPE_ANY, "*/*"),
+    ENTRY_AcceptType(MIME_TYPE_XHTML_XML, "application/xhtml+xml"),
+    ENTRY_AcceptType(MIME_TYPE_XML, "application/xml"),
+    ENTRY_AcceptType(MIME_TYPE_HTML, "text/html"),
+    ENTRY_AcceptType(MIME_TYPE_IMAGE_ANY, "image/*"),
+};
+
+#undef ENTRY_AcceptType
+
+#define NUM_ACCEPT_TYPES (sizeof(acceptTypes) / sizeof(acceptTypes[0]))
+
 
 #endif

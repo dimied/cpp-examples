@@ -26,10 +26,10 @@ int impl_headers_normal(char *pathStart)
     {
         if (0 == strcmp(pathStart, header_comp_data.header_names_lowercase[idx]))
         {
-            return idx;
+            return idx+1;
         }
     }
-    return idx;
+    return idx+1;
 }
 
 int impl_headers_aligned(char *pathStart)
@@ -39,13 +39,13 @@ int impl_headers_aligned(char *pathStart)
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         lastSize = s;
-        return NUM_HEADER_HANDLERS;
+        return NUM_HEADER_HANDLERS+1;
     }
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS;
+            return NUM_HEADER_HANDLERS+1;
         }
     }
 
@@ -66,7 +66,7 @@ int impl_headers_aligned(char *pathStart)
         values >>= 8;
     }
 
-    return NUM_HEADER_HANDLERS;
+    return NUM_HEADER_HANDLERS+1;
 }
 
 int impl_headers_aligned2(char *pathStart)
@@ -76,14 +76,14 @@ int impl_headers_aligned2(char *pathStart)
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         lastSize = s;
-        return NUM_HEADER_HANDLERS;
+        return NUM_HEADER_HANDLERS+1;
     }
     // size test
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS;
+            return NUM_HEADER_HANDLERS+1;
         }
     }
 
@@ -141,7 +141,7 @@ int impl_headers_aligned2(char *pathStart)
         }
     }
 
-    return NUM_HEADER_HANDLERS;
+    return NUM_HEADER_HANDLERS+1;
 }
 
 #if HEADER_NAME_MAX_LEN > 40
@@ -155,14 +155,14 @@ int impl_headers_aligned3(char *pathStart)
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         //lastSize = s;
-        return NUM_HEADER_HANDLERS;
+        return NUM_HEADER_HANDLERS+1;
     }
     // size test
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS;
+            return NUM_HEADER_HANDLERS+1;
         }
     }
 
@@ -280,7 +280,7 @@ int impl_headers_aligned3(char *pathStart)
         }
     }
 
-    return NUM_HEADER_HANDLERS;
+    return NUM_HEADER_HANDLERS+1;
 }
 
 size_t sigHits = 0;
@@ -292,14 +292,14 @@ int impl_headers_aligned4(const char *pathStart, uint64_t sig)
     if (s < HEADER_NAME_MIN_LEN || s > HEADER_NAME_MAX_LEN)
     {
         lastSize = s;
-        return NUM_HEADER_HANDLERS;
+        return NUM_HEADER_HANDLERS+1;
     }
     // size test
     {
         const uint64_t bit = (0x1ul) << (s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
-            return NUM_HEADER_HANDLERS;
+            return NUM_HEADER_HANDLERS+1;
         }
     }
 
@@ -307,7 +307,7 @@ int impl_headers_aligned4(const char *pathStart, uint64_t sig)
     if ((bench_header_signatures[s] & sig) != sig)
     {
         // printf("SIG:%s|%ld <> %ld\n", pathStart, sig, header_names_signatures8[s]);
-        return NUM_HEADER_HANDLERS;
+        return NUM_HEADER_HANDLERS+1;
     }
 
     uint64_t offsets = bench_header_offsets[s];
@@ -428,7 +428,7 @@ int impl_headers_aligned4(const char *pathStart, uint64_t sig)
         }
     }
 
-    return NUM_HEADER_HANDLERS;
+    return NUM_HEADER_HANDLERS+1;
 }
 #endif
 
@@ -759,11 +759,11 @@ void bench_parse_headers()
         {
             int r2 = rand();
             p[r2 % l] = 'X';
-            expected[i] = NUM_HEADER_HANDLERS;
+            expected[i] = NUM_HEADER_HANDLERS+1;
         }
         else
         {
-            expected[i] = r;
+            expected[i] = r+1;
         }
 
         size_t sIdx;
@@ -1024,7 +1024,7 @@ void bench_parse_headers()
                     const uint64_t bit = (0x1ul) << ((*pathStart) & 0x3F);
                     if ((bit & HEADER_FIRST_CHAR_BITS_CONSTANT) == 0)
                     {
-                        r = NUM_HEADER_HANDLERS;
+                        r = NUM_HEADER_HANDLERS+1;
                     }
                     else
                     {

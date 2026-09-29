@@ -171,7 +171,7 @@ int init_header_data()
 
                 size_counts[s] = sz + 1;
                 sz <<= 3;
-                header_comp_data.header_names_values8[s] |= (i << sz);
+                header_comp_data.header_names_values8[s] |= ((i+1) << sz);
                 header_comp_data.header_names_offsets8[s] |= ((aligned_size >> 3) << sz);
 
                 uint64_t *pSig = &header_comp_data.header_names_signatures8[s];

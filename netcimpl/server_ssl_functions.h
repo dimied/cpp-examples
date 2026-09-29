@@ -22,7 +22,7 @@ int prepareSSL(MyServerConnection *pConnection)
 {
     if (pConnection != 0)
     {
-        if (pConnection->options & SERVER_OPTION_SECURE)
+        if ((pConnection->options & SERVER_OPTION_SECURE) != 0)
         {
             // test if files are accessible
             int ssl_error = 0;
@@ -37,7 +37,8 @@ int prepareSSL(MyServerConnection *pConnection)
                 return handleSSLError(pConnection, 200);
             }
 
-            SSL_CTX *ctx = SSL_CTX_new(TLS_server_method());
+            /*@shared@*/ const SSL_METHOD *m = TLS_server_method();
+            /*@dependent@*/ SSL_CTX *ctx = SSL_CTX_new(m);
 
             if (0 == ctx)
             {
@@ -62,14 +63,22 @@ int prepareSSL(MyServerConnection *pConnection)
                 }
             }
 
-            if (0 != ssl_error)
+            if (0 == ssl_error)
             {
-                pConnection->common.status = ssl_error;
-                return ssl_error;
+
+                if (((SSL_CTX *)0) != pConnection->secure.ctx)
+                {
+                    SSL_CTX *old_ctx = pConnection->secure.ctx;
+                    // SSL_CTX_free(/*@special@*/ /*@notnull@*/old_ctx) /*@releases old_ctx@*/;
+                    SSL_CTX_free(old_ctx);
+                    pConnection->secure.ctx = (SSL_CTX *)0;
+                }
+                pConnection->secure.ctx = ctx;
             }
             else
             {
-                pConnection->secure.ctx = ctx;
+                pConnection->common.status = ssl_error;
+                return ssl_error;
             }
         }
         return 0;
@@ -84,7 +93,10 @@ int handleSSLError(MyServerConnection *pConnection, int err)
     //(void)(pConnection);
     unsigned long lastError = ERR_get_error();
     printf("LAST-ERROR: %lu|%d|%p\n", lastError, err, (void *)pConnection);
-    ERR_print_errors_cb(errorCB, /*@null@*/ 0);
+
+#ifndef S_SPLINT_S
+    ERR_print_errors_cb(errorCB, /*@null@*/ (void *)0);
+#endif
     return err;
 }
 
