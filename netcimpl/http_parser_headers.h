@@ -1,10 +1,11 @@
 
-
+#if 0
 int parseAcceptCC(MyServerClientConnection *pCC, char *data, int len);
+
 int parseAcceptEncodingCC(MyServerClientConnection *pCC, char *data, int len);
 int parseAcceptLanguageCC(MyServerClientConnection *pCC, char *data, int len);
 int parseNotImplemented(MyServerClientConnection *pCC, char *data, int len);
-
+#endif
 
 #include "http_parser_header_constants.h"
 
@@ -13,8 +14,6 @@ int parseNotImplemented(MyServerClientConnection *pCC, char *data, int len);
 #include "http_parser_header_empty_data.h"
 
 #include "http_parser_header_init_functions.h"
-
-
 
 #define MAX_RECOGNITION_TYPES 32
 #define MAX_UNKNOWN_TYPES 32
@@ -192,19 +191,7 @@ void parseAccept(char *pAccept, int len, unsigned short *pAcceptRes, int acceptR
 #undef DO_COLLECT_UNKNOWN_TYPES
 }
 
-void parseAcceptEncoding(char *pAcceptEncoding, unsigned long *pAcceptRes)
-{
-    // gzip, deflate, br, zstd
-    (void)(pAcceptEncoding);
-    (void)(pAcceptRes);
-}
-
-void parseAcceptLanguage(char *pAcceptLanguage, unsigned long *pAcceptRes)
-{
-    (void)(pAcceptLanguage);
-    (void)(pAcceptRes);
-}
-
+#if 0
 int parseAcceptCC(MyServerClientConnection *pCC, char *data, int len)
 {
     (void)(pCC);
@@ -236,3 +223,4 @@ int parseNotImplemented(MyServerClientConnection *pCC, char *data, int len)
     (void)(len);
     return 0;
 }
+#endif

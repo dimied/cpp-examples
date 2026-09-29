@@ -16,12 +16,19 @@
 #define HTTP_PARSER_DECLARATIONS 1
 #define HTTP_PARSER_IMPLEMENTATION 1
 
+//static int verbose = 1;
+
+static const char *badRequest = "HTTP/1.1 400 Bad Request";
+
+// place in read-only memory
+static const int yesOption = 1;
+
 /*@null@*/ void *newClientConnection()
 {
     return calloc(sizeof(MyServerClientConnection), 1);
 }
 
-void nullify(void *pData, size_t size)
+static void nullify(void *pData, size_t size)
 {
     if (pData != 0 && size != 0)
     {
@@ -29,15 +36,15 @@ void nullify(void *pData, size_t size)
     }
 }
 
-void printProto();
+// static void printProto();
 
-void printfAddrinfo(struct addrinfo *pInfo);
+// static void printfAddrinfo(struct addrinfo *pInfo);
 
-int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC);
+static int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC);
 
 void removeClientConnection(MyServerClientConnection *pCC);
 
-int closeClientConnections(MyServerConnection *pCon)
+static int closeClientConnections(MyServerConnection *pCon)
 {
     if (pCon != 0)
     {
@@ -98,9 +105,6 @@ int cfc_close(MyServer *pServer)
     }
     return 0;
 }
-
-// place in read-only memory
-const int yesOption = 1;
 
 /*
  */
@@ -490,8 +494,6 @@ int basicHandle(void *pConnection, int cmd, void *param)
 
 void freeRequest(/*@null@*/ void *p);
 
-int verbose = 1;
-
 void closeCC(MyServerClientConnection *pCC)
 {
     printf("CLOSE CON!\n");
@@ -512,8 +514,6 @@ void closeCC(MyServerClientConnection *pCC)
     pCC->state = STATE_CLOSED | (pCC->state & SECURE_STATE);
 }
 
-char *badRequest = "HTTP/1.1 400 Bad Request";
-
 void closeBadRequest(MyServerClientConnection *pCC)
 {
     printf("CLOSE BAD!\n");
@@ -527,7 +527,7 @@ void closeBadRequest(MyServerClientConnection *pCC)
     closeCC(pCC);
 }
 
-int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC)
+static int addClientConnection(MyServerConnection *pCon, MyServerClientConnection *pCC)
 {
     pCC->pServerConnection = pCon;
     MyServerClientConnection *pLast = (MyServerClientConnection *)pCon->clients.last;
@@ -679,7 +679,8 @@ int isValidHost(MyServerClientConnection *pCC, char *hostname)
 
 #include "http_parser.h"
 
-void printAliases(char **aliases)
+#if 0
+static void printAliases(char **aliases)
 {
     printf("PROTO:ALIASES:");
 
@@ -697,8 +698,9 @@ void printAliases(char **aliases)
 
     printf("\n");
 }
-
-void printSocketAddr(struct sockaddr *pSocketAddr, socklen_t addrLen)
+#endif
+#if 0
+static void printSocketAddr(struct sockaddr *pSocketAddr, socklen_t addrLen)
 {
     if (pSocketAddr != 0)
     {
@@ -707,7 +709,9 @@ void printSocketAddr(struct sockaddr *pSocketAddr, socklen_t addrLen)
     }
 }
 
-void printfAddrinfo(struct addrinfo *pInfo)
+#endif
+#if 0
+static void printfAddrinfo(struct addrinfo *pInfo)
 {
     printf("CNAME: %s\n", pInfo->ai_canonname);
     printf("FAMILY: %d\n", pInfo->ai_family);
@@ -734,14 +738,17 @@ void printfAddrinfo(struct addrinfo *pInfo)
         printfAddrinfo(pInfo->ai_next);
     }
 }
+#endif
 
-void printProto()
+#if 0
+static void printProto()
 {
     struct protoent *proto = getprotobyname("tcp");
 
     printf("PROTO: %d | %s\n", proto->p_proto, proto->p_name);
     printAliases(proto->p_aliases);
 }
+#endif
 
 void printTypeSizes()
 {

@@ -20,7 +20,7 @@
 #define TEXT_EFFECT_NORMAL2 0x60
 #define TEXT_EFFECT_NEGATIVE 0x70
 
-void color_text(unsigned char color, char *text)
+static void color_text(unsigned char color, char *text)
 {
     if (color == (unsigned char)0)
     {

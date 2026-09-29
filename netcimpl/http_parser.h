@@ -25,7 +25,7 @@
 
 #define HEADER_CHUNK_SIZE 128
 
-size_t header_size(unsigned int len)
+static size_t header_size(unsigned int len)
 {
     unsigned int ds = (len + 7) & 0xFFFFF8;
     if (ds < HEADER_CHUNK_SIZE)
@@ -257,7 +257,7 @@ typedef struct HeaderHandler
 
 static char *noneString = "(nil)";
 
-void printRequest(HttpRequest *p)
+static void printRequest(HttpRequest *p)
 {
     if (p != 0)
     {
@@ -280,7 +280,7 @@ void printRequest(HttpRequest *p)
             s = p->path;
         }
         printf(">PATH|%s|\n", s);
-        int major = PROTOCOL_MAJOR_VERSION(p->requestInfo), minor = PROTOCOL_MINOR_VERSION(p->requestInfo);
+        int major = (int)PROTOCOL_MAJOR_VERSION(p->requestInfo), minor = (int)PROTOCOL_MINOR_VERSION(p->requestInfo);
         printf(">PROTO:%d.%d\n", major, minor);
         printf("<-\n");
     }
@@ -324,7 +324,7 @@ ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags);
 
 #define ONLY_STANDARD_HTTP_VERBS 1
 
-int processRequestLine(HttpRequest *pRequest)
+static int processRequestLine(HttpRequest *pRequest)
 {
     (void)(pRequest);
 
@@ -348,13 +348,13 @@ int processRequestLine(HttpRequest *pRequest)
 #define SKIP_SECOND_HOST_ENTRY_CHECK 0
 #endif
 
-THREAD_LOCAL union
+THREAD_LOCAL static union
 {
     uint64_t data64[BUF_LEN_IN_64];
     char data[BUF_LEN_IN];
 } inBuffer;
 
-THREAD_LOCAL union
+THREAD_LOCAL static union
 {
     uint64_t ui64[8];
     char c8[64];
@@ -422,7 +422,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
 
         HttpRequest *pReq = pCC->request;
 
-        if (PARSE_STATE_REQ_LINE != state && pReq == 0)
+        if (PARSE_STATE_REQ_LINE != state && pReq == (HttpRequest *)0)
         {
             // lost request 'object'?
             return RECV_PARSE_ERROR_NO_REQMEM;
@@ -496,7 +496,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
             if (j < NUM_HTTP_METHODS)
             {
                 printInfo(METHOD_CODE, inBuffer.data, j);
-                pReq->requestInfo = j;
+                pReq->requestInfo = (unsigned int)j;
             }
             else
             {
@@ -530,7 +530,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                 ++pathStart;
                 ++i;
             }
-            long int diff = pathStart - pStart;
+            int64_t diff = (int64_t)(pathStart - pStart);
             // line-end found?
             if (s <= 0 || diff <= 0)
             {
@@ -540,18 +540,18 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
             else
             {
                 // TODO: long paths
-                *pathStart = 0;
+                *pathStart = '\0';
             }
             ++pathStart;
-            printInfo(PATH_CODE, pStart, diff);
+            printInfo(PATH_CODE, pStart, (int)diff);
 
-            char *pReqPath = memoryForPath(diff);
+            char *pReqPath = memoryForPath((int)diff);
             if (pReqPath == 0)
             {
                 closeBadRequest(pCC);
                 return 0;
             }
-            memcpy(pReqPath, pStart, diff);
+            memcpy(pReqPath, pStart, (size_t)diff);
             pReq->path = pReqPath;
             INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_PATH);
         }
@@ -643,7 +643,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
             char *pHeaderStoreC8 = header_name_buffer.c8;
 
             const uint64_t keep_headers = REQ_HEADER_KEEP_ACCEPT | REQ_HEADER_KEEP_CONNECTION;
-            int ignore_host = keep_headers & REQ_HEADER_IGNORE_HOST;
+            int ignore_host = (keep_headers & REQ_HEADER_IGNORE_HOST) != 0 ? 1 : 0;
 
             while (headerState == 0 && recvRes - i >= 2 && *pathStart != '\r' && pathStart[1] != '\n')
             {
@@ -681,7 +681,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                 uint64_t v;
                 int hl = 0;
 
-                while (*pathStart != 0 && i < recvRes && hl < 64)
+                while (*pathStart != '\0' && i < recvRes && hl < 64)
                 {
                     char c = *pathStart;
                     if (c < 33)

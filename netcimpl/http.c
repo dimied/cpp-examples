@@ -15,8 +15,8 @@
 // getprotobyname
 #include <netdb.h>
 
-int running = 1;
-int retValue = 0;
+static int running = 1;
+static int retValue = 0;
 
 // #define SERVER_NONBLOCKING 1
 
@@ -83,13 +83,13 @@ size_t writeFile(char *data, int len, int cnt)
 
 #include "server.h"
 
-MyServer myServer;
+static MyServer myServer;
 
 #define SIGHANDLER_MSG "Caught SIGINT (    )\n"
 
 static char sighandler_msg_orig[] = SIGHANDLER_MSG;
 
-void signalHandler(int sig)
+static void signalHandler(int sig)
 {
     char sighandler_msg[sizeof(SIGHANDLER_MSG)];
     memcpy(sighandler_msg, sighandler_msg_orig, sizeof(SIGHANDLER_MSG));
@@ -139,6 +139,7 @@ char buffer[1024];
 int main()
 {
     signal(SIGINT, signalHandler);
+
     // testParseIp();
     int cfr = cacheFiles();
     printf("Cache files: %d\n\n", cfr);
@@ -175,8 +176,8 @@ int main()
     myServer.conns[0].name = "localhost";
     myServer.conns[0].port = 8080;
     myServer.conns[0].options = (unsigned int)(SERVER_OPTION_TCP | SERVER_OPTION_IPV4);
-    myServer.conns[0].handleCommand = basicHandle;
-    myServer.conns[0].handleClientCommand = basicHandleClientConnection;
+    myServer.conns[0].handleCommand = &basicHandle;
+    myServer.conns[0].handleClientCommand = &basicHandleClientConnection;
 
     sleep(1);
 

@@ -16,9 +16,9 @@ if (SSL_CTX_config(ctx, "server") == 0) {
 }
 #endif
 
-int handleSSLError(MyServerConnection *pConnection, int err);
+static int handleSSLError(MyServerConnection *pConnection, int err);
 
-int prepareSSL(MyServerConnection *pConnection)
+static int prepareSSL(MyServerConnection *pConnection)
 {
     if (pConnection != 0)
     {
@@ -86,21 +86,8 @@ int prepareSSL(MyServerConnection *pConnection)
     return 1;
 }
 
-int errorCB(const char *str, size_t len, /*@temp@*/ void *_);
-
-int handleSSLError(MyServerConnection *pConnection, int err)
-{
-    //(void)(pConnection);
-    unsigned long lastError = ERR_get_error();
-    printf("LAST-ERROR: %lu|%d|%p\n", lastError, err, (void *)pConnection);
-
 #ifndef S_SPLINT_S
-    ERR_print_errors_cb(errorCB, /*@null@*/ (void *)0);
-#endif
-    return err;
-}
-
-int errorCB(const char *str, size_t len, /*@temp@*/ void *_)
+static int errorCB(const char *str, size_t len, /*@temp@*/ void *_)
 {
     (void)(_);
 
@@ -111,6 +98,19 @@ int errorCB(const char *str, size_t len, /*@temp@*/ void *_)
 #pragma GCC diagnostic pop
     // positive value to continue, 0 to stop
     return 1;
+}
+#endif
+
+static int handleSSLError(MyServerConnection *pConnection, int err)
+{
+    //(void)(pConnection);
+    unsigned long lastError = ERR_get_error();
+    printf("LAST-ERROR: %lu|%d|%p\n", lastError, err, (void *)pConnection);
+
+#ifndef S_SPLINT_S
+    ERR_print_errors_cb(errorCB, /*@null@*/ (void *)0);
+#endif
+    return err;
 }
 
 #endif

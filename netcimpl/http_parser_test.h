@@ -11,7 +11,7 @@ typedef struct TestRecvState
     /*@null@*/ size_t *chunks;
 } TestRecvState;
 
-TestRecvState testRecvState;
+static TestRecvState testRecvState;
 
 #define TEST_NOT_SKIPPED 0
 #define TEST_SKIPPED 1
@@ -85,7 +85,7 @@ typedef struct TestCase
     /*@null@*/ TestCaseChunkInfo *chunks;
 } TestCase;
 
-TestCase testCases[] = {
+static TestCase testCases[] = {
     TEST_CASE_ERRNO(EAGAIN, RECV_PARSE_ERROR_EAGAIN),
 #if EAGAIN != EWOULDBLOCK
     TEST_CASE_ERRNO(EWOULDBLOCK, RECV_PARSE_ERROR_EAGAIN),
@@ -177,7 +177,7 @@ void testParser()
     printf("----\n");
 }
 
-TestRecvState *getTestState(int fd)
+static TestRecvState *getTestState(int fd)
 {
     (void)(fd);
     return &testRecvState;

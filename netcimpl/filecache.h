@@ -14,17 +14,19 @@ typedef struct CachedFile
 
 #define CFE(PATH, TYPE) {0, 0, PATH, TYPE, (void *)0, (char *)0, 0}
 
-CachedFile fileCache[3] = {
+static CachedFile fileCache[3] = {
     CFE("index.html", "text/html"),
     CFE("favicon.ico", "image/x-icon"),
     CFE("console_screenshot.png", "image/png"),
 };
 
+#define FILECACHE_HEADER_TEMPLATE "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nContent-Encoding: identity\r\nConnection: close\r\n\r\n"
+
 /**
  *
  */
 
-/*@null@*/ void *close_file_and_return(FILE *fp)
+static /*@null@*/ void *close_file_and_return(FILE *fp)
 {
 #ifdef S_SPLINT_S
     (void)fclose(fp);
@@ -34,7 +36,7 @@ CachedFile fileCache[3] = {
     return (void *)0;
 }
 
-/*@null@*/ void *readFile(char *p, size_t *pSize)
+static /*@null@*/ void *readFile(char *p, size_t *pSize)
 {
     if (p != 0)
     {
@@ -93,7 +95,7 @@ CachedFile fileCache[3] = {
     return 0;
 }
 
-int cacheFiles()
+static int cacheFiles()
 {
     int loaded = 0;
     int i;
@@ -129,11 +131,7 @@ int cacheFiles()
     return loaded;
 }
 
-#define FILECACHE_HEADER_TEMPLATE "HTTP/1.0 200 OK\r\nContent-Type: %s\r\nContent-Length: %lu\r\nContent-Encoding: identity\r\nConnection: close\r\n\r\n"
-
-const char *headerTmpl = FILECACHE_HEADER_TEMPLATE;
-
-/*@null@*/ void *searchPathInCache(char *path, size_t *pSize)
+static /*@null@*/ void *searchPathInCache(char *path, size_t *pSize)
 {
     void *result = 0;
     int i;
@@ -176,7 +174,8 @@ const char *headerTmpl = FILECACHE_HEADER_TEMPLATE;
     return result;
 }
 
-/*@null@*/ void *searchInCache(char *path, size_t *pSize)
+#if 0
+static /*@null@*/ void *searchInCache(char *path, size_t *pSize)
 {
 
     char *s1 = strstr(path, "\r\n");
@@ -192,13 +191,14 @@ const char *headerTmpl = FILECACHE_HEADER_TEMPLATE;
     *s1 = '\r';
     return result;
 }
+#endif
 
-/*@null@*/ char *favData = 0;
-size_t favDataLen = 0;
-/*@null@*/ char *favResponse = 0;
-size_t favResponseLen = 0;
+static /*@null@*/ char *favData = 0;
+static size_t favDataLen = 0;
+static /*@null@*/ char *favResponse = 0;
+static size_t favResponseLen = 0;
 #define FILECACHE_HTTP_FAVICON_HEADER "HTTP/1.0 200 OK\r\nContent-Type: image/x-icon\r\nContent-Length: %d\r\nContent-Encoding: identity\r\n\r\n"
-const char *favHeader = FILECACHE_HTTP_FAVICON_HEADER;
+static const char *favHeader = FILECACHE_HTTP_FAVICON_HEADER;
 
 int loadFAV()
 {

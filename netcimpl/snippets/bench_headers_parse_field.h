@@ -41,7 +41,7 @@ quoted-pair    = "\" CHAR
 
 #define BENCH_HEADERS_PARSE_FIELD_MEM_SIZE 48
 
-size_t generate_test_data_for_bench_parse_headers_parse_field(TestAlignedText **tests, int *expected)
+static size_t generate_test_data_for_bench_parse_headers_parse_field(TestAlignedText **tests, int *expected)
 {
     size_t i;
     int generate_error;
@@ -355,7 +355,7 @@ void bench_parse_headers_parse_field()
                     {
                         v &= HEADER_FIELD_NAME_VALID_CHARS2_BITS;
                         // offset 32, if v valid
-                        off = (HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS >> shift) & 0x20;
+                        off = (char)((HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS >> shift) & 0x20);
                     }
                     else
                     {
@@ -407,7 +407,7 @@ void bench_parse_headers_parse_field()
 
     for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
-        printf("%6ld\t", offset);
+        printf("%6d\t", (int)offset);
         for (i = 0; i < NUM_BENCH_HEADERS_PARSE_FIELD_IMPLEMENTATIONS; i++)
         {
             double t = times[offset][i] / CLOCKS_PER_SEC;
@@ -418,7 +418,7 @@ void bench_parse_headers_parse_field()
     printf("----\n");
     for (offset = 0; offset < BENCH_HEADERS_OFFSET_LIMIT; offset++)
     {
-        printf("%5ld+\t", offset);
+        printf("%5d+\t", (int)offset);
         for (i = 0; i < NUM_BENCH_HEADERS_PARSE_FIELD_IMPLEMENTATIONS; i++)
         {
             double t = perTestTime(times[offset][i], total);

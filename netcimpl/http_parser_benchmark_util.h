@@ -40,7 +40,9 @@ typedef struct TestMemAllocations
     void *allocations[6];
 } TestMemAllocations;
 
-TestMemAllocations *testAllocChain = 0;
+//static TestMemAllocations *testAllocChain = 0;
+
+static char buffer_for_TestAlignedText[(0x1 << 16)];
 
 TestMemAllocations *testMemAllocs(char *name)
 {
@@ -109,7 +111,7 @@ TestAlignedText *allocTestAlignedText(size_t sz, int *pError)
     return result;
 }
 
-char buffer_for_TestAlignedText[(0x1 << 16)];
+
 
 char *get_TestAlignedText(TestAlignedText *pAT)
 {
