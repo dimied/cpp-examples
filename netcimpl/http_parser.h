@@ -13,10 +13,14 @@
 #define THREAD_LOCAL
 #endif
 
+#include "server_basic_types.h"
+
 #include "http_parser_header_constants.h"
 #include "http_parser_macros.h"
 #include "http_parser_types.h"
 #include "http_parser_header_functions.h"
+
+#include "http_parser_assigned_data.h"
 
 #define ADD_HEADERS_OK 0
 #define ADD_HEADERS_INVALID_ARGS 1
@@ -202,10 +206,10 @@ void freeRequest(/*@null@*/ void *p)
     if (p != 0)
     {
         HttpRequest *pReq = (HttpRequest *)p;
-        if (pReq->path != 0)
+        if (HTTP_REQUEST_HAS_NO_DIRECT_PATH(pReq->requestInfo) && pReq->path.ptr != 0)
         {
-            freeMemoryForPath(pReq->path);
-            pReq->path = 0;
+            freeMemoryForPath(pReq->path.ptr);
+            pReq->path.ptr = (void *)0;
         }
         freeHeadersData(pReq);
         free(p);
@@ -263,7 +267,7 @@ static void printRequest(HttpRequest *p)
     {
         printf(">Req:\n");
 
-        int m = p->requestInfo & 0x1F;
+        int m = (int)(p->requestInfo & 0x1F);
         const char *s;
         if (m < 9)
         {
@@ -275,9 +279,16 @@ static void printRequest(HttpRequest *p)
         }
         printf(">METHOD|%s|\n", s);
         s = noneString;
-        if (p->path)
+        if (p->path.ptr != 0)
         {
-            s = p->path;
+            if (HTTP_REQUEST_HAS_DIRECT_PATH(p->requestInfo))
+            {
+                s = &p->path.text[0];
+            }
+            else
+            {
+                s = p->path.ptr;
+            }
         }
         printf(">PATH|%s|\n", s);
         int major = (int)PROTOCOL_MAJOR_VERSION(p->requestInfo), minor = (int)PROTOCOL_MINOR_VERSION(p->requestInfo);
@@ -324,11 +335,15 @@ ssize_t test_recv(int __fd, void *__buf, size_t __n, int __flags);
 
 #define ONLY_STANDARD_HTTP_VERBS 1
 
-static int processRequestLine(HttpRequest *pRequest)
+static int processRequestLine(/*@null@*/ HttpRequest *pRequest)
 {
-    (void)(pRequest);
+    if (pRequest != 0)
+    {
 
-    return 0;
+        return 0;
+    }
+
+    return 1;
 }
 
 #define HTTP_PARSER_DEV_LOG 1
@@ -378,7 +393,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
         return RECV_PARSE_ERROR_NO_SOCKET;
     }
 
-    int state = GET_PARSE_STATE(pCC);
+    int state = (int)GET_PARSE_STATE(pCC);
 
     int readChunks = 1;
 
@@ -391,12 +406,13 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
         if (IS_SECURE_CONNECTION(pCC))
         {
             //<=0 means error
-            recvRes_real = SSL_read(pCC->secure.ssl, inBuffer.data, BUF_LEN_IN);
+            recvRes_real = (ssize_t)SSL_read(pCC->secure.ssl, inBuffer.data, BUF_LEN_IN);
         }
         else
         {
             recvRes_real = RECV_FUNC(clientSocketId, inBuffer.data, BUF_LEN_IN, 0);
         }
+
         printInfo(RECV_CODE, 0, (int)recvRes_real);
 
         if (recvRes_real <= 0)
@@ -420,13 +436,19 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
 
         int recvRes = (int)recvRes_real;
 
+#if HTTP_REQUEST_PART_OF_CONNECTION_TYPE == 1
+        HttpRequest *pReq = &pCC->request;
+#else
         HttpRequest *pReq = pCC->request;
+#endif
 
+#if HTTP_REQUEST_PART_OF_CONNECTION_TYPE == 1
         if (PARSE_STATE_REQ_LINE != state && pReq == (HttpRequest *)0)
         {
             // lost request 'object'?
             return RECV_PARSE_ERROR_NO_REQMEM;
         }
+#endif
 
         char *pathStart = inBuffer.data;
         int i = 1;
@@ -434,6 +456,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
 
         if (PARSE_STATE_REQ_LINE == state)
         {
+#if HTTP_REQUEST_PART_OF_CONNECTION_TYPE == 0
             if (pReq == 0)
             {
                 pReq = newRequest();
@@ -444,6 +467,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                 }
                 pCC->request = pReq;
             }
+#endif
 
             int s = 0;
 
@@ -475,7 +499,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
             }
             else
             {
-                *pathStart = 0;
+                *pathStart = '\0';
             }
 #else
 #error "No custom HTTP verbs supported"
@@ -552,7 +576,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                 return 0;
             }
             memcpy(pReqPath, pStart, (size_t)diff);
-            pReq->path = pReqPath;
+            pReq->path.ptr = pReqPath;
             INC_STATE_OR_SET(state, PARSE_STATE_REQ_LINE_PATH);
         }
 
@@ -593,7 +617,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
             else
             {
                 int major, minor;
-                *pathStart = 0;
+                *pathStart = '\0';
                 int numItems = sscanf(protStart, "HTTP/%d.%d", &major, &minor);
                 *pathStart = '\r';
                 if (numItems != 2 || major < 0 || major > 2 || minor < 0 || minor > 1)
@@ -642,13 +666,13 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
             int hIdx = 0;
             char *pHeaderStoreC8 = header_name_buffer.c8;
 
-            const uint64_t keep_headers = REQ_HEADER_KEEP_ACCEPT | REQ_HEADER_KEEP_CONNECTION;
-            int ignore_host = (keep_headers & REQ_HEADER_IGNORE_HOST) != 0 ? 1 : 0;
+            const ui64_type keep_headers = REQ_HEADER_KEEP_ACCEPT | REQ_HEADER_KEEP_CONNECTION;
+            ui64_type ignore_host = (keep_headers & REQ_HEADER_IGNORE_HOST);
 
             while (headerState == 0 && recvRes - i >= 2 && *pathStart != '\r' && pathStart[1] != '\n')
             {
                 {
-                    int64_t j = pHeaderStoreC8 - &header_name_buffer.c8[0];
+                    int64_t j = (int64_t)(pHeaderStoreC8 - &header_name_buffer.c8[0]);
                     // We clear using 8 bytes, should be faster this way.
                     if (j > 0)
                     {
@@ -678,42 +702,42 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                 printf("READ:HEADER:%d: (%d < %d)\n", hIdx, i, recvRes);
                 hIdx++;
 
-                uint64_t v;
+                ui64_type v;
                 int hl = 0;
 
                 while (*pathStart != '\0' && i < recvRes && hl < 64)
                 {
                     char c = *pathStart;
-                    if (c < 33)
+                    if (c < (char)33)
                     {
                         headerState = HEADER_STATE_INVALID_CHAR;
                         break;
                     }
 
-                    register int shift = (c & 0x3F);
+                    register unsigned int shift = (unsigned int)(c & 0x3F);
                     v = (0x1ul) << shift;
                     char off;
 
-                    if (c > 64)
+                    if (c > (char)64)
                     {
                         v &= HEADER_FIELD_NAME_VALID_CHARS2_BITS;
-                        off = (HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS >> shift) & 0x20;
+                        off = (char)((HEADER_FIELD_NAME_LOWERCASE_OFFSET_BITS >> shift) & 0x20);
                     }
                     else
                     {
                         // no lower case for values 0-64
                         v &= HEADER_FIELD_NAME_VALID_CHARS1_BITS;
-                        off = 0;
+                        off = (char)0;
                     }
 
-                    if (v)
+                    if (v != 0)
                     {
                         if (c == ':')
                         {
                             pSep = pathStart;
                             break;
                         }
-                        if (off)
+                        if (off != (char)0)
                         {
                             *pHeaderStoreC8 = c | off;
                         }
@@ -770,8 +794,8 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
 
                     if (*pathStart == '\r')
                     {
-                        *pathStart = 0;
-                        *pSep = 0;
+                        *pathStart = '\0';
+                        *pSep = '\0';
 
                         printf("HDR|%s|':'|%s|\n", header_name_buffer.c8, pSep + 1);
 
@@ -794,7 +818,7 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                                 parseNotHost = 0;
                             }
                         }
-                        if (parseNotHost)
+                        if (parseNotHost != 0)
                         {
                             int header_idx = NUM_HEADER_HANDLERS;
 
@@ -940,22 +964,24 @@ int basicHandleClientConnection(/*@null@*/ void *pClientConnection, /*@null@*/ v
                                 }
                             }
 
-                            printf("HDR-IDX: %d < %d\n", header_idx, NUM_HEADER_HANDLERS);
+                            char *pHS = "INVALID";
 
                             if (header_idx > 0 && header_idx < NUM_HEADER_HANDLERS + 1)
                             {
 #if 1
                                 ui64bit_t bit = (0x1ul) << (unsigned int)(header_idx - 1);
+
                                 if ((bit & keep_headers) != 0)
                                 {
-                                    printf("KEEP!\n");
+                                    pHS = "KEEP";
                                 }
                                 else
                                 {
-                                    printf("IGNORE!\n");
+                                    pHS = "IGNORE";
                                 }
 #endif
                             }
+                            printf("HDR-IDX: %d < %d: %s\n", header_idx, (int)NUM_HEADER_HANDLERS, pHS);
 
                             // uint32_t val = (uint32_t)(pathStart - pHeader);
 

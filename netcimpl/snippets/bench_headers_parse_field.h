@@ -196,12 +196,14 @@ void bench_parse_headers_parse_field()
 
     if (generated != NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES)
     {
-        while (generated > 0)
+        int testIdx = (int)generated;
+        while (testIdx >= 0)
         {
-            if (tests[generated] != 0)
+            if (tests[testIdx] != 0)
             {
-                freeTestAlignedText(tests[generated]);
+                freeTestAlignedText(tests[testIdx]);
             }
+            --testIdx;
         }
         printf("MEM-ALLOC-FAILED: tests generation\n");
         free(tests);
@@ -351,7 +353,7 @@ void bench_parse_headers_parse_field()
                     v = (0x1ul) << shift;
                     char off = (c & 0x40);
 
-                    if (off != 0)
+                    if (off != (char)0)
                     {
                         v &= HEADER_FIELD_NAME_VALID_CHARS2_BITS;
                         // offset 32, if v valid
@@ -361,10 +363,10 @@ void bench_parse_headers_parse_field()
                     {
                         // no lower case for values 0-64
                         v &= HEADER_FIELD_NAME_VALID_CHARS1_BITS;
-                        off = 0;
+                        off = (char)0;
                     }
 
-                    if (v)
+                    if (v != 0)
                     {
                         if (c == ':')
                         {
@@ -431,7 +433,7 @@ void bench_parse_headers_parse_field()
 #undef BENCH_HEADERS_OFFSET_LIMIT
 
     printf("FREE TESTS!\n");
-    for (i = 0; i < NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES; i++)
+    for (i = 0; i < (int)NUM_BENCH_HEADERS_PARSE_FIELD_ENTRIES; i++)
     {
         if (tests[i] != 0)
         {

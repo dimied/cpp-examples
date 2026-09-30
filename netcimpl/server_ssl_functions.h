@@ -69,7 +69,6 @@ static int prepareSSL(MyServerConnection *pConnection)
                 if (((SSL_CTX *)0) != pConnection->secure.ctx)
                 {
                     SSL_CTX *old_ctx = pConnection->secure.ctx;
-                    // SSL_CTX_free(/*@special@*/ /*@notnull@*/old_ctx) /*@releases old_ctx@*/;
                     SSL_CTX_free(old_ctx);
                     pConnection->secure.ctx = (SSL_CTX *)0;
                 }

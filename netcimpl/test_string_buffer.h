@@ -8,35 +8,57 @@ typedef struct TestStringBuffer
     size_t size;
     size_t used;
     char verbose;
-    char *data;
+    /*@null@*/ char *data;
 } TestStringBuffer;
 
-void clearTestStringBuffer(TestStringBuffer *pBuffer)
+void clearTestStringBuffer(/*@null@*/ TestStringBuffer *pBuffer)
 {
-    memset(pBuffer, 0, sizeof(TestStringBuffer));
+    if (pBuffer != 0)
+    {
+        memset(pBuffer, 0, sizeof(TestStringBuffer));
+    }
 }
 
-void freeTestStringBuffer(TestStringBuffer *pBuffer)
+void freeTestStringBuffer(/*@null@*/ TestStringBuffer *pBuffer)
 {
-    if (pBuffer->data != 0)
+    if (pBuffer != 0 && pBuffer->data != 0)
     {
         free(pBuffer->data);
         pBuffer->data = (char *)0;
     }
 }
 
-int addToTestStringBuffer(TestStringBuffer *pBuffer, char *data, size_t len)
+int addToTestStringBuffer(/*@null@*/ TestStringBuffer *pBuffer, /*@null@*/ char *data, size_t len)
 {
     if (pBuffer != 0)
     {
         if (len != 0)
         {
+            if (data == 0)
+            {
+                return 3;
+            }
             if (pBuffer->size != 0)
             {
                 if (pBuffer->data == 0)
                 {
                     return 2;
                 }
+
+                long int mem_diff = 0;
+                if (pBuffer->data > data)
+                {
+                    mem_diff = (long int)(pBuffer->data - data);
+                }
+                else
+                {
+                    mem_diff = (long int)(data - pBuffer->data);
+                }
+                if (mem_diff == 0)
+                {
+                    return 0;
+                }
+                // TODO: overlapping memory
 
                 if (pBuffer->used + len <= pBuffer->size)
                 {
@@ -74,9 +96,9 @@ int initTestStringBuffer(TestStringBuffer *pBuffer, size_t len)
 
             if (data != 0)
             {
-                if (pBuffer->verbose)
+                if (pBuffer->verbose != (char)0)
                 {
-                    printf("//MEM-ALLOCATED: %ld\n", len);
+                    printf("//MEM-ALLOCATED: %d\n", (int)len);
                 }
 
                 pBuffer->size = len;

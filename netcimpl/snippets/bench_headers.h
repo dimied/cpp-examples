@@ -3,6 +3,8 @@
 
 #include <string.h>
 
+#include "../server_basic_types.h"
+
 static size_t lastSize = 0;
 
 #define bench_header_names_lc(idx) (header_comp_data.header_names_lowercase[idx])
@@ -282,7 +284,7 @@ static int impl_headers_aligned3(char *pathStart)
     return NUM_HEADER_HANDLERS + 1;
 }
 
-//static size_t sigHits = 0;
+// static size_t sigHits = 0;
 
 static int impl_headers_aligned4(const char *pathStart, uint64_t sig)
 {
@@ -295,7 +297,7 @@ static int impl_headers_aligned4(const char *pathStart, uint64_t sig)
     }
     // size test
     {
-        const uint64_t bit = (0x1ul) << (s - 1);
+        const ui64_type bit = (0x1ul) << (unsigned int)(s - 1);
         if ((bit & HEADER_SIZE_BITS_CONSTANT) == 0)
         {
             return NUM_HEADER_HANDLERS + 1;
@@ -687,9 +689,9 @@ void bench_parse_headers()
 {
     printf("----\n");
     double cpu_time_used;
-    TestMemAllocations *pM = testMemAllocs("bench_headers");
+    TestMemAllocations *pTMA = testMemAllocs("bench_headers");
 
-    if (pM == 0)
+    if (pTMA == 0)
     {
         printf("MEM-ALLOC-FAILED: base\n");
         return;
@@ -697,38 +699,38 @@ void bench_parse_headers()
 
     clock_t end, start = clock();
 
-    int *results = (int *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
+    int *results = (int *)allocTestMem(pTMA, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
     if (results == 0)
     {
         printf("MEM-ALLOC-FAILED: results\n");
         return;
     }
 
-    int *expected = (int *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
+    int *expected = (int *)allocTestMem(pTMA, NUM_BENCH_HEADERS_ENTRIES, sizeof(int));
     if (expected == 0)
     {
-        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: expected\n");
+        freeMemAllocsWithMessage(pTMA, "MEM-ALLOC-FAILED: expected\n");
         return;
     }
 
-    char **tests = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
+    char **tests = (char **)allocTestMem(pTMA, NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
     if (tests == 0)
     {
-        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: tests\n");
+        freeMemAllocsWithMessage(pTMA, "MEM-ALLOC-FAILED: tests\n");
         return;
     }
 
-    char **testsReal = (char **)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
+    char **testsReal = (char **)allocTestMem(pTMA, NUM_BENCH_HEADERS_ENTRIES, sizeof(char *));
     if (testsReal == 0)
     {
-        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: tests\n");
+        freeMemAllocsWithMessage(pTMA, "MEM-ALLOC-FAILED: tests\n");
         return;
     }
 
-    uint64_t *signatures = (uint64_t *)allocTestMem(pM, NUM_BENCH_HEADERS_ENTRIES, sizeof(uint64_t));
+    uint64_t *signatures = (uint64_t *)allocTestMem(pTMA, NUM_BENCH_HEADERS_ENTRIES, sizeof(uint64_t));
     if (signatures == 0)
     {
-        freeMemAllocsWithMessage(pM, "MEM-ALLOC-FAILED: signatures\n");
+        freeMemAllocsWithMessage(pTMA, "MEM-ALLOC-FAILED: signatures\n");
         return;
     }
 
@@ -768,7 +770,7 @@ void bench_parse_headers()
 
         for (sIdx = 0; sIdx < l; sIdx++)
         {
-            sig |= (0x1ul) << (p[sIdx] & 0x3F);
+            sig |= (0x1ul) << (unsigned int)(p[sIdx] & 0x3F);
         }
         signatures[i] = sig;
 #if 0
@@ -788,15 +790,17 @@ void bench_parse_headers()
 
     if (i != NUM_BENCH_HEADERS_ENTRIES)
     {
-        while (i > 0)
+        int testIdx = (int)i;
+        while (testIdx >= 0)
         {
-            if (tests[i] != 0)
+            if (tests[testIdx] != 0)
             {
-                free(tests[i]);
+                free(tests[testIdx]);
             }
+            --testIdx;
         }
         printf("MEM-ALLOC-FAILED: tests generation\n");
-        freeMemAllocs(pM);
+        freeMemAllocs(pTMA);
         return;
     }
 
@@ -820,7 +824,7 @@ void bench_parse_headers()
         // align values
         start = clock();
         size_t alignIdx, hits = 0;
-        char buffer[32];
+        char buf[32];
 
         for (alignIdx = 0; alignIdx < NUM_BENCH_HEADERS_ENTRIES; alignIdx++)
         {
@@ -839,17 +843,17 @@ void bench_parse_headers()
                 continue;
             }
 
-            memset(buffer, 0, 32);
+            memset(buf, 0, 32);
             di = 0;
             while (*p != '\0')
             {
-                buffer[di] = *p;
+                buf[di] = *p;
                 ++di;
                 ++p;
             }
             memset(pSrc, 0, 32);
             p = pSrc + offset;
-            memcpy(p, buffer, di);
+            memcpy(p, buf, di);
             testsReal[alignIdx] = p;
         }
 
@@ -1018,7 +1022,7 @@ void bench_parse_headers()
                 char *pathStart = testsReal[i];
                 // first char valid?
                 {
-                    const uint64_t bit = (0x1ul) << ((*pathStart) & 0x3F);
+                    const ui64_type bit = (0x1ul) << (unsigned int)((*pathStart) & 0x3F);
                     if ((bit & HEADER_FIRST_CHAR_BITS_CONSTANT) == 0)
                     {
                         r = NUM_HEADER_HANDLERS + 1;
@@ -1088,7 +1092,7 @@ void bench_parse_headers()
             free(tests[i]);
         }
     }
-    freeMemAllocs(pM);
+    freeMemAllocs(pTMA);
 
     printf("----\n");
 #undef NUM_BENCH_HEADERS_IMPLEMENTATIONS

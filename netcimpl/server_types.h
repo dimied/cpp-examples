@@ -1,12 +1,10 @@
 #ifndef SERVER_TYPES_INCLUDED
 #define SERVER_TYPES_INCLUDED
 
-#ifdef NUM_SOCKET_CONNECTIONS
-#if NUM_SOCKET_CONNECTIONS < 1 || NUM_SOCKET_CONNECTIONS > 63
-#error "NUM_SERVERS invalid (<1 or >63)."
-#endif
-#else
-#define NUM_SOCKET_CONNECTIONS 2
+#include "server_basic_types.h"
+
+#ifndef HTTP_REQUEST_PART_OF_CONNECTION_TYPE
+#define HTTP_REQUEST_PART_OF_CONNECTION_TYPE 0
 #endif
 
 /*!
@@ -22,8 +20,10 @@ typedef struct MyServerClientConnection
                         Bits:16-23: errno
                          */
     uint64_t __validation;
-    /*@null@*/ void *next;              /*!< next pointer in the linked list*/
-    /*@null@*/ void *request;           /*!< request object */
+    /*@null@*/ void *next; /*!< next pointer in the linked list*/
+#if HTTP_REQUEST_PART_OF_CONNECTION_TYPE == 0
+    /*@null@*/ void *request; /*!< request object */
+#endif
     /*@null@*/ void *pServerConnection; /*!< pointer to server connection object */
     union
     {
@@ -32,6 +32,9 @@ typedef struct MyServerClientConnection
 #endif
         /*@null@*/ void *reserved;
     } secure; /*!< used for security */
+#if HTTP_REQUEST_PART_OF_CONNECTION_TYPE == 1
+    HttpRequest request;
+#endif
     union
     {
         char cbytes[CLIENT_CONNECTION_BUFFER_LEN];
@@ -61,7 +64,7 @@ typedef struct MyServerConnectionInfo
 
 typedef int (*handleClientConnection)(void *pClientConnection, void *pServerConnection);
 
-typedef int (*handleConnection)(void *pConnection, int cmd, void *param);
+typedef int (*handleConnection)(void *pServerConnection, int cmd, void *param);
 
 typedef struct MyServerConnection
 {
@@ -76,22 +79,10 @@ typedef struct MyServerConnection
     /*@null@*/ void *custom;
     SecureOptions secure;
     uint64_t normal_headers;     /*!< bitmask for normal headers*/
-    uint64_t additional_headers; /*! bitmask for security and client-hint headers*/
+    uint64_t additional_headers; /*!< bitmask for security and client-hint headers*/
     MyServerClientConnections clients;
     handleConnection handleCommand;
     handleClientConnection handleClientCommand;
 } MyServerConnection;
-
-typedef struct MyServer
-{
-    // void *next;
-    MyServerConnection conns[NUM_SOCKET_CONNECTIONS];
-    struct
-    {
-        unsigned long status;
-        unsigned int options;
-    } common;
-
-} MyServer;
 
 #endif

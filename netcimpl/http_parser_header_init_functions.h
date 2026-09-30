@@ -1,6 +1,9 @@
 #ifndef HTTP_PARSER_HEADER_INIT_FUNCTIONS
 #define HTTP_PARSER_HEADER_INIT_FUNCTIONS
+
 #include <ctype.h>
+
+#include "server_basic_types.h"
 
 #define IMPL_GET_HEADER_NAME_BY_IDX(IDX) (header_names[IDX])
 
@@ -54,10 +57,10 @@ int init_header_data()
 
 #if INIT_HEADER_DATA_VALIDATE
     size_t min_size = 200, max_size = 0;
-    uint64_t sizes = 0;
-    uint64_t first_chars = 0;
+    ui64_type sizes = 0;
+    ui64_type first_chars = 0;
 #endif
-    int size_counts[64];
+    size_t size_counts[64];
 
     int runs = 2;
 
@@ -144,7 +147,7 @@ int init_header_data()
 
                 memcpy(pDstLC, pSrc, s);
 
-                char *pT = pDstLC;
+                unsigned char *pT = (unsigned char *)pDstLC;
 
                 while (c2 != 0)
                 {
@@ -171,7 +174,7 @@ int init_header_data()
 
                 size_counts[s] = sz + 1;
                 sz <<= 3;
-                header_comp_data.header_names_values8[s] |= ((i+1) << sz);
+                header_comp_data.header_names_values8[s] |= ((i + 1) << sz);
                 header_comp_data.header_names_offsets8[s] |= ((aligned_size >> 3) << sz);
 
                 uint64_t *pSig = &header_comp_data.header_names_signatures8[s];
@@ -193,11 +196,11 @@ int init_header_data()
 #endif
 
 #if 1
-                uint64_t sig = 0;
+                ui64_type sig = 0;
 
-                while (*pT != 0)
+                while (*pT != (unsigned char)0)
                 {
-                    int shift = (*pT) & 0x3F;
+                    unsigned int shift = (unsigned int)((*pT) & 0x3F);
                     sig |= (0x1ul) << shift;
                     ++pT;
                 }

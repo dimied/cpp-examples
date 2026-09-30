@@ -983,7 +983,8 @@ PATCH: The PATCH method applies partial modifications to a resource.
 #define REQ_HEADER_KEEP_ALL ((REQ_HEADER_LAST_VALUE)<<1)-1)
 
 // to ignore host during requests
-#define REQ_HEADER_IGNORE_HOST ((0x1ul) << 62)
+#define __IMPL_RHK_IGNORE_HOST_LS 62
+#define REQ_HEADER_IGNORE_HOST ((0x1ul) << __IMPL_RHK_IGNORE_HOST_LS)
 
 #define HEADER_NAME_MIN_LEN (2)
 #define HEADER_NAME_MAX_LEN (33)

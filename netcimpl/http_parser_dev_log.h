@@ -11,19 +11,27 @@
 #if HTTP_PARSER_DEV_LOG
 void printInfo(int code, /*@null@*/ char *data, int val)
 {
+    /*@notnull@*/ const char *pD = (data != (char *)0) ? (const char *)data : "nil";
+
     switch (code)
     {
     case RECV_CODE:
         printf("RECV: %d\n", val);
         return;
     case METHOD_CODE:
-        printf("METHOD: %s|%d\n", data, val);
+        /*@-nullpass@*/
+        printf("METHOD: %s|%d\n", pD, val);
+        /*@+nullpass@*/
         return;
     case METHOD_INVALID_CODE:
-        printf("Invalid method found! (%s)\n", data);
+        /*@-nullpass@*/
+        printf("Invalid method found! (%s)\n", pD);
+        /*@+nullpass@*/
         return;
     case PATH_CODE:
-        printf("PATH:%s|(#%d)\n", data, val);
+        /*@-nullpass@*/
+        printf("PATH:%s|(#%d)\n", pD, val);
+        /*@+nullpass@*/
         return;
     case PARSE_HEADERS_CODE:
         printf("PARSE HEADERS! #%d\n", NUM_HEADER_HANDLERS);

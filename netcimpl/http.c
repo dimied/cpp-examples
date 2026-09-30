@@ -83,7 +83,7 @@ size_t writeFile(char *data, int len, int cnt)
 
 #include "server.h"
 
-static MyServer myServer;
+static MyServerConnection myServerCon;
 
 #define SIGHANDLER_MSG "Caught SIGINT (    )\n"
 
@@ -105,7 +105,7 @@ static void signalHandler(int sig)
     sighandler_msg[S2 - 6] = (char)((sig / 100) % 10 + (int)'0');
 #undef S2
 
-    int closeRes = cfc_close(&myServer);
+    int closeRes = cfc_close(&myServerCon);
     printf("Close res: %d\n", closeRes);
 
 #pragma GCC diagnostic push
@@ -136,6 +136,11 @@ char buffer[1024];
 
 #include "colors.h"
 
+#define UINT64_TYPE(C) (C##ul)
+
+
+#include "compression/gzip.h"
+
 int main()
 {
     signal(SIGINT, signalHandler);
@@ -143,6 +148,8 @@ int main()
     // testParseIp();
     int cfr = cacheFiles();
     printf("Cache files: %d\n\n", cfr);
+
+    printf("TYpe: %lu\n", UINT64_TYPE(0x1));
 
     printTypeSizes();
 
@@ -172,30 +179,30 @@ int main()
 
     // printf("MASK: %ld\n", PARSE_IP_VALID_MASK);
 
-    nullify(&myServer, sizeof(myServer));
-    myServer.conns[0].name = "localhost";
-    myServer.conns[0].port = 8080;
-    myServer.conns[0].options = (unsigned int)(SERVER_OPTION_TCP | SERVER_OPTION_IPV4);
-    myServer.conns[0].handleCommand = &basicHandle;
-    myServer.conns[0].handleClientCommand = &basicHandleClientConnection;
+    nullify(&myServerCon, sizeof(myServerCon));
+    myServerCon.name = "localhost";
+    myServerCon.port = 8080;
+    myServerCon.options = (unsigned int)(SERVER_OPTION_TCP | SERVER_OPTION_IPV4);
+    myServerCon.handleCommand = &basicHandle;
+    myServerCon.handleClientCommand = &basicHandleClientConnection;
 
     sleep(1);
 
-    int conRes = cfc_connect(&myServer);
+    int conRes = cfc_connect(&myServerCon);
     printf("CON-RES:%d\n", conRes);
 
-    int listenRes2 = cfc_listen(&myServer);
+    int listenRes2 = cfc_listen(&myServerCon);
     printf("LISTEN-RES:%d\n", listenRes2);
     // sleep(2);
 
     while (running != 0)
     {
-        int acceptRes = cfc_accept(&myServer);
+        int acceptRes = cfc_accept(&myServerCon);
         printf("ACCEPT-RES: %d\n", acceptRes);
         sleep(1);
     }
 
-    int closeRes = cfc_close(&myServer);
+    int closeRes = cfc_close(&myServerCon);
     printf("CLOSE-RES:%d\n", closeRes);
 
     return retValue;

@@ -4,9 +4,9 @@
 double perTestTime(double diff, size_t total_tests)
 {
     // we can store upto 2^53 precisely in a double
-    uint64_t limit = ((0x1ul << 53) / CLOCKS_PER_SEC) + 10;
+    unsigned long limit = ((0x1ul << 53) / CLOCKS_PER_SEC) + 10;
 
-    if (total_tests < limit)
+    if ((unsigned long)total_tests < limit)
     {
         double div = (double)total_tests;
         div *= (double)CLOCKS_PER_SEC;
@@ -36,15 +36,15 @@ void printTimes(char *name, clock_t start, clock_t end, size_t total_tests)
 typedef struct TestMemAllocations
 {
     int used;
-    char *name;
-    void *allocations[6];
+    /*@shared@*/ /*@null@*/ const char *name;
+    /*@shared@*/ void *allocations[6];
 } TestMemAllocations;
 
-//static TestMemAllocations *testAllocChain = 0;
+// static TestMemAllocations *testAllocChain = 0;
 
 static char buffer_for_TestAlignedText[(0x1 << 16)];
 
-TestMemAllocations *testMemAllocs(char *name)
+/*@null@*/ TestMemAllocations *testMemAllocs(char *name)
 {
     TestMemAllocations *pM = (TestMemAllocations *)calloc(1, sizeof(TestMemAllocations));
     if (pM != 0)
@@ -68,7 +68,7 @@ typedef struct TestAlignedText
 #define TEST_ALIGNED_TEXT_ERROR_NOMEM 2
 #define TEST_ALIGNED_TEXT_ERROR_INVALID_ARGS 3
 
-int freeTestAlignedText(TestAlignedText *pAT)
+int freeTestAlignedText(/*@null@*/ TestAlignedText *pAT)
 {
     if (pAT != 0)
     {
@@ -78,7 +78,7 @@ int freeTestAlignedText(TestAlignedText *pAT)
     return TEST_ALIGNED_TEXT_ERROR_INVALID_ARGS;
 }
 
-TestAlignedText *allocTestAlignedText(size_t sz, int *pError)
+/*@null@*/ TestAlignedText *allocTestAlignedText(size_t sz, /*@null@*/ int *pError)
 {
     int error = TEST_ALIGNED_TEXT_OK;
 
@@ -110,8 +110,6 @@ TestAlignedText *allocTestAlignedText(size_t sz, int *pError)
 
     return result;
 }
-
-
 
 char *get_TestAlignedText(TestAlignedText *pAT)
 {
@@ -183,12 +181,13 @@ int setTestAlignedText(TestAlignedText *pAT, char *text, size_t len, size_t padd
     return TEST_ALIGNED_TEXT_OK;
 }
 
-void *allocTestMem(TestMemAllocations *pM, size_t nmemb, size_t sizePerItem)
+static /*@null@*/ void *allocTestMem(TestMemAllocations *pM, size_t nmemb, size_t sizePerItem)
 {
     if (pM != 0)
     {
-        printf("ALLOC:%s|#items=%ld|#size=%ld\n", pM->name, nmemb, sizePerItem);
-        if (pM->used == sizeof(pM->allocations) / sizeof(pM->allocations[0]))
+        printf("ALLOC:%s|#items=%d|#size=%d\n", pM->name, (int)nmemb, (int)sizePerItem);
+
+        if (pM->used == (int)(sizeof(pM->allocations) / sizeof(pM->allocations[0])))
         {
             printf("allocTestMem: Too many\n");
             return 0;
@@ -205,18 +204,18 @@ void *allocTestMem(TestMemAllocations *pM, size_t nmemb, size_t sizePerItem)
     return 0;
 }
 
-void freeMemAllocs(TestMemAllocations *pM)
+static void freeMemAllocs(/*@null@*/ TestMemAllocations *pM)
 {
     if (pM != 0)
     {
-        printf("FREE-MEM: %s\n", pM->name);
+        printf("FREE-MEM: '%s'\n", pM->name ? pM->name : "");
         int i;
         for (i = 0; i < pM->used; i++)
         {
-            if (pM->allocations[i] != 0)
+            if (pM->allocations[i] != (void *)0)
             {
                 free(pM->allocations[i]);
-                pM->allocations[i] = 0;
+                pM->allocations[i] = (void *)0;
             }
         }
         /*pM->name = 0;
@@ -245,7 +244,7 @@ void realign_values(char **tests, char **testsReal, size_t offset, size_t sz)
         char *pSrc = tests[alignIdx];
         char *p = pSrc;
         size_t di = 0;
-        while (*p == 0)
+        while (*p == '\0')
         {
             ++di;
             ++p;
@@ -259,7 +258,7 @@ void realign_values(char **tests, char **testsReal, size_t offset, size_t sz)
 
         memset(buffer, 0, 128);
         di = 0;
-        while (*p != 0)
+        while (*p != '\0')
         {
             buffer[di] = *p;
             ++di;

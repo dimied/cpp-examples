@@ -16,7 +16,7 @@
 #define HTTP_PARSER_DECLARATIONS 1
 #define HTTP_PARSER_IMPLEMENTATION 1
 
-//static int verbose = 1;
+// static int verbose = 1;
 
 static const char *badRequest = "HTTP/1.1 400 Bad Request";
 
@@ -35,6 +35,32 @@ static void nullify(void *pData, size_t size)
         memset(pData, 0, size);
     }
 }
+
+#if 0
+static void on_close(int result, int socket)
+{
+    (void)(result);
+    (void)(socket);
+}
+#else
+static void on_close(int result, int socket)
+{
+    printf("CLOSING: %d | %d\n", socket, result);
+}
+#endif
+
+#if 0
+static void on_SSL_shutdown(int result, int socket)
+{
+    (void)(result);
+    (void)(socket);
+}
+#else
+static void on_SSL_shutdown(int result, int socket)
+{
+    printf("SSL-SD: %d | %d\n", socket, result);
+}
+#endif
 
 // static void printProto();
 
@@ -57,14 +83,16 @@ static int closeClientConnections(MyServerConnection *pCon)
             {
                 if (p->secure.ssl != (SSL *)0)
                 {
-                    SSL_shutdown(p->secure.ssl);
+                    on_SSL_shutdown(SSL_shutdown(p->secure.ssl), p->socketId);
                     SSL_free(p->secure.ssl);
                     p->secure.ssl = 0;
                 }
             }
-            if (p->socketId != 0)
+
+            int id = p->socketId;
+            if (id != 0)
             {
-                close(p->socketId);
+                on_close(close(id), id);
                 p->socketId = 0;
             }
             free(p);
@@ -77,45 +105,32 @@ static int closeClientConnections(MyServerConnection *pCon)
     return 1;
 }
 
-int cfc_close(MyServer *pServer)
+int cfc_close(MyServerConnection *pConnections)
 {
-    if (pServer == 0)
+    if (pConnections == 0)
     {
         return 1;
     }
 
-    MyServerConnection *pConnections = pServer->conns;
-
-    int conIdx;
-    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    if (pConnections->common.socketId != 0)
     {
-        if (pConnections->common.socketId != 0)
+        closeClientConnections(pConnections);
+        if (pConnections->secure.ctx != (SSL_CTX *)0)
         {
-            closeClientConnections(pConnections);
-            if (pConnections->secure.ctx != (SSL_CTX *)0)
-            {
-                SSL_CTX_free(pConnections->secure.ctx);
-                pConnections->secure.ctx = 0;
-            }
-            int res = close(pConnections->common.socketId);
-            printf("CLOSE:%d;socket:%d;res:%d;\n", conIdx, pConnections->common.socketId, res);
-            pConnections->common.socketId = 0;
+            SSL_CTX_free(pConnections->secure.ctx);
+            pConnections->secure.ctx = 0;
         }
-        ++pConnections;
+        int res = close(pConnections->common.socketId);
+        printf("CLOSE:socket:%d;res:%d;\n", pConnections->common.socketId, res);
+        pConnections->common.socketId = 0;
     }
     return 0;
 }
 
 /*
  */
-int cfc_connect(MyServer *pServer)
+int cfc_connect(MyServerConnection *pConnection)
 {
-    if (pServer == 0)
-    {
-        return 1;
-    }
-
-    MyServerConnection *pConnection = pServer->conns;
 #if 0
     struct addrinfo hints;
 
@@ -132,62 +147,59 @@ int cfc_connect(MyServer *pServer)
         struct sockaddr_in6 addrV6;
     } mySockaddr;
 
-    unsigned long status = 0;
+    // unsigned long status = 0;
 
-    size_t conIdx;
-    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
-    {
 #if 0
         nullify(&hints, sizeof(hints));
 #endif
-        int ai_family = AF_UNSPEC, ai_socktype;
+    int ai_family = AF_UNSPEC, ai_socktype;
 
-        if (0 != prepareSSL(pConnection))
-        {
-            continue;
-        }
+    if (0 != prepareSSL(pConnection))
+    {
+        return 3;
+    }
 
-        if ((pConnection->options & SERVER_OPTION_IPV4) != 0)
+    if ((pConnection->options & SERVER_OPTION_IPV4) != 0)
+    {
+        ai_family = AF_INET;
+    }
+    else if ((pConnection->options & SERVER_OPTION_IPV6) != 0)
+    {
+        ai_family = AF_INET6;
+    }
+
+    int assigned = 0;
+
+    if ((pConnection->options & SERVER_OPTION_TCP) != 0)
+    {
+        ++assigned;
+        ai_socktype = SOCK_STREAM;
+#if 0
+            hints.ai_flags = AI_PASSIVE;
+#endif
+        // printf("Connect TCP\n");
+    }
+    else if ((pConnection->options & SERVER_OPTION_UDP) != 0)
+    {
+        ++assigned;
+        ai_socktype = SOCK_DGRAM;
+#if 0
+            hints.ai_flags = AI_PASSIVE;
+#endif
+        // printf("Connect UDP\n");
+    }
+    else
+    {
+        return 2;
+    }
+
+    if (assigned != 0)
+    {
+        assigned = 0;
+        if (ai_family == AF_UNSPEC)
         {
             ai_family = AF_INET;
         }
-        else if ((pConnection->options & SERVER_OPTION_IPV6) != 0)
-        {
-            ai_family = AF_INET6;
-        }
-
-        int assigned = 0;
-
-        if ((pConnection->options & SERVER_OPTION_TCP) != 0)
-        {
-            ++assigned;
-            ai_socktype = SOCK_STREAM;
-#if 0
-            hints.ai_flags = AI_PASSIVE;
-#endif
-            // printf("Connect TCP\n");
-        }
-        else if ((pConnection->options & SERVER_OPTION_UDP) != 0)
-        {
-            ++assigned;
-            ai_socktype = SOCK_DGRAM;
-#if 0
-            hints.ai_flags = AI_PASSIVE;
-#endif
-            // printf("Connect UDP\n");
-        }
-        else
-        {
-            continue;
-        }
-
-        if (assigned != 0)
-        {
-            assigned = 0;
-            if (ai_family == AF_UNSPEC)
-            {
-                ai_family = AF_INET;
-            }
 #if 0
             hints.ai_family = ai_family;
             hints.ai_socktype = ai_socktype;
@@ -240,149 +252,118 @@ int cfc_connect(MyServer *pServer)
                 freeaddrinfo(myServerInfo);
             }
 #endif
-            int socketId = socket(ai_family, ai_socktype, 0);
+        int socketId = socket(ai_family, ai_socktype, 0);
 
-            pConnection->common.socketId = socketId;
+        pConnection->common.socketId = socketId;
 
-            if (socketId < 0)
+        if (socketId < 0)
+        {
+            printf("Error: socket!\n");
+            ++assigned;
+            // TODO:errors
+        }
+        else
+        {
+            // to avoid already in use error
+            int res = setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &yesOption, (socklen_t)sizeof(yesOption));
+            if (res != 0)
             {
-                printf("Error: socket!\n");
+                on_close(close(socketId), socketId);
+                pConnection->common.socketId = 0;
+                printf("Failed setsockopt...\n");
                 ++assigned;
-                // TODO:errors
             }
-            else
-            {
-                // to avoid already in use error
-                int res = setsockopt(socketId, SOL_SOCKET, SO_REUSEADDR, &yesOption, (socklen_t)sizeof(yesOption));
-                if (res != 0)
-                {
-                    close(socketId);
-                    pConnection->common.socketId = 0;
-                    printf("Failed setsockopt...\n");
-                    ++assigned;
-                }
 
 #ifdef SERVER_NONBLOCKING
 #if SERVER_NONBLOCKING
-                // Non-blocking
-                int flags = fcntl(socketId, F_GETFL, 0);
-                fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
+            // Non-blocking
+            int flags = fcntl(socketId, F_GETFL, 0);
+            fcntl(socketId, F_SETFL, flags | O_NONBLOCK);
 #endif
 #endif
 
-                nullify(&mySockaddr, sizeof(mySockaddr));
+            nullify(&mySockaddr, sizeof(mySockaddr));
 
-                socklen_t sockLen = (socklen_t)sizeof(mySockaddr.addrV4);
-                in_port_t bindPort = htons((uint16_t)pConnection->port);
+            socklen_t sockLen = (socklen_t)sizeof(mySockaddr.addrV4);
+            in_port_t bindPort = htons((uint16_t)pConnection->port);
 
-                if (ai_family == AF_INET)
-                {
-                    mySockaddr.addrV4.sin_family = AF_INET;
-                    mySockaddr.addrV4.sin_addr.s_addr = INADDR_ANY;
-                    mySockaddr.addrV4.sin_port = bindPort;
-                }
-                else
-                {
-                    mySockaddr.addrV6.sin6_family = AF_INET6;
-                    // mySockaddr.addrV6.sin6_addr = IN6ADDR_ANY_INIT;
-                    memcpy(&mySockaddr.addrV6.sin6_addr, &in6addr_any, sizeof(in6addr_any));
-                    mySockaddr.addrV6.sin6_port = bindPort;
-                    sockLen = (socklen_t)sizeof(mySockaddr.addrV6);
-                }
-
-                res = bind(socketId, (struct sockaddr *)&mySockaddr, sockLen);
-
-                if (res != 0)
-                {
-                    close(socketId);
-                    pConnection->common.socketId = 0;
-                    printf("Failed bind...\n");
-                    ++assigned;
-                }
-            }
-        }
-
-        if (0 == assigned)
-        {
-            status |= (0x1ul) << conIdx;
-        }
-
-        ++pConnection;
-    }
-
-    pServer->common.status = status;
-
-    return 0;
-}
-
-int cfc_listen(MyServer *pServer)
-{
-    if (0 == pServer)
-    {
-        return 1;
-    }
-
-    unsigned long status = 0;
-
-    int backlogSize = 16;
-    MyServerConnection *pConnections = pServer->conns;
-
-    size_t conIdx;
-    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
-    {
-        const int socketId = pConnections->common.socketId;
-
-        if (socketId > 0)
-        {
-            int listenRes = listen(socketId, backlogSize);
-
-            printf("LISTEN: %d\n", listenRes);
-
-            if (listenRes == -1)
+            if (ai_family == AF_INET)
             {
-                printf("ERRNO: %s\n", strerror(errno));
-                close(socketId);
-                pConnections->common.socketId = 0;
+                mySockaddr.addrV4.sin_family = AF_INET;
+                mySockaddr.addrV4.sin_addr.s_addr = INADDR_ANY;
+                mySockaddr.addrV4.sin_port = bindPort;
             }
             else
             {
-                status |= (0x1ul) << conIdx;
+                mySockaddr.addrV6.sin6_family = AF_INET6;
+                // mySockaddr.addrV6.sin6_addr = IN6ADDR_ANY_INIT;
+                memcpy(&mySockaddr.addrV6.sin6_addr, &in6addr_any, sizeof(in6addr_any));
+                mySockaddr.addrV6.sin6_port = bindPort;
+                sockLen = (socklen_t)sizeof(mySockaddr.addrV6);
+            }
+
+            res = bind(socketId, (struct sockaddr *)&mySockaddr, sockLen);
+
+            if (res != 0)
+            {
+                on_close(close(socketId), socketId);
+                pConnection->common.socketId = 0;
+                printf("Failed bind...\n");
+                ++assigned;
             }
         }
-        ++pConnections;
     }
 
-    pServer->common.status = status;
+    // pServer->common.status = status;
 
     return 0;
 }
 
-int cfc_accept(MyServer *pServer)
+int cfc_listen(MyServerConnection *pConnections)
 {
-    if (0 == pServer)
+    if (0 == pConnections)
     {
         return 1;
     }
 
-    MyServerConnection *pConnections = pServer->conns;
+    int backlogSize = 16;
 
-    printf("RUN...\n");
+    const int socketId = pConnections->common.socketId;
 
-    size_t conIdx;
-    for (conIdx = 0; conIdx < NUM_SOCKET_CONNECTIONS; conIdx++)
+    if (socketId != 0)
     {
-        printf("ACCEPT?: %d\n", pConnections->common.socketId);
+        int listenRes = listen(socketId, backlogSize);
 
-        if (pConnections->common.socketId != 0)
+        printf("LISTEN: %d\n", listenRes);
+
+        if (listenRes == -1)
         {
-            handleConnection cmd = pConnections->handleCommand;
-            if (0 != cmd)
-            {
-                int r = cmd(pConnections, CMD_ACCEPT, pServer);
-                printf("H: %d\n", r);
-            }
+            printf("ERRNO: %s\n", strerror(errno));
+            on_close(close(socketId), socketId);
+            pConnections->common.socketId = 0;
         }
-        ++pConnections;
+    }
+
+    return 0;
+}
+
+int cfc_accept(MyServerConnection *pConnections)
+{
+    if (0 == pConnections)
+    {
+        return 1;
+    }
+
+    printf("ACCEPT?: (socket=%d)\n", pConnections->common.socketId);
+
+    if (pConnections->common.socketId != 0)
+    {
+        handleConnection cmd = pConnections->handleCommand;
+        if (0 != cmd)
+        {
+            int r = cmd(pConnections, CMD_ACCEPT, (void *)0);
+            printf("H: %d\n", r);
+        }
     }
 
     return 0;
@@ -410,14 +391,14 @@ int basicHandle(void *pConnection, int cmd, void *param)
 
             if (CMD_ACCEPT == cmd)
             {
-                printf("Waiting... %d\n", pCon->common.socketId);
+                printf("Waiting... (socket=%d)\n", pCon->common.socketId);
 
                 int clientFd = accept(pCon->common.socketId, (struct sockaddr *)&otherAddr, &otherAddrLen);
 
                 if (clientFd != -1)
                 {
-                    printf("Accepted: %d\n", clientFd);
-                    printf("STORAGE: %d\n", (int)sizeof(otherAddr));
+                    printf("Accepted: socket=%d\n", clientFd);
+                    //printf("STORAGE: %d\n", (int)sizeof(otherAddr));
 
                     MyServerClientConnection *pCC = newClientConnection();
 
@@ -466,7 +447,7 @@ int basicHandle(void *pConnection, int cmd, void *param)
                     {
                         if ((pCC->state & SECURE_STATE) != 0)
                         {
-                            SSL_shutdown(pCC->secure.ssl);
+                            on_SSL_shutdown(SSL_shutdown(pCC->secure.ssl), pCC->socketId);
                             SSL_free(pCC->secure.ssl);
                             pCC->secure.ssl = 0;
                         }
@@ -501,7 +482,7 @@ void closeCC(MyServerClientConnection *pCC)
     if (pCC->socketId != 0)
     {
         printf("Close socket!\n");
-        close(pCC->socketId);
+        on_close(close(pCC->socketId), pCC->socketId);
         pCC->socketId = 0;
     }
 #endif
@@ -752,7 +733,6 @@ static void printProto()
 
 void printTypeSizes()
 {
-    printf("Server:size:%d\n", (int)sizeof(MyServer));
     printf("Ser-Con:size:%d\n", (int)sizeof(MyServerConnection));
     printf("Cli-Con:size:%d\n", (int)sizeof(MyServerClientConnection));
     printf("Request:size:%d\n", (int)sizeof(HttpRequest));
