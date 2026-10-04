@@ -15,7 +15,7 @@ static /*@null@*/ void *close_file_and_return(FILE *fp)
     return (void *)0;
 }
 
-static /*@null@*/ void *readFile(char *p, size_t *pSize)
+static /*@null@*/ void *readFile(const char *p, size_t *pSize)
 {
     if (p != 0)
     {

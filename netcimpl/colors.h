@@ -66,13 +66,13 @@ void test_colors()
     }
     printf("\n");
 }
-#define print_colors_va(COLOR, TEXT, ARGS...) \
-    do                                        \
-    {                                         \
-        char text_buffer[128];                \
-        memset(text_buffer, 0, 128);          \
-        sprintf(text_buffer, TEXT, ARGS);     \
-        color_text(COLOR, text_buffer);       \
+#define print_colors_va(COLOR, TEXT, ...)        \
+    do                                           \
+    {                                            \
+        char text_buffer[128];                   \
+        memset(text_buffer, 0, 128);             \
+        sprintf(text_buffer, TEXT, __VA_ARGS__); \
+        color_text(COLOR, text_buffer);          \
     } while (0)
 
 #endif

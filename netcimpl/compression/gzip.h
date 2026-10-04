@@ -3,6 +3,17 @@
 
 #include <stdint.h>
 
+#ifndef ADD_TO_SB
+#define ADD_TO_SB(B, FORMAT, ...)                                 \
+    do                                                            \
+    {                                                             \
+        char temp_buffer[256];                                     \
+        memset(temp_buffer, 0, sizeof(temp_buffer));              \
+        int temp_len = sprintf(temp_buffer, FORMAT, __VA_ARGS__); \
+        addToTestStringBuffer(&B, temp_buffer, temp_len);         \
+    } while (0)
+#endif
+
 #include "compression_types.h"
 #include "inflate.h"
 
@@ -21,6 +32,10 @@
 #define GZIP_PATH_MAX 256
 
 char gzip_buffer[GZIP_PATH_MAX];
+
+int gzip_impl = 0;
+unsigned int inflate_dest_size = 0;
+unsigned int inflate_res = 0;
 
 int gzip_decompress(CompressionResult *pResult)
 {
@@ -89,7 +104,7 @@ int gzip_decompress(CompressionResult *pResult)
         }
     }
 
-    // filename = "";
+    pResult->mtime = mtime;
 
     if ((flg & FLAG_FEXTRA) != 0)
     { // FEXTRA
@@ -128,20 +143,37 @@ int gzip_decompress(CompressionResult *pResult)
         p += 2;
     }
 
-    if (pResult->out_data != 0)
+    if (pResult->out_size == 0)
     {
-        free(pResult->out_data);
-        pResult->out_data = 0;
+        if (pResult->out_data != 0)
+        {
+            return -2000;
+        }
     }
-    unsigned char *result = (unsigned char *)calloc(isize, 1);
 
-    if (result == 0)
+    if (pResult->out_data == 0)
     {
         return GZIP_DECOMPRESS_ERROR_NOMEM;
     }
-    pResult->out_size = isize;
-    pResult->out_data = result;
-    pResult->mtime = mtime;
+    if (isize > pResult->out_size)
+    {
+        return -222;
+    }
+    unsigned char *result = (unsigned char *)pResult->out_data;
+
+    pResult->result_size = isize;
+    pResult->real_in_data = data + p;
+    pResult->real_in_size = size - p - 8;
+
+    if (gzip_impl == 1)
+    {
+        inflate_dest_size = isize;
+        return tinf_uncompress(result, &inflate_dest_size, pResult->real_in_data, pResult->real_in_size);
+    }
+    else if (gzip_impl == 2)
+    {
+        return inflate_aio(result, isize, data + p, size - p - 8);
+    }
 
     return inflate(result, isize, data + p, size - p - 8);
 }

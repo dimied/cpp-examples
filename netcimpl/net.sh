@@ -6,7 +6,7 @@ gcc -Wall -Wextra -Wundef -pedantic -fPIC -ggdb -Wno-variadic-macros http.c -lss
 r=$?
 echo "COMPILE-RES: "$r
 
-echo "Params:"$1
+#echo "Params:"$1
 
 if [ $r -eq 0 ]; then
 
@@ -24,9 +24,14 @@ else
 ./a.out
 fi
 
+
 echo ""
 
 wc -c ./a.out
+
+if [ "$1" = "tofile" ]; then
+echo "Output: net_result.temp.txt"
+fi
 
 fi
 
