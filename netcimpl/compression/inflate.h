@@ -123,6 +123,8 @@ TestStringBuffer b1;
 
 #define TEST_PRINT(FORMAT, ...) ADD_TO_SB(b1, FORMAT, __VA_ARGS__)
 
+#define TEST_PRINTF(FORMAT, ...) printf(FORMAT, __VA_ARGS__)
+
 void print_state1(void *state)
 {
   if (state != 0)
@@ -135,9 +137,19 @@ void print_state1(void *state)
 
 #define print_state print_state1
 
+#define USE_ALGO_STEP_LOGGING 1
+
+#include "inflate_dev.h"
+
+void inflate_nullify(void *p, size_t size)
+{
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_NULLIFY, size, "");
+  memset(p, 0, size);
+}
+
 void inflate_clearmem(void *p, size_t len)
 {
-  memset(p, 0, len);
+  inflate_nullify(p, len);
 }
 
 static void inflate_init_tree(struct inflate_tree *t)
@@ -262,12 +274,15 @@ union a
 
 static void inflate_build_fixed_trees()
 {
+  INFLATE_ALGO_STEP(ALGO_STEP_FIXED_TREE);
+
   if (fixed_done != 0)
   {
     return;
   }
+  INFLATE_ALGO_STEP(ALGO_STEP_BUILD_FIXED_TREE);
 
-  memset(&fixed, 0, sizeof(fixed));
+  inflate_nullify(&fixed, sizeof(fixed));
 
   struct inflate_tree *t = &fixed.length_tree;
   t->max_sym = 285;
@@ -290,7 +305,7 @@ static void inflate_build_fixed_trees()
 
 // encoded offsets and lengths
 //  24:off:256;(144:off:0);(8:off:280);112:off:144
-#define LAO ((256) | ((144 << 9) | (0x0 << 17)) | ((0x8ul << 26) | (280ul << 34)) | ((112ul << 43) | (144ul << 51)))
+// #define LAO ((256) | ((144 << 9) | (0x0 << 17)) | ((0x8ul << 26) | (280ul << 34)) | ((112ul << 43) | (144ul << 51)))
 #define LAO2 (144 | ((0x8ul << 17) | (280ul << 25)) | ((112ul << 34) | (144ul << 42)))
 
 #if DO_CMP
@@ -498,7 +513,9 @@ static void inflate_build_fixed_trees()
 static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengths,
                               unsigned int num)
 {
-  unsigned int i;
+
+  printf("BT: %p | l=%p | num=%d\n", (void *)t, lengths, num);
+  printf("SYM: %d\n", t->max_sym);
 
 #if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
   // t == 0 || (lengths == 0) ||
@@ -506,25 +523,26 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   {
     return INFLATE_ERROR_PARAMS;
   }
-
-  for (i = 0; i < num; ++i)
-  {
-    if (lengths[i] > 15)
-    {
-      return INFLATE_ERROR_LEN_TOO_LARGE;
-    }
-  }
 #endif
   inflate_init_tree(t);
+  printf("IT!\n");
 
   unsigned int ms = t->max_sym;
   unsigned short *pC = t->code_counts.us16;
+  unsigned int i;
   /* Count number of codes for each non-zero length */
   for (i = 0; i < num; ++i)
   {
     unsigned int l = lengths[i];
+    printf("L:%d => %d\n", i, l);
+
     if (l != 0)
     {
+      if (l > 15)
+      {
+        printf("LTL: @idx=%d | val=%d\n", i, lengths[i]);
+        return INFLATE_ERROR_DATA;
+      }
       ms = i;
       pC[l]++;
     }
@@ -542,10 +560,13 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
     /* Check length contains no more codes than available */
     if (used > available)
     {
+      printf("USED>AVAIL: %d > %d\n", used, available);
       return INFLATE_ERROR_USED_TOO_LARGE; // DATA_ERROR
     }
 #endif
     available = (available - used) << 1;
+
+    // printf("U|A:%d: %d|%d\n",i, used, available);
 
     offsets[i] = num_codes;
     num_codes += used;
@@ -557,6 +578,7 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
    */
   if ((num_codes > 1 && available > 0) || (num_codes == 1 && t->code_counts.us16[1] != 1))
   {
+    printf("NC:%d | AVAIL:%d |@1:%d\n", num_codes, available, t->code_counts.us16[1]);
     return INFLATE_ERROR_DATA;
   }
 
@@ -752,14 +774,17 @@ int inflate_is_valid_dest(struct inflate_data *d)
 
 /* Special ordering of code length codes */
 static const unsigned char my_clcidx[19] = {
-    16, 17, 18, 0, 8, 7, 9, 6, 10, 5,
-    11, 4, 12, 3, 13, 2, 14, 1, 15};
+    16, 17, 18, 0, 8,
+    7, 9, 6, 10, 5,
+    11, 4, 12, 3, 13,
+    2, 14, 1, 15};
 
 /* Given a data stream, decode dynamic trees from it */
 static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt,
                                 struct inflate_tree *dt)
 {
 
+  INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_GET_BITS, 14, "DECODE-TREES");
   /* Get 5 bits HLIT (257-286) */
   unsigned int hlit = inflate_getbits(d, 5, 257);
 
@@ -768,6 +793,10 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
 
   /* Get 4 bits HCLEN (4-19) */
   unsigned int hclen = inflate_getbits(d, 4, 4);
+
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_GET_BITS_RESULT, hlit, "hlit");
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_GET_BITS_RESULT, hdist, "hdist");
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_GET_BITS_RESULT, hclen, "hclen");
 
   // TEST_PRINT("H|%d|%d|%d|\n", hlit, hdist, hclen);
 
@@ -1200,10 +1229,6 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
   unsigned int done_bytes = 0, in_done = 0;
   unsigned int cur_length = 0;
   unsigned int temp;
-  // unsigned int bits_done = 0;
-
-  // unsigned long val_buf = 0;
-  // int byte_inc = 0;
 
 #if GLOBAL_DATA_STRUCTS == 0
 
@@ -1212,7 +1237,12 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
   struct inflate_data state;
 #endif
 
-  memset(&state, 0, sizeof(state));
+  inflate_clearmem(&state, sizeof(state));
+
+  INFLATE_ALGO_STEP_PTR(ALGO_STEP_START_IN_PTR, in_data, "");
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_START_IN_SIZE, in_size, "");
+  INFLATE_ALGO_STEP_PTR(ALGO_STEP_START_OUT_PTR, out_data, "");
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_START_OUT_SIZE, out_size, "");
 
   state.source = (const unsigned char *)in_data;
   state.source_end = state.source + in_size;
@@ -1223,41 +1253,28 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 
   while (last == 0)
   {
-#if 0
-    // Each block of compressed data begins with 3 header bits containing the following data:
-    // first bit   BFINAL ;  next 2 bits   BTYPE
-    unsigned int bits = inflate_read_stream_bits(in_data, &bits_done, &val_buf, &byte_inc, 3);
-    in_data += byte_inc;
-
-    // BFINAL: is set if and only if this is the last block of the data set.
-    last = (bits & 0x1);
-
-    printf(" BITS:%x|%x|", bits, last);
-    bits >>= 1;
-#else
+    INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_GET_BITS, 3, "NEW-STATE");
     last = inflate_getbits(&state, 1, 0);
-
-    /* Read block type (2 bits) */
-    int bits = inflate_getbits(&state, 2, 0);
 
     // BTYPE specifies how the data are compressed, as follows:
     // 00 - no compression, 01 - compressed with fixed Huffman codes,
     // 10 - compressed with dynamic Huffman codes, 11 - reserved (error)
-    // bits -= last; // or bits &= 0x3;
-
-#endif
-    printf(">%x|\n", bits);
+    int bits = inflate_getbits(&state, 2, 0);
+    INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_GET_BITS_RESULT, ((bits << 1) | last), "NEW-STATE");
+    INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_CHANGE_TO, bits, "");
 
 #if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
     if (bits == 3)
     {
       error = -1;
+      INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, error, "STATE=3");
       break; // error
     }
 
     if (done_bytes >= out_size || in_done >= in_size)
     {
       error = -100;
+      INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, error, "BASE:overflow");
       break;
     }
 #endif
@@ -1266,6 +1283,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
     if (bits == 0)
     {
       INFLATE_PRINT_STATE(INFLATE_PRINT_CODE_RAW);
+      INFLATE_ALGO_STEP(ALGO_STEP_RAW);
       // if(bits_)
       // in_data += (bits_done + 7) >> 3;
       //  reset
@@ -1277,7 +1295,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 
 #if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
       cur_length = *(unsigned int *)pData;
-      printf("CL: %x\n", cur_length);
+      // printf("CL: %x\n", cur_length);
       temp = ((unsigned int)((cur_length >> 16) & 0xFFFF));
       temp = (~temp) & 0xFFFF;
       cur_length &= 0xFFFF;
@@ -1288,8 +1306,9 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 #if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
       if (temp != cur_length)
       {
-        printf("EXP:%u | %u , %x\n", cur_length, temp, temp);
+        // printf("EXP:%u | %u , %x\n", cur_length, temp, temp);
         error = -2;
+        INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, error, "RAW:size-check");
         break;
       }
 #endif
@@ -1301,6 +1320,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
       if (cur_length > out_size - done_bytes || in_done >= in_size || in_done + cur_length > in_size)
       {
         error = -200;
+        INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, error, "RAW:overflow");
         break;
       }
 #endif
@@ -1317,6 +1337,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
       if (bits == 2)
       {
         INFLATE_PRINT_STATE(INFLATE_PRINT_CODE_DYN);
+        INFLATE_ALGO_STEP(ALGO_STEP_DYN_TREE);
         // read representation of code trees
         inflate_init_tree(&dynamic.length_tree);
         inflate_init_tree(&dynamic.distance_tree);
@@ -1333,6 +1354,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 
         if (error != 0)
         {
+          INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, error, "DYN:block-data");
           return error;
         }
       }
@@ -1346,6 +1368,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 
         if (error != 0)
         {
+          INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, error, "FIXED:block-data");
           return error;
         }
       }

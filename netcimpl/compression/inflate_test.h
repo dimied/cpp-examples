@@ -60,24 +60,28 @@ void prepare_comp_res(void *data, int gzSize)
     inflate_dest_size = 0;
 }
 
+TestStringBuffer tb_steps;
+
 void test_gzip()
 {
+    
     size_t num_gzip_tc = sizeof(gzip_test_cases) / sizeof(gzip_test_cases[0]);
-
-    size_t tcIdx;
     size_t gzSize;
+    size_t tcIdx = 1;
+    num_gzip_tc = 2;
+    const int bytes_per_line = 32;
 
+        
     printf("ID:sz:%d", (int)sizeof(struct inflate_state));
     printf(" | TREE:sz:%d\n", (int)sizeof(struct inflate_tree));
 
-    num_gzip_tc = 1;
-
     clearTestStringBuffer(&b1);
     clearTestStringBuffer(&b2);
+    clearTestStringBuffer(&tb_steps);
 
-    const int bytes_per_line = 32;
+    INFLATE_ALGO_CLEAR_STEPS;
 
-    for (tcIdx = 0; tcIdx < num_gzip_tc; tcIdx++)
+    for (; tcIdx < num_gzip_tc; tcIdx++)
     {
         const char *pInfile = gzip_test_cases[tcIdx].in_file;
         printf("+TC:%d|%s|", (int)tcIdx, pInfile);
@@ -90,10 +94,14 @@ void test_gzip()
         {
             initTestStringBuffer(&b1, 20000);
             initTestStringBuffer(&b2, 20000);
+            initTestStringBuffer(&tb_steps, 20000);
 
             printf("gz-size:%d|\n", (int)gzSize);
 
             prepare_comp_res(data, gzSize);
+
+            algo_change_container(0);
+            INFLATE_ALGO_STEP(ALGO_STEP_START_EXEC);
 
             gzip_impl = 0;
             int gzr = gzip_decompress(&compRes);
@@ -119,6 +127,9 @@ void test_gzip()
 #if 1
             prepare_comp_res(data, gzSize);
 
+            fixed_done = 0;
+            algo_change_container(1);
+            INFLATE_ALGO_STEP(ALGO_STEP_START_EXEC);
             gzip_impl = 2;
             gzr = gzip_decompress(&compRes);
 
@@ -170,6 +181,9 @@ void test_gzip()
 
             writeToTestResultFile(tcIdx, 1, b1.data);
             writeToTestResultFile(tcIdx, 2, b2.data);
+
+            algo_print_steps(0, 1, &tb_steps);
+            writeToTestResultFile(100, tcIdx, tb_steps.data);
 
             printf("END:%d\n\n", (int)tcIdx);
         }
