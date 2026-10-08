@@ -93,7 +93,7 @@ void test_gzip()
         {
             initTestStringBuffer(&b1, 20000);
             initTestStringBuffer(&b2, 20000);
-            initTestStringBuffer(&tb_steps, 20000);
+            initTestStringBuffer(&tb_steps, 2*1000*1000);
 
             printf("gz-size:%d|\n", (int)gzSize);
 
@@ -101,8 +101,9 @@ void test_gzip()
 
 #if USE_ALGO_STEP_LOGGING
             algo_change_container(0);
-#endif
             INFLATE_ALGO_STEP(ALGO_STEP_START_EXEC);
+#endif
+            
 
             gzip_impl = 0;
             int gzr = gzip_decompress(&compRes);
@@ -131,8 +132,9 @@ void test_gzip()
             fixed_done = 0;
 #if USE_ALGO_STEP_LOGGING
             algo_change_container(1);
-#endif
             INFLATE_ALGO_STEP(ALGO_STEP_START_EXEC);
+#endif
+            
             gzip_impl = 2;
             gzr = gzip_decompress(&compRes);
 

@@ -138,17 +138,12 @@ char buffer[1024];
 
 #define UINT64_TYPE(C) (C##ul)
 
+#include "compression/bench_inflate.h"
 #include "compression/gzip.h"
 #include "compression/inflate_test.h"
 
-
 int main()
 {
-    // Idee: commandos, offsets gepackt und werte
-    // add_(vars, off, size)
-    // 0x0|(0x1<<8)|0x3<<16, i.e. die uints bei 0,1,3 in vars werden mit size angepasst.
-    // und commandos
-    // '<'<<8|(idx|(idx2)): idx, idx2 indices in vars für die '<' gemacht werden soll.
     test_inflate();
     return 0;
     signal(SIGINT, signalHandler);
@@ -156,8 +151,6 @@ int main()
     // testParseIp();
     int cfr = cacheFiles();
     printf("Cache files: %d\n\n", cfr);
-
-    printf("TYpe: %lu\n", UINT64_TYPE(0x1));
 
     printTypeSizes();
 

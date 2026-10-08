@@ -86,6 +86,23 @@ void add_algo_step_ui32_value(int type, unsigned int value, unsigned int value2,
     }
 }
 
+void add_algo_step_ui32_ptr_value(int type, unsigned int value, void* ptr, const char *name)
+{
+    InflateAlgoStep *steps = algo_cur_steps();
+    if (steps != 0)
+    {
+        if (algo_step < ALGO_STEPS_SIZE)
+        {
+            steps += algo_step;
+            steps->type = type;
+            steps->name = name;
+            steps->value.ptr = ptr;
+            steps->value2.ui32_value = value;
+            ++algo_step;
+        }
+    }
+}
+
 void add_algo_step_ptr(int type, void *ptr, const char *name)
 {
     InflateAlgoStep *steps = algo_cur_steps();
@@ -122,7 +139,8 @@ void add_algo_step_no_value(int type)
 #define INFLATE_ALGO_STEP_I32_VALUE(T, V, N) add_algo_step_i32_value(T, V, 0, N)
 #define INFLATE_ALGO_STEP_I32_I32_VALUE(T, V1, V2, N) add_algo_step_i32_value(T, V1, V2, N)
 #define INFLATE_ALGO_STEP_UI32_VALUE(T, V, N) add_algo_step_ui32_value(T, V, 0, N)
-#define INFLATE_ALGO_STEP_UI32_UI32_VALUE(T, V1, V2, N) add_algo_step_ui32_value(T, V, V2, N)
+#define INFLATE_ALGO_STEP_UI32_UI32_VALUE(T, V1, V2, N) add_algo_step_ui32_value(T, V1, V2, N)
+#define INFLATE_ALGO_STEP_UI32_PTR_VALUE(T, V, PTR, N) add_algo_step_ui32_ptr_value(T, V, PTR, N)
 #define INFLATE_ALGO_STEP_PTR(T, P, N) add_algo_step_ptr(T, P, N)
 #else
 #define INFLATE_ALGO_CLEAR_STEPS \
@@ -196,6 +214,23 @@ enum AlgoStep
     ALGO_STEP_RAW,
     ALGO_STEP_DYN_TREE,
     //
+    ALGO_STEP_BT_USED_AVAIL,
+    ALGO_STEP_BT_OFFSETS,
+    ALGO_STEP_BT_CODES,
+    ALGO_STEP_BT_CODES2,
+    ALGO_STEP_BT_CODES3,
+    ALGO_STEP_BT_CODES4,
+    ALGO_STEP_BT_CODES5,
+    //
+    ALGO_STEP_BD_WRITE_RAW,
+    //
+    ALGO_STEP_DECODE_TREES_READ_CODE_LENGTHS,
+    ALGO_STEP_DECODE_TREES_GET_BITS,
+    ALGO_STEP_DT_SYM,
+    ALGO_STEP_DT_SYM2,
+    ALGO_STEP_DT_ITER,
+    ALGO_STEP_DT_ITER_END,
+    //
     ALGO_STEP_CHANGE_TO,
     ALGO_STEP_ERROR,
     ALGO_STEP_EXIT,
@@ -219,6 +254,23 @@ struct type_and_format algo_step_messages[ALGO_STEP_MAX + 1] = {
     //
     ALGO_STEP_FORMAT_INIT(0, "RAW!"),
     ALGO_STEP_FORMAT_INIT(0, "DYN-TREE!"),
+    //
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 2, "BT:USED ? AVAIL: %d > %d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 2, "BT:OFFS:%2d:%d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_UINT32 | 2, "BT:CODES:%2d:%d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_UINT32 | 2, "BT:CODES2:%2d:%d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_UINT32 | 2, "BT:CODES3:%2d:%d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_UINT32 | 2, "BT:CODES4:%2d:%d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_UINT32 | 2, "BT:CODES5:num_codes=%2d|max_sym=%2d"),
+    //
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_PTR | 2, "BD:RAW:%p: %d"),
+    //
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "DT: Read code lengths |%d|"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 2, "DT: Get bits: %d => %d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 2, "DT: Sym:%2d | Idx:%2d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 2, "DT: Sym:%2d | Len:%2d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "DT:ITER: num:%2d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "DT:ITER-END: num:%2d"),
     //
     ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "NEW-STATE: %d"),
     ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "ERROR: %d"),
@@ -245,7 +297,7 @@ void algo_print_steps(int start, int max, void *test_buffer)
     }
     int max_step = 0;
     int i = start;
-    for (; i < max; i++)
+    for (; i <= max; i++)
     {
         if (max_step < algo_steps_sizes[i])
         {
@@ -290,7 +342,7 @@ void algo_print_steps(int start, int max, void *test_buffer)
     temp_len = 1;
     ASB;
 
-    for (i = 0; i < max_step; i++)
+    for (i = 0; i < max_step+2; i++)
     {
         cIdx = start;
         for (; cIdx <= max; cIdx++)
@@ -338,11 +390,11 @@ void algo_print_steps(int start, int max, void *test_buffer)
                     case ALGO_PT_PTR:
                         if (has_name != 0)
                         {
-                            snprintf(buf, ASB_LEN, fmt, step->name, step->value.ptr);
+                            snprintf(buf, ASB_LEN, fmt, step->name, step->value.ptr, step->value2.ui32_value);
                         }
                         else
                         {
-                            snprintf(buf, ASB_LEN, fmt, step->value.ptr);
+                            snprintf(buf, ASB_LEN, fmt, step->value.ptr, step->value2.ui32_value);
                         }
 
                         break;
@@ -369,7 +421,7 @@ void algo_print_steps(int start, int max, void *test_buffer)
                         break;
                     case ALGO_PT_UINT64:
                     default:
-                        snprintf(buf, ASB_LEN, "%s |%s | Val1:%ld | Val2:%ld", tf.format, step->name, step->value.ui64_value, step->value2.ui64_value);
+                        snprintf(buf, ASB_LEN, "%s |%s | Val1:%ld | Val2:%ld", fmt, step->name, step->value.ui64_value, step->value2.ui64_value);
                         break;
                     }
 

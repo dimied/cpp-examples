@@ -14,14 +14,13 @@
 #define INFLATE_ERROR_PARAMS 2
 
 #define INFLATE_ERROR_DATA 4
-#define INFLATE_ERROR_LEN_TOO_LARGE 4  // DATA_ERROR
-#define INFLATE_ERROR_USED_TOO_LARGE 4 // DATA_ERROR
+#define INFLATE_ERROR_LEN_TOO_LARGE (INFLATE_ERROR_DATA)
+#define INFLATE_ERROR_USED_TOO_LARGE (INFLATE_ERROR_DATA)
 #define INFLATE_ERROR_BUFFER 5
 #define INFLATE_ERROR_DEST 6
 #define INFLATE_ERROR_NOT_IMPLEMENTED 7
 
-#define INFLATE_BUILD_FIXED_TREES_ALGO 3
-#define DO_CMP 0
+#define INFLATE_BUILD_FIXED_TREES_ALGO 0
 
 #define UI64_REPEAT(C) ((C) | ((C) << 16) | ((C) << 32) | ((C) << 48))
 #define UI64_REPEAT_INC(C) ((C) | ((C + 1UL) << 16) | ((C + 2UL) << 32) | ((C + 3UL) << 48))
@@ -80,18 +79,30 @@ struct inflate_tree
     unsigned short us16[288];
   } symbols; /*!< Symbols sorted by code */
 };
-
-union inflate_tree_aligned
+struct inflate_tree_us16
 {
-  struct inflate_tree tree;
-  unsigned long ul_array[((sizeof(struct inflate_tree) + 7) >> 3)];
+  int max_sym;
+  unsigned short code_counts[16]; /*!< Number of codes with a given length */
+  unsigned short symbols[288];    /*!< Symbols sorted by code */
 };
 
-struct inflate_tree_pair
+struct inflate_tree_pair_us16
+{
+  struct inflate_tree_us16 length_tree;
+  struct inflate_tree_us16 distance_tree;
+};
+
+struct inflate_tree_pair_both
 {
   struct inflate_tree length_tree;
   struct inflate_tree distance_tree;
 };
+
+typedef union
+{
+  struct inflate_tree_pair_us16 us16;
+  struct inflate_tree_pair_both both;
+} inflate_tree_pair;
 
 /*!< stores computation state information */
 struct inflate_state
@@ -138,35 +149,6 @@ void print_state1(void *state)
 #define USE_ALGO_STEP_LOGGING 1
 
 #include "inflate_dev.h"
-
-void inflate_nullify(void *p, size_t size)
-{
-  //INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_NULLIFY, size, "");
-  memset(p, 0, size);
-}
-
-void inflate_clearmem(void *p, size_t len)
-{
-  inflate_nullify(p, len);
-}
-
-static void inflate_init_tree(struct inflate_tree *t)
-{
-  memset(t, 0, sizeof(struct inflate_tree));
-  // inflate_clearmem(t, sizeof(struct inflate_tree));
-  t->max_sym = -1;
-}
-
-static int inflate_copy_data(unsigned char *dst, unsigned char *src, int length)
-{
-  int i;
-  // byte by byte, because of overlaps
-  for (i = 0; i < length; ++i)
-  {
-    dst[i] = src[i];
-  }
-  return 0;
-}
 
 // See RFC1951 (section 3.2.5)
 //       Extra
@@ -221,6 +203,7 @@ static int inflate_copy_data(unsigned char *dst, unsigned char *src, int length)
 //   9   3  25-32   19   8   769-1024   29   13 24577-32768
 // Bits: shift code to right (i.e. div by 2) and subtract 1 (except 0,1)
 
+#if 0
 // Codes: 30,31 not specified, i.e. error.
 static const unsigned short inflate_dist_codes[30] = {
     1, 2, 3, 4,
@@ -234,19 +217,90 @@ static const unsigned short inflate_dist_codes[30] = {
     257, 385, 513, 769,
     //
     1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+#endif
 
-/* 4,5,6,7,8,9,10,11, 12,13,14,15 */
-/* 1,2,3,6,9,16,23,38, 53,84,115,178 */
-static const unsigned short inflate_dist_codes2[30];
+/* Extra bits and base tables for length codes */
+static const unsigned char length_bits[30] = {
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
+    1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
+    4, 4, 4, 4, 5, 5, 5, 5, 0, 127};
 
-static struct inflate_tree_pair fixed;
+static const unsigned short length_base[30] = {
+    3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
+    15, 17, 19, 23, 27, 31, 35, 43, 51, 59,
+    67, 83, 99, 115, 131, 163, 195, 227, 258, 0};
+
+/* Extra bits and base tables for distance codes */
+static const unsigned char dist_bits[30] = {
+    0, 0, 0, 0, 1, 1, 2, 2, 3, 3,
+    4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
+    9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
+
+static const unsigned short dist_base[30] = {
+    1, 2, 3, 4, 5, 7, 9, 13, 17, 25,
+    33, 49, 65, 97, 129, 193, 257, 385, 513, 769,
+    1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
+
+static const inflate_tree_pair inflate_fixed_pc = {
+    .both = {
+        /* length tree */
+        {
+            285,
+            /* code counts */
+            .code_counts.us16 = {0, 0, 0, 0, 0, 0, 0, 24, 152, 112, 0, 0, 0, 0, 0, 0},
+            /* symbols */
+            .symbols.us16 = {256, 257, 258, 259, 260, 261, 262, 263, 264, 265, 266, 267, 268, 269, 270, 271, 272, 273, 274, 275, 276, 277, 278, 279, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 280, 281, 282, 283, 284, 285, 286, 287, 144, 145, 146, 147, 148, 149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255}
+            /* symbols-end */
+        },
+        /* distance tree */
+        {
+            29,
+            /* code counts */
+            .code_counts.us16 = {0, 0, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+            /* symbols */
+            .symbols.us16 = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+            /* symbols-end */
+        }
+        /* distance tree-end */
+    }};
+
+static inflate_tree_pair fixed;
 static int fixed_done = 0;
 
 #if GLOBAL_DATA_STRUCTS
-static struct inflate_tree_pair dynamic;
+static inflate_tree_pair dynamic;
 
 static struct inflate_state state;
 #endif
+
+void inflate_nullify(void *p, size_t size)
+{
+  // INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_NULLIFY, size, "");
+  memset(p, 0, size);
+}
+
+void inflate_clearmem(void *p, size_t len)
+{
+  inflate_nullify(p, len);
+}
+
+static void inflate_init_tree(struct inflate_tree *t)
+{
+  memset(t, 0, sizeof(struct inflate_tree));
+  // inflate_clearmem(t, sizeof(struct inflate_tree));
+  t->max_sym = -1;
+}
+
+static int inflate_copy_data(unsigned char *dst, unsigned char *src, int length)
+{
+  int i;
+  // byte by byte, because of overlaps
+  for (i = 0; i < length; ++i)
+  {
+    dst[i] = src[i];
+  }
+  return 0;
+}
 
 unsigned short *inflate_set_inc(unsigned short *p, int len, int offset)
 {
@@ -259,16 +313,31 @@ unsigned short *inflate_set_inc(unsigned short *p, int len, int offset)
   return p;
 }
 
-#if DO_CMP
-unsigned short ts[288];
-
-unsigned short ts2[288];
-union a
+void inflate_print_tree_dev(struct inflate_tree *t)
 {
-  uint64_t ui64[36];
-  unsigned short us16[288];
-} ts3;
-#endif
+
+  printf("{\n%d,\n", t->max_sym);
+  printf("{");
+  size_t sz = sizeof(t->code_counts.us16) / sizeof(t->code_counts.us16[0]);
+  unsigned short *pValues = t->code_counts.us16;
+  size_t i;
+  for (i = 0; i < sz - 1; i++)
+  {
+    printf("%d, ", pValues[i]);
+  }
+  printf("%d", pValues[i]);
+  printf("},\n");
+  printf("{");
+
+  sz = sizeof(t->symbols.us16) / sizeof(t->symbols.us16[0]);
+  pValues = t->symbols.us16;
+  for (i = 0; i < sz - 1; i++)
+  {
+    printf("%d, ", pValues[i]);
+  }
+  printf("%d", pValues[i]);
+  printf("}\n}\n");
+}
 
 static void inflate_build_fixed_trees()
 {
@@ -282,7 +351,7 @@ static void inflate_build_fixed_trees()
 
   inflate_nullify(&fixed, sizeof(fixed));
 
-  struct inflate_tree *t = &fixed.length_tree;
+  struct inflate_tree *t = &fixed.both.length_tree;
   t->max_sym = 285;
 
 #if 0
@@ -301,93 +370,13 @@ static void inflate_build_fixed_trees()
   t->code_counts.us16[9] = 112;
 #endif
 
+#if INFLATE_BUILD_FIXED_TREES_ALGO == 1
+
 // encoded offsets and lengths
 //  24:off:256;(144:off:0);(8:off:280);112:off:144
 // #define LAO ((256) | ((144 << 9) | (0x0 << 17)) | ((0x8ul << 26) | (280ul << 34)) | ((112ul << 43) | (144ul << 51)))
 #define LAO2 (144 | ((0x8ul << 17) | (280ul << 25)) | ((112ul << 34) | (144ul << 42)))
 
-#if DO_CMP
-
-  memset(ts, 0, sizeof(ts));
-  memset(ts2, 0, sizeof(ts2));
-
-  memset(ts3.us16, 0, sizeof(ts3));
-  {
-    int i;
-    uint64_t v = LAO2;
-    unsigned short *pS = ts;
-    int l = 24, offset = 256;
-    do
-    {
-      for (i = 0; i < l; ++i, ++pS, ++offset)
-      {
-        // printf("IS:%d|%d\n", i, offset);
-        *pS = (unsigned short)(offset);
-      }
-
-      l = (int)(v & 0x1FFFF);
-      offset = (l >> 8) & 0xFF;
-      l &= 0xFF;
-      v >>= 17;
-    } while (l != 0);
-  }
-  {
-    unsigned short *pS = ts2;
-    pS = inflate_set_inc(pS, 24, 256);
-    pS = inflate_set_inc(pS, 144, 0);
-    pS = inflate_set_inc(pS, 8, 280);
-    inflate_set_inc(pS, 112, 144);
-  }
-  {
-    uint64_t *pUI64 = ts3.ui64;
-    const uint64_t *pA = inflate_adds;
-
-#if 0
-    int sizes[4] = {
-        24 / 4,
-        144 / 4,
-        8 / 4,
-        112 / 4};
-
-    for (i = 0; i < 4; i++)
-    {
-      uint64_t a = *pA;
-      int s = sizes[i];
-
-      for (; s != 0; s--)
-      {
-        // printf("SA:%lx \n", a);
-        *pUI64 = a;
-        a += ADD1;
-        // printf("INC: %d\n", j);
-        ++pUI64;
-      }
-      ++pA;
-    }
-#else
-    unsigned int sizes = (6 | (36 << 8) | (2 << 16) | (28 << 24));
-
-    while (sizes != 0)
-    {
-      uint64_t a = *pA;
-      int s = sizes & 0xFF;
-      sizes >>= 8;
-
-      for (; s != 0; s--)
-      {
-        // printf("SA:%lx \n", a);
-        *pUI64 = a;
-        a += ADD1;
-        // printf("INC: %d\n", j);
-        ++pUI64;
-      }
-      ++pA;
-    }
-#endif
-  }
-#endif
-
-#if INFLATE_BUILD_FIXED_TREES_ALGO == 1
   unsigned short *pS = t->symbols.us16;
   int i;
   uint64_t v = LAO2;
@@ -404,6 +393,7 @@ static void inflate_build_fixed_trees()
     l &= 0xFF;
     v >>= 17;
   } while (l != 0);
+#undef LAO2
 
 #elif INFLATE_BUILD_FIXED_TREES_ALGO == 2
   unsigned short *pS = t->symbols.us16;
@@ -454,28 +444,7 @@ static void inflate_build_fixed_trees()
   }
 #endif
 
-#if DO_CMP
-  int cr = memcmp(ts, t->symbols.us16, 288);
-  printf("CR:1: %d\n", cr);
-  cr = memcmp(ts2, t->symbols.us16, 288);
-  printf("CR:2: %d\n", cr);
-  cr = memcmp(ts3.us16, t->symbols.us16, 288);
-  printf("CR:3: %d\n", cr);
-  if (cr != 0)
-  {
-    int k = 0;
-    for (; k < 288; k++)
-    {
-      if (ts3.us16[k] != t->symbols.us16[k])
-      {
-        printf("@%d: %d <> %d\n", k, ts3.us16[k], t->symbols.us16[k]);
-        // break;
-      }
-    }
-  }
-#endif
-
-  t = &fixed.distance_tree;
+  t = &fixed.both.distance_tree;
   t->max_sym = 29;
   /* Build fixed distance tree */
   t->code_counts.us16[5] = 32;
@@ -497,9 +466,14 @@ static void inflate_build_fixed_trees()
 #else
   for (i = 0; i < 32; ++i)
   {
-    // printf("INC-SET: %d\n", i);
     t->symbols.us16[i] = i;
   }
+#endif
+
+#if 0
+  inflate_print_tree_dev(&fixed.length_tree);
+  printf("\n");
+  inflate_print_tree_dev(&fixed.distance_tree);
 #endif
 
   ++fixed_done;
@@ -511,8 +485,6 @@ static void inflate_build_fixed_trees()
 static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengths,
                               unsigned int num)
 {
-  // printf("BT: %p | l=%p | num=%d\n", (void *)t, lengths, num);
-
 #if INFLATE_DO_CHECK_FOR_ERRORS
   // t == 0 || (lengths == 0) ||
   if (num > 288)
@@ -521,7 +493,6 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   }
 #endif
   inflate_init_tree(t);
-  printf("IT!\n");
 
   unsigned int ms = t->max_sym;
   unsigned short *pC = t->code_counts.us16;
@@ -530,13 +501,12 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   for (i = 0; i < num; ++i)
   {
     unsigned int l = lengths[i];
-    printf("L:%d => %d\n", i, l);
+    INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES, i, l, "");
 
     if (l != 0)
     {
       if (l > 15)
       {
-        printf("LTL: @idx=%d | val=%d\n", i, lengths[i]);
         return INFLATE_ERROR_DATA;
       }
       ms = i;
@@ -552,21 +522,23 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   {
     unsigned int used = t->code_counts.us16[i];
 
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_USED_AVAIL, used, available, "");
+
 #if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
     /* Check length contains no more codes than available */
     if (used > available)
     {
-      printf("USED>AVAIL: %d > %d\n", used, available);
-      return INFLATE_ERROR_USED_TOO_LARGE; // DATA_ERROR
+      INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_BUFFER, "BT: used > avail");
+      return INFLATE_ERROR_DATA;
     }
 #endif
     available = (available - used) << 1;
 
-    // printf("U|A:%d: %d|%d\n",i, used, available);
-
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_OFFSETS, i, num_codes, "");
     offsets[i] = num_codes;
     num_codes += used;
   }
+  INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_OFFSETS, i, num_codes, "end");
 
   /*
    * Check all codes were used, or for the special case of only one
@@ -583,14 +555,19 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   {
     register unsigned int l = lengths[i];
 
+    INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES2, i, l, "");
+
     if (l != 0)
     {
       unsigned short j = offsets[l];
       t->symbols.us16[j] = i;
+      INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES3, j, i, "");
       offsets[l]++;
+      INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES4, l, offsets[l], "");
     }
   }
 
+  INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_CODES5, num_codes, t->max_sym, "");
   /*
    * For the special case of only one code (which will be 0) add a
    * code 1 which results in a symbol that is too large
@@ -603,28 +580,6 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
 
   return INFLATE_OK;
 }
-
-/* Extra bits and base tables for length codes */
-static const unsigned char length_bits[30] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 1, 1,
-    1, 1, 2, 2, 2, 2, 3, 3, 3, 3,
-    4, 4, 4, 4, 5, 5, 5, 5, 0, 127};
-
-static const unsigned short length_base[30] = {
-    3, 4, 5, 6, 7, 8, 9, 10, 11, 13,
-    15, 17, 19, 23, 27, 31, 35, 43, 51, 59,
-    67, 83, 99, 115, 131, 163, 195, 227, 258, 0};
-
-/* Extra bits and base tables for distance codes */
-static const unsigned char dist_bits[30] = {
-    0, 0, 0, 0, 1, 1, 2, 2, 3, 3,
-    4, 4, 5, 5, 6, 6, 7, 7, 8, 8,
-    9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
-
-static const unsigned short dist_base[30] = {
-    1, 2, 3, 4, 5, 7, 9, 13, 17, 25,
-    33, 49, 65, 97, 129, 193, 257, 385, 513, 769,
-    1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
 
 /* Get num bits from source stream */
 unsigned int inflate_getbits(struct inflate_state *d, const int num, unsigned int base)
@@ -808,27 +763,23 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
 #if INFLATE_DO_CHECK_FOR_ERRORS
   if (hlit > 286 || hdist > 30)
   {
-    // TEST_PRINT("ERROR: hlit=%d | hdist=%d\n", hlit, hdist);
+    INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "(hlit > 286 || hdist > 30)");
     return INFLATE_ERROR_DATA;
   }
 #endif
 
   unsigned char lengths[288 + 32];
-  memset(lengths, 0, 20); // sizeof(lengths));
+  memset(lengths, 0, sizeof(lengths));
   unsigned int i, num;
 
-#if 0
-  for (i = 0; i < 19; ++i)
-  {
-    lengths[i] = 0;
-  }
-#endif
+  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_DECODE_TREES_READ_CODE_LENGTHS, hclen, "");
 
   /* Read code lengths for code length alphabet */
   for (i = 0; i < hclen; ++i)
   {
     /* Get 3 bits code length (0-7) */
     unsigned int clen = inflate_getbits(d, 3, 0);
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i, clen, "");
 
 #if INFLATE_DO_CHECK_FOR_ERRORS
     if (d->bitcount < 0)
@@ -858,7 +809,6 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
 #if INFLATE_DO_CHECK_FOR_ERRORS
   if (lt->max_sym == -1)
   {
-    // printf("ERROR: max sym\n");
     return INFLATE_ERROR_DATA;
   }
 #endif
@@ -868,11 +818,11 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
   {
     int sym = inflate_decode_symbol(d, lt);
 
-    // TEST_PRINT("SYM:%d | %d\n", num, sym);
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_SYM, num, sym, "");
+
 #if INFLATE_DO_CHECK_FOR_ERRORS
     if (sym > lt->max_sym)
     {
-      // printf("ERROR: sym > max sym | %d > %d\n", sym, lt->max_sym);
       return INFLATE_ERROR_DATA;
     }
 #endif
@@ -914,10 +864,11 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
       return INFLATE_ERROR_BUFFER;
     }
 
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_SYM2, sym, length, "");
+
     if (length > hlit + hdist - num)
     {
       // printf("ERROR: length | %d > %d + %d - %d (=%d)\n", length, hlit, hdist, num, hlit + hdist - num);
-
       return INFLATE_ERROR_DATA;
     }
 #endif
@@ -926,8 +877,10 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
     {
       lengths[num++] = sym;
     }
+    INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_DT_ITER, num, "");
   }
 
+  INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, num , hlit + hdist, "");
   /* Is end-of-block symbol present? */
 #if INFLATE_DO_CHECK_FOR_ERRORS
   if (lengths[256] == 0)
@@ -1335,10 +1288,10 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
         INFLATE_PRINT_STATE(INFLATE_PRINT_CODE_DYN);
         INFLATE_ALGO_STEP(ALGO_STEP_DYN_TREE);
         // read representation of code trees
-        inflate_init_tree(&dynamic.length_tree);
-        inflate_init_tree(&dynamic.distance_tree);
+        inflate_init_tree(&dynamic.both.length_tree);
+        inflate_init_tree(&dynamic.both.distance_tree);
 
-        int res = inflate_decode_trees(&state, &dynamic.length_tree, &dynamic.distance_tree);
+        int res = inflate_decode_trees(&state, &dynamic.both.length_tree, &dynamic.both.distance_tree);
 
         if (res != INFLATE_OK)
         {
@@ -1346,7 +1299,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
         }
 
         /* Decode block using decoded trees */
-        error = inflate_block_data(&state, &dynamic.length_tree, &dynamic.distance_tree);
+        error = inflate_block_data(&state, &dynamic.both.length_tree, &dynamic.both.distance_tree);
 
         if (error != 0)
         {
@@ -1360,7 +1313,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 
         inflate_build_fixed_trees();
 
-        error = inflate_block_data(&state, &fixed.length_tree, &fixed.distance_tree);
+        error = inflate_block_data(&state, &fixed.both.length_tree, &fixed.both.distance_tree);
 
         if (error != 0)
         {
