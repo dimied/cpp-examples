@@ -18,9 +18,7 @@
 #define INFLATE_ERROR_USED_TOO_LARGE 4 // DATA_ERROR
 #define INFLATE_ERROR_BUFFER 5
 #define INFLATE_ERROR_DEST 6
-
-#define DECODE_SYMBOL_ERROR_LEN -100000
-#define DECODE_SYMBOL_ERROR_SYM -200000
+#define INFLATE_ERROR_NOT_IMPLEMENTED 7
 
 #define INFLATE_BUILD_FIXED_TREES_ALGO 3
 #define DO_CMP 0
@@ -28,6 +26,7 @@
 #define UI64_REPEAT(C) ((C) | ((C) << 16) | ((C) << 32) | ((C) << 48))
 #define UI64_REPEAT_INC(C) ((C) | ((C + 1UL) << 16) | ((C + 2UL) << 32) | ((C + 3UL) << 48))
 #define ADD1 UI64_REPEAT(4UL)
+#define ADD0_INC UI64_REPEAT_INC(0UL)
 
 #ifndef INFLATE_SKIP_CHECK_FOR_ERRORS
 #define INFLATE_SKIP_CHECK_FOR_ERRORS 0
@@ -80,7 +79,6 @@ struct inflate_tree
     uint64_t ui64[36];
     unsigned short us16[288];
   } symbols; /*!< Symbols sorted by code */
-  // unsigned short symbols[288];
 };
 
 union inflate_tree_aligned
@@ -143,7 +141,7 @@ void print_state1(void *state)
 
 void inflate_nullify(void *p, size_t size)
 {
-  INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_NULLIFY, size, "");
+  //INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_NULLIFY, size, "");
   memset(p, 0, size);
 }
 
@@ -513,11 +511,9 @@ static void inflate_build_fixed_trees()
 static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengths,
                               unsigned int num)
 {
+  // printf("BT: %p | l=%p | num=%d\n", (void *)t, lengths, num);
 
-  printf("BT: %p | l=%p | num=%d\n", (void *)t, lengths, num);
-  printf("SYM: %d\n", t->max_sym);
-
-#if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
+#if INFLATE_DO_CHECK_FOR_ERRORS
   // t == 0 || (lengths == 0) ||
   if (num > 288)
   {

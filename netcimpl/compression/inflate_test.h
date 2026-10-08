@@ -64,14 +64,13 @@ TestStringBuffer tb_steps;
 
 void test_gzip()
 {
-    
+
     size_t num_gzip_tc = sizeof(gzip_test_cases) / sizeof(gzip_test_cases[0]);
     size_t gzSize;
     size_t tcIdx = 1;
     num_gzip_tc = 2;
     const int bytes_per_line = 32;
 
-        
     printf("ID:sz:%d", (int)sizeof(struct inflate_state));
     printf(" | TREE:sz:%d\n", (int)sizeof(struct inflate_tree));
 
@@ -100,7 +99,9 @@ void test_gzip()
 
             prepare_comp_res(data, gzSize);
 
+#if USE_ALGO_STEP_LOGGING
             algo_change_container(0);
+#endif
             INFLATE_ALGO_STEP(ALGO_STEP_START_EXEC);
 
             gzip_impl = 0;
@@ -128,7 +129,9 @@ void test_gzip()
             prepare_comp_res(data, gzSize);
 
             fixed_done = 0;
+#if USE_ALGO_STEP_LOGGING
             algo_change_container(1);
+#endif
             INFLATE_ALGO_STEP(ALGO_STEP_START_EXEC);
             gzip_impl = 2;
             gzr = gzip_decompress(&compRes);
@@ -182,9 +185,10 @@ void test_gzip()
             writeToTestResultFile(tcIdx, 1, b1.data);
             writeToTestResultFile(tcIdx, 2, b2.data);
 
+#if USE_ALGO_STEP_LOGGING
             algo_print_steps(0, 1, &tb_steps);
             writeToTestResultFile(100, tcIdx, tb_steps.data);
-
+#endif
             printf("END:%d\n\n", (int)tcIdx);
         }
         else

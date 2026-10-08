@@ -135,16 +135,27 @@ void add_algo_step_no_value(int type)
     {                        \
     } while (0)
 
-#define INFLATE_ALGO_STEP_IVALUE(T, V) \
-    do                                 \
-    {                                  \
+#define INFLATE_ALGO_STEP_I32_VALUE(T, V, N) \
+    do                                       \
+    {                                        \
     } while (0)
 
-#define INFLATE_ALGO_STEP_IVALUE(T, V) \
-    do                                 \
-    {                                  \
+#define INFLATE_ALGO_STEP_I32_I32_VALUE(T, V1, V2, N) \
+    do                                                \
+    {                                                 \
     } while (0)
-#define INFLATE_ALGO_STEP_PTR(T, P) \
+
+#define INFLATE_ALGO_STEP_UI32_VALUE(T, V, N) \
+    do                                        \
+    {                                         \
+    } while (0)
+
+#define INFLATE_ALGO_STEP_UI32_UI32_VALUE(T, V1, V2, N) \
+    do                                                  \
+    {                                                   \
+    } while (0)
+
+#define INFLATE_ALGO_STEP_PTR(T, P, N) \
     do                              \
     {                               \
     } while (0)
@@ -358,7 +369,7 @@ void algo_print_steps(int start, int max, void *test_buffer)
                         break;
                     case ALGO_PT_UINT64:
                     default:
-                        snprintf(buf, ASB_LEN, "%s |%s | Val:%ld", tf.format, step->name, step->value.ui64_value, step->value2.ui64_value);
+                        snprintf(buf, ASB_LEN, "%s |%s | Val1:%ld | Val2:%ld", tf.format, step->name, step->value.ui64_value, step->value2.ui64_value);
                         break;
                     }
 
