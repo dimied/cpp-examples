@@ -1,6 +1,10 @@
 #ifndef INFLATE_INCLUDED
 #define INFLATE_INCLUDED
 
+#define USE_ALGO_STEP_LOGGING 1
+
+#include "inflate_dev.h"
+
 #ifdef INFLATE_OK
 #error "INFLATE_OK already defined"
 #endif
@@ -145,10 +149,6 @@ void print_state1(void *state)
 }
 
 #define print_state print_state1
-
-#define USE_ALGO_STEP_LOGGING 1
-
-#include "inflate_dev.h"
 
 // See RFC1951 (section 3.2.5)
 //       Extra
@@ -486,7 +486,6 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
                               unsigned int num)
 {
 #if INFLATE_DO_CHECK_FOR_ERRORS
-  // t == 0 || (lengths == 0) ||
   if (num > 288)
   {
     return INFLATE_ERROR_PARAMS;
@@ -501,10 +500,10 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   for (i = 0; i < num; ++i)
   {
     unsigned int l = lengths[i];
-    INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES, i, l, "");
 
     if (l != 0)
     {
+      INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES, i, l, "");
       if (l > 15)
       {
         return INFLATE_ERROR_DATA;
@@ -555,10 +554,9 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
   {
     register unsigned int l = lengths[i];
 
-    INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES2, i, l, "");
-
     if (l != 0)
     {
+      INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES2, i, l, "");
       unsigned short j = offsets[l];
       t->symbols.us16[j] = i;
       INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES3, j, i, "");
@@ -779,7 +777,6 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
   {
     /* Get 3 bits code length (0-7) */
     unsigned int clen = inflate_getbits(d, 3, 0);
-    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i, clen, "");
 
 #if INFLATE_DO_CHECK_FOR_ERRORS
     if (d->bitcount < 0)
@@ -787,8 +784,8 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
       return INFLATE_ERROR_BUFFER;
     }
 #endif
-    // TEST_PRINT("CLEN:%d\n", (int)clen);
-    // print_state(d);
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i, clen, "");
+    INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, my_clcidx[i], clen, "");
 
     lengths[my_clcidx[i]] = (unsigned char)clen;
   }
@@ -880,7 +877,7 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
     INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_DT_ITER, num, "");
   }
 
-  INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, num , hlit + hdist, "");
+  INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, num, hlit + hdist, "");
   /* Is end-of-block symbol present? */
 #if INFLATE_DO_CHECK_FOR_ERRORS
   if (lengths[256] == 0)
@@ -967,6 +964,7 @@ int inflate_block_data(struct inflate_state *d, struct inflate_tree *len_tree,
     // literal 0..255?
     if (sym < 256)
     {
+      INFLATE_ALGO_STEP_UI32_PTR_VALUE(ALGO_STEP_BD_WRITE_RAW, sym, d->destination, "");
       *d->destination = sym;
       d->destination++;
     }
@@ -1076,8 +1074,8 @@ int inflate_block_data(struct inflate_state *d, struct inflate_tree *len_tree,
       }
       else
       {
-#if 0
-        offs = dist_base[dist];
+#if 1
+        data_offset = dist_base[dist];
         dist -= 4;
         dist >>= 1;
         dist++;
@@ -1327,9 +1325,9 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
   return error;
 }
 
-#include "inflate_aio.h"
-
 #undef print_state
+
+#include "inflate_aio.h"
 
 void dev_inflate_exp()
 {

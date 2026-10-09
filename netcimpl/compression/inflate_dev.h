@@ -1,6 +1,8 @@
 
 #if USE_ALGO_STEP_LOGGING
 
+const char *get_step_name(int step);
+
 typedef union
 {
     signed int i32_value;
@@ -19,7 +21,7 @@ typedef struct
 } InflateAlgoStep;
 
 #define ALGO_CONTAINER_SIZE 4
-#define ALGO_STEPS_SIZE 1000
+#define ALGO_STEPS_SIZE 5000
 
 InflateAlgoStep algo_steps[ALGO_CONTAINER_SIZE][ALGO_STEPS_SIZE];
 int algo_steps_sizes[ALGO_CONTAINER_SIZE];
@@ -86,7 +88,7 @@ void add_algo_step_ui32_value(int type, unsigned int value, unsigned int value2,
     }
 }
 
-void add_algo_step_ui32_ptr_value(int type, unsigned int value, void* ptr, const char *name)
+void add_algo_step_ui32_ptr_value(int type, unsigned int value, void *ptr, const char *name)
 {
     InflateAlgoStep *steps = algo_cur_steps();
     if (steps != 0)
@@ -174,8 +176,8 @@ void add_algo_step_no_value(int type)
     } while (0)
 
 #define INFLATE_ALGO_STEP_PTR(T, P, N) \
-    do                              \
-    {                               \
+    do                                 \
+    {                                  \
     } while (0)
 #endif
 
@@ -232,6 +234,7 @@ enum AlgoStep
     ALGO_STEP_DT_ITER_END,
     //
     ALGO_STEP_CHANGE_TO,
+    ALGO_STEP_NEXT_STEPS,
     ALGO_STEP_ERROR,
     ALGO_STEP_EXIT,
     ALGO_STEP_MAX
@@ -273,6 +276,7 @@ struct type_and_format algo_step_messages[ALGO_STEP_MAX + 1] = {
     ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "DT:ITER-END: num:%2d"),
     //
     ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "NEW-STATE: %d"),
+    ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "NEXT-STEPS: %d"),
     ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "ERROR: %d"),
     ALGO_STEP_FORMAT_INIT(ALGO_PT_INT32 | 1, "EXIT: %d"),
     ALGO_STEP_FORMAT_INIT(0, "UNKNOWN!"),
@@ -305,7 +309,7 @@ void algo_print_steps(int start, int max, void *test_buffer)
         }
     }
 
-#define ASB_LEN 128
+#define ASB_LEN 256
     char buf[ASB_LEN];
     char buf2[ASB_LEN];
     memset(buf, 0, ASB_LEN);
@@ -330,6 +334,8 @@ void algo_print_steps(int start, int max, void *test_buffer)
 #define LINE_FMT "%33s|"
 
     int cIdx = start;
+
+#if 0
     for (; cIdx <= max; cIdx++)
     {
         memset(buf2, 0, ASB_LEN);
@@ -341,8 +347,11 @@ void algo_print_steps(int start, int max, void *test_buffer)
     buf2[0] = '\n';
     temp_len = 1;
     ASB;
+#endif
 
-    for (i = 0; i < max_step+2; i++)
+    char name_buffer[64];
+
+    for (i = 0; i < max_step; i++)
     {
         cIdx = start;
         for (; cIdx <= max; cIdx++)
@@ -358,6 +367,43 @@ void algo_print_steps(int start, int max, void *test_buffer)
 
             if (type >= 0 && type < ALGO_STEP_MAX)
             {
+                if (type == ALGO_STEP_NEXT_STEPS)
+                {
+                    int steps = step->value.i32_value;
+                    memset(buf, 0, ASB_LEN);
+                    memset(pB, 0, ASB_LEN - 2);
+                    snprintf(buf, 50, "NEXT-STEPS:%d", steps);
+                    temp_len = snprintf(pB, ASB_LEN - 2, LINE_FMT, buf);
+                    temp_len += 2;
+
+                    if (temp_len < ASB_LEN)
+                    {
+                        buf2[temp_len] = '\n';
+                        temp_len++;
+                    }
+                    ASB;
+
+                    while (steps != 0)
+                    {
+                        const char *sn = get_step_name(steps & 0x1F);
+                        steps >>= 5;
+                        memset(buf, 0, ASB_LEN);
+                        memset(pB, 0, ASB_LEN - 2);
+                        snprintf(buf, 50, "NEXT-STEP:%s", sn);
+                        temp_len = snprintf(pB, ASB_LEN - 2, LINE_FMT, buf);
+                        temp_len += 2;
+
+                        if (temp_len < ASB_LEN)
+                        {
+                            buf2[temp_len] = '\n';
+                            temp_len++;
+                        }
+                        ASB;
+                    }
+
+                    continue;
+                }
+
                 struct type_and_format tf = algo_step_messages[type];
                 int t = tf.type_and_args;
                 int num_args = (t & 0xF);
@@ -370,9 +416,8 @@ void algo_print_steps(int start, int max, void *test_buffer)
 
                     int has_name = (strstr(fmt, "%s") != 0) ? 1 : 0;
 
-                    char name_buffer[50];
-
                     size_t name_len = 0;
+
                     if (step->name != 0)
                     {
                         name_len = strlen(step->name);
@@ -380,8 +425,8 @@ void algo_print_steps(int start, int max, void *test_buffer)
 
                     if (has_name == 0 && name_len > 0 && name_len < 20 && strlen(fmt) < 30)
                     {
-                        memset(name_buffer, 0, 50);
-                        snprintf(name_buffer, 50, "(%s)%s", step->name, fmt);
+                        memset(name_buffer, 0, 64);
+                        snprintf(name_buffer, 64, "(%s)%s", step->name, fmt);
                         fmt = name_buffer;
                     }
 
@@ -444,7 +489,6 @@ void algo_print_steps(int start, int max, void *test_buffer)
         buf2[0] = '\n';
         temp_len = 1;
         ASB;
-        // printf("\n");
     }
 #undef ASB
 }

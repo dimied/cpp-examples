@@ -106,6 +106,54 @@ union
     unsigned short us16[16];
 } offsets;
 
+#define INFLATE_AIO_STEP_DESC(C, N) {C, N}
+
+struct inflate_step_name
+{
+    int step;
+    const char *name;
+};
+
+struct inflate_step_name step_names[30] = {
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_HEADER_RAW, "RAW"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_HEADER_FIXED, "FIXED"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_HEADER_DYN, "DYN"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_HEADER_ERROR, "ERROR"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_GET_BITS, "GET-BITS"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_NEW_STATE, "NEW-STATE"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_INIT_TREE, "INIT-TREE"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_READ_HEADER, "HDR"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_READ_HEADER_AFTER, "HDR-AFTER"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_BUILD_TREE, "BUILD-TREE"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_DECODE_TREES_STEP1, "DT:STEP1"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_DECODE_TREES_STEP2, "DT:STEP2"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_DECODE_TREES_STEP3, "DT:STEP3"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_DECODE_TREES_STEP3_SYM, "DT:STEP3-SYM"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_DECODE_SYMBOL, "DEC-SYM"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_COPY_DATA, "COPY-DATA"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_BLOCK_DATA, "BLOCK-DATA"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_BLOCK_DATA_STEP2, "BLOCK-DATA:STEP2"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_BLOCK_DATA_STEP3, "BLOCK-DATA:STEP3"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_BUILD_TREE_DT, "BUILD-TREE:DT"),
+    INFLATE_AIO_STEP_DESC(INFLATE_AIO_STATE_BUILD_FIXED_TREES, "BUILD-FIXED-TREE")
+    /**/
+};
+const char *unknown_step_name = "Unknown";
+
+const char *get_step_name(int step)
+{
+    size_t i;
+    const size_t limit = sizeof(step_names) / sizeof(step_names[0]);
+    for (i = 0; i < limit; i++)
+    {
+        if (step_names[i].step == step)
+        {
+            return step_names[i].name;
+        }
+    }
+    return unknown_step_name;
+}
+
 /**
  *
  */
@@ -197,7 +245,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
     unsigned char *copy_src, *copy_dest;
     int copy_length = 0;
 
-    struct inflate_tree *lt, *dt, *t;
+    struct inflate_tree *lt, *dt, *cur_tree;
 
     unsigned int hlit = 0, hdist = 0, hclen = 0;
 
@@ -212,14 +260,17 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 
     do
     {
+
         if (state_source_end > state_source)
         {
             in_available = state_source_end - state_source;
         }
-        else if (comp_state != INFLATE_AIO_STATE_NEW_STATE)
+        else
         {
-            INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "NO-INPUT!");
-            return INFLATE_ERROR_DATA;
+            /* Can't about here,
+             * there might be some bits in 'bit buffer' for END-OF-BLOCK.
+             */
+            in_available = 0;
         }
 
         if (state_destination_end > state_destination)
@@ -228,18 +279,14 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         }
         else
         {
-            INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "(DEST-OVERFLOW)");
-            return INFLATE_ERROR_DATA;
+            /* Can't abort here, because there might be end-of-block input */
+            out_available = 0;
         }
 
         /* Extract state to process. */
         unsigned int cur_state = comp_state & INFLATE_AIO_STATE_BITMASK;
 
         comp_state >>= INFLATE_AIO_STATE_BITSHIFT;
-
-    inflate_aio_get_bits:
-
-    inflate_aio_get_symbol:
 
 #if USE_ALGO_STEP_LOGGING
         if (cur_state < 4)
@@ -315,6 +362,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         {
             INFLATE_PRINT_STATE(INFLATE_PRINT_CODE_DYN);
             INFLATE_ALGO_STEP(ALGO_STEP_DYN_TREE);
+            memset(&dynamic, 0, sizeof(dynamic));
             lt = &dynamic.both.length_tree;
             lt->max_sym = -1;
             dt = &dynamic.both.distance_tree;
@@ -333,19 +381,26 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             return INFLATE_ERROR_DATA;
         case INFLATE_AIO_STATE_BUILD_TREE:
         {
-            int max_sym = t->max_sym;
-            unsigned short *pC = t->code_counts.us16;
+            // printf("BUILD-TREE: %s\n", (cur_tree == lt) ? "LENGTH" : (cur_tree == dt ? "DISTANCE" : "UNKNOWN"));
+
+            memset(cur_tree, 0, sizeof(*cur_tree));
+            cur_tree->max_sym = -1;
+
+            int max_sym = cur_tree->max_sym;
+            unsigned short *pC = cur_tree->code_counts.us16;
             unsigned char *pLengths = p_build_tree_len;
-            int i;
+
+            register int i;
+            register const int limit = build_tree_size;
             /* Count number of codes for each non-zero length */
-            for (i = 0; i < build_tree_size; ++i)
+            for (i = 0; i < limit; ++i)
             {
                 unsigned int l = pLengths[i];
 
-                INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES, i, l, "");
-
                 if (l != 0)
                 {
+                    INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES, i, l, "");
+
                     if (l > 15)
                     {
                         INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "(l>15)");
@@ -355,7 +410,6 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                     pC[l]++;
                 }
             }
-            t->max_sym = max_sym;
 
 #if INFLATE_DO_CHECK_FOR_ERRORS
             if (max_sym == -1)
@@ -364,77 +418,55 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 return INFLATE_ERROR_DATA;
             }
 #endif
+            cur_tree->max_sym = max_sym;
 
             /* No need to clear offsets, all values will be assigned */
-
             unsigned int num_codes = 0, available = 1;
 
             /* Perform validity check first */
-#if INFLATE_DO_CHECK_FOR_ERRORS
+
             for (i = 0; i < 16; ++i)
             {
                 unsigned int used = *pC;
+                ++pC;
 
                 INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_USED_AVAIL, used, available, "");
 
+#if INFLATE_DO_CHECK_FOR_ERRORS
                 /* Number of available should <= number of used */
                 if (used > available)
                 {
                     INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_BUFFER, "BT: used > avail");
                     return INFLATE_ERROR_DATA;
                 }
+#endif
                 available = (available - used) << 1;
 
                 INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_OFFSETS, i, num_codes, "");
                 offsets.us16[i] = num_codes;
-                num_codes += *pC;
-                ++pC;
+                num_codes += used;
             }
             INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_OFFSETS, i, num_codes, "end");
-            pC = t->code_counts.us16;
-#endif
 
-#if 0
-            pUI64 = offsets.ui64;
-            
-            for (i = 0; i < 4; ++i)
-            {
-                uint64_t a = num_codes;
-                num_codes += *pC;
-                ++pC;
-                a |= (((uint64_t)num_codes)<<16);
-                num_codes += *pC;
-                ++pC;
-                a |= (((uint64_t)num_codes)<<32);
-                num_codes += *pC;
-                ++pC;
-                a |= (((uint64_t)num_codes)<<48);
-                num_codes += *pC;
-                ++pC;
-                *pUI64 = a;
-                ++pUI64;
-            }
-#endif
             /*
              * All codes used?
              * And the special case of only one code that it has length 1.
              */
-            if ((num_codes > 1 && available > 0) || (num_codes == 1 && t->code_counts.us16[1] != 1))
+            if ((num_codes > 1 && available > 0) || (num_codes == 1 && cur_tree->code_counts.us16[1] != 1))
             {
                 INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "BT: num_codes...");
                 return INFLATE_ERROR_DATA;
             }
 
-            pC = t->symbols.us16;
+            pC = cur_tree->symbols.us16;
             /* Fill in symbols sorted by code */
             for (i = 0; i < build_tree_size; ++i)
             {
                 register unsigned int l = pLengths[i];
 
-                INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES2, i, l, "");
-
                 if (l != 0)
                 {
+                    INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES2, i, l, "");
                     unsigned short j = offsets.us16[l];
                     pC[j] = i;
                     INFLATE_ALGO_STEP_UI32_UI32_VALUE(ALGO_STEP_BT_CODES3, j, i, "");
@@ -443,16 +475,18 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 }
             }
 
-            INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_CODES5, num_codes, t->max_sym, "");
+            INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_CODES5, num_codes, cur_tree->max_sym, "");
             /*
              * For the special case of only one code (which will be 0) add a
              * code 1 which results in a symbol that is too large
              */
             if (num_codes == 1)
             {
-                t->code_counts.us16[1] = 2;
-                t->symbols.us16[1] = t->max_sym + 1;
+                cur_tree->code_counts.us16[1] = 2;
+                // t->symbols.us16[1] = t->max_sym + 1;
+                pC[1] = cur_tree->max_sym + 1;
             }
+            // printf("BUILD-TREE-END: %s\n", (cur_tree == lt) ? "LENGTH" : (cur_tree == dt ? "DISTANCE" : "UNKNOWN"));
         }
         break;
         /* -- */
@@ -494,9 +528,8 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         /* -- */
         case INFLATE_AIO_STATE_DECODE_TREES_STEP2:
         {
-            inflate_nullify(&dynamic, sizeof(dynamic));
+            // inflate_nullify(&dynamic, sizeof(dynamic));
             inflate_nullify(&lengths, sizeof(lengths));
-
             /*
              * (HCLEN + 4) x 3 bits: code lengths for the code length
              * alphabet: 16, 17, 18, 0,
@@ -511,12 +544,13 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             {
                 lengths[i + 16] = (unsigned char)(temp & 0x7);
                 INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i, (temp & 0x7), "");
+                INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i + 16, (temp & 0x7), "");
                 temp >>= 3;
             }
             lengths[0] = (unsigned char)(temp & 0x7);
             INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i, (temp & 0x7), "");
+            INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, 0, (temp & 0x7), "");
             temp >>= 3;
-            // itemp -= 12;
             i++;
 
             /* We pack indexes into length array into a single 64-bit value */
@@ -524,9 +558,10 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 
             register const unsigned char *pSrc = state_source;
             register int itemp = state_bitcount;
+            const int limit = hclen;
             temp = state_bitbuf;
 
-            for (; i < hclen; ++i)
+            for (; i < limit; ++i)
             {
                 /* Need 3 bits per length */
                 if (itemp < 3)
@@ -542,6 +577,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 /* 3 bits for code length (0-7) */
                 lengths[k] = (unsigned char)(temp & 0x7);
                 INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, i, (temp & 0x7), "");
+                INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DECODE_TREES_GET_BITS, k, (temp & 0x7), "");
                 temp >>= 3;
                 itemp -= 3;
             }
@@ -550,12 +586,60 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             state_bitcount = itemp;
 
             /* Build code length tree (in literal/length tree to save space) */
-            t = lt;
-            t->max_sym = -1;
+            cur_tree = lt;
+            cur_tree->max_sym = -1;
             p_build_tree_len = lengths;
             build_tree_size = 19;
+            decode_trees_idx = 0;
 
             comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_STATE_BUILD_TREE, INFLATE_AIO_STATE_DECODE_TREES_STEP3, INFLATE_AIO_STATE_BLOCK_DATA);
+        }
+        break;
+        case INFLATE_AIO_STATE_DECODE_TREES_STEP3:
+        {
+            /*
+             * Get more bits while code index is above number of codes
+             *
+             * Rather than the actual code, we are computing the position of the
+             * code in the sorted order of codes, which is the index of the
+             * corresponding symbol.
+             *
+             * Conceptually, for each code length (level in the tree), there are
+             * counts[len] leaves on the left and internal nodes on the right.
+             * The index we have decoded so far is base + offs, and if that
+             * falls within the leaves we are done. Otherwise we adjust the range
+             * of offs and add one more bit to it.
+             */
+            // int d = hlit + hdist - decode_trees_idx;
+            // printf("CHECK: %d < %d => %d\n", decode_trees_idx, hlit + hdist , d > 0 ? 1 : 0);
+            if (decode_trees_idx < hlit + hdist)
+            {
+                cur_tree = lt;
+                comp_state = INFLATE_AIO_STATE_COMBINE2(INFLATE_AIO_STATE_DECODE_TREES_STEP3, INFLATE_AIO_STATE_BLOCK_DATA);
+                comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_DECODE_TREES_STEP3_SYM, comp_state);
+            }
+            else
+            {
+                INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, decode_trees_idx, hlit + hdist, "");
+                /* Is end-of-block symbol present? */
+#if INFLATE_DO_CHECK_FOR_ERRORS
+                if (lengths[256] == 0)
+                {
+                    INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_BUFFER, "DT3: lengths[256]==0");
+                    return INFLATE_ERROR_DATA;
+                }
+#endif
+                cur_tree = lt;
+                p_build_tree_len = lengths;
+                build_tree_size = hlit;
+                comp_state = INFLATE_AIO_STATE_COMBINE2(
+                    INFLATE_AIO_STATE_BLOCK_DATA, INFLATE_AIO_STATE_NEW_STATE);
+
+                comp_state = INFLATE_AIO_STATE_COMBINE4(
+                    INFLATE_AIO_STATE_BUILD_TREE,
+                    INFLATE_AIO_STATE_BUILD_TREE_DT,
+                    INFLATE_AIO_STATE_BUILD_TREE, comp_state);
+            }
         }
         break;
         /* -- */
@@ -622,7 +706,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 {
                     INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "DT3-SYM: sym=16");
                     return INFLATE_ERROR_DATA;
-                }                
+                }
 #endif
                 sym = lengths[num - 1];
                 length = ((2 << 4) | (3));
@@ -680,7 +764,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 state_bitcount = itemp;
                 state_bitbuf = temp;
             }
-            INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_SYM2, sym,length, "");
+            INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_SYM2, sym, length, "");
 
 #if INFLATE_DO_CHECK_FOR_ERRORS
             if ((unsigned)length > hlit + hdist - num)
@@ -700,54 +784,16 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         }
         break;
             /* -- */
-        case INFLATE_AIO_STATE_DECODE_TREES_STEP3:
-        {
-            /*
-             * Get more bits while code index is above number of codes
-             *
-             * Rather than the actual code, we are computing the position of the
-             * code in the sorted order of codes, which is the index of the
-             * corresponding symbol.
-             *
-             * Conceptually, for each code length (level in the tree), there are
-             * counts[len] leaves on the left and internal nodes on the right.
-             * The index we have decoded so far is base + offs, and if that
-             * falls within the leaves we are done. Otherwise we adjust the range
-             * of offs and add one more bit to it.
-             */
-            if (decode_trees_idx < hlit + hdist)
-            {
-                t = lt;
-                comp_state = INFLATE_AIO_STATE_COMBINE2(INFLATE_AIO_STATE_DECODE_TREES_STEP3, comp_state);
-                comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_DECODE_TREES_STEP3_SYM, comp_state);
-            }
-            else
-            {
-                INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, decode_trees_idx,hlit + hdist, "");
-                /* Is end-of-block symbol present? */
-#if INFLATE_DO_CHECK_FOR_ERRORS
-                if (lengths[256] == 0)
-                {
-                    // printf("if (lengths[256] == 0)\n");
-                    INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_BUFFER, "DT3: lengths[256]==0");
-                    return INFLATE_ERROR_DATA;
-                }
-#endif
-                t = lt;
-                p_build_tree_len = lengths;
-                build_tree_size = hlit;
-                comp_state = INFLATE_AIO_STATE_COMBINE4(
-                    INFLATE_AIO_STATE_BUILD_TREE,
-                    INFLATE_AIO_STATE_BUILD_TREE_DT,
-                    INFLATE_AIO_STATE_BLOCK_DATA, INFLATE_AIO_STATE_NEW_STATE);
-            }
-        }
-        break;
+
         case INFLATE_AIO_STATE_BUILD_TREE_DT:
         {
-            t = dt;
+            printf("BT: DISTANCE!\n");
+            cur_tree = dt;
             p_build_tree_len = lengths + hlit;
             build_tree_size = hdist;
+            comp_state = INFLATE_AIO_STATE_COMBINE3(
+                INFLATE_AIO_STATE_BUILD_TREE,
+                INFLATE_AIO_STATE_BLOCK_DATA, INFLATE_AIO_STATE_NEW_STATE);
         }
         break;
         case INFLATE_AIO_STATE_BLOCK_DATA:
@@ -767,7 +813,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
              * end loop
              */
             {
-                t = lt;
+                cur_tree = lt;
                 comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_BLOCK_DATA_STEP2, INFLATE_AIO_STATE_BLOCK_DATA_STEP3);
             }
             break;
@@ -906,7 +952,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                     state_bitbuf = temp;
                     state_bitcount = itemp;
                 }
-                t = dt;
+                cur_tree = dt;
                 block_data_length = length;
                 comp_state = INFLATE_AIO_STATE_COMBINE2(INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_BLOCK_DATA_STEP3);
             }
@@ -934,11 +980,11 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             }
             else
             {
-#if 0
-        offs = dist_base[dist];
-        dist -= 4;
-        dist >>= 1;
-        dist++;
+#if 1
+                data_offset = dist_base[dist];
+                dist -= 4;
+                dist >>= 1;
+                dist++;
 #else
                 dist -= 4;
                 const unsigned int o = dist & 0x1;
@@ -968,6 +1014,9 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                         return INFLATE_ERROR_BUFFER;
                     }
                 }
+                data_offset += temp & ((0x1 << dist) - 1);
+                temp >>= dist;
+                itemp -= dist;
                 state_bitcount = itemp;
                 state_bitbuf = temp;
             }
@@ -993,7 +1042,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             }
 #endif
 
-            t = lt;
+            cur_tree = lt;
 
 #if 0
 #if 0
@@ -1015,13 +1064,16 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             //
             copy_src = state_destination - data_offset;
             copy_dest = state_destination;
-            copy_length = data_offset;
+            copy_length = length;
 
-            comp_state = INFLATE_AIO_STATE_COMBINE4(INFLATE_AIO_COPY_DATA, INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_BLOCK_DATA_STEP2, INFLATE_AIO_STATE_BLOCK_DATA_STEP3);
+            comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_BLOCK_DATA_STEP2, INFLATE_AIO_STATE_BLOCK_DATA_STEP3);
+            comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_COPY_DATA, 28, comp_state);
 #endif
-            state_destination += length;
         }
         break;
+        case 28:
+            state_destination += copy_length;
+            break;
             /* -- */
         case INFLATE_AIO_STATE_NEW_STATE:
             // read new block?
@@ -1079,7 +1131,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 #endif
 
             // color_text(TEXT_EFFECT_BLINK|COLOR_CYAN, "");
-            printf("GET:%d\n", in_bits);
+            // printf("GET:%d\n", in_bits);
 
             while (itemp < (int)in_bits)
             {
@@ -1240,7 +1292,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 }
 #endif
 #else
-                unsigned short *pS = t->symbols.us16;
+                unsigned short *pS = cur_tree->symbols.us16;
                 int i;
                 for (i = 0; i < 24; ++i)
                 {
@@ -1280,7 +1332,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 #else
                 for (i = 0; i < 32; ++i)
                 {
-                    t->symbols.us16[i] = i;
+                    cur_tree->symbols.us16[i] = i;
                 }
 #endif
                 ++fixed_done;
@@ -1305,7 +1357,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
              */
             int base = 0, offs = 0, len;
 
-            unsigned short *pC = &t->code_counts.us16[1];
+            unsigned short *pC = &cur_tree->code_counts.us16[1];
             register int itemp = state_bitcount;
             register unsigned int temp = state_bitbuf;
 
@@ -1356,7 +1408,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             }
             else
             {
-                last_sym = t->symbols.us16[base];
+                last_sym = cur_tree->symbols.us16[base];
             }
         }
         break;
@@ -1407,4 +1459,26 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 
 #undef INFLATE_AIO_STATE_INIT_FIXED_TREE
 
+#endif
+
+#if 0
+            pUI64 = offsets.ui64;
+            
+            for (i = 0; i < 4; ++i)
+            {
+                uint64_t a = num_codes;
+                num_codes += *pC;
+                ++pC;
+                a |= (((uint64_t)num_codes)<<16);
+                num_codes += *pC;
+                ++pC;
+                a |= (((uint64_t)num_codes)<<32);
+                num_codes += *pC;
+                ++pC;
+                a |= (((uint64_t)num_codes)<<48);
+                num_codes += *pC;
+                ++pC;
+                *pUI64 = a;
+                ++pUI64;
+            }
 #endif

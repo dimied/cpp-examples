@@ -139,8 +139,9 @@ char buffer[1024];
 #define UINT64_TYPE(C) (C##ul)
 
 #include "compression/bench_inflate.h"
-#include "compression/gzip.h"
 #include "compression/inflate_test.h"
+#include "compression/gzip.h"
+
 
 int main()
 {
