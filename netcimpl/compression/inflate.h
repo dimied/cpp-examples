@@ -3,6 +3,14 @@
 
 #define USE_ALGO_STEP_LOGGING 1
 
+#ifndef INFLATE_DO_CHECK_FOR_ERRORS
+#define INFLATE_DO_CHECK_FOR_ERRORS 1
+#endif
+
+#ifndef INFLATE_USE_GLOBAL_DATA_STRUCTS
+#define INFLATE_USE_GLOBAL_DATA_STRUCTS 1
+#endif
+
 #include "inflate_dev.h"
 
 #ifdef INFLATE_OK
@@ -13,52 +21,20 @@
 #endif
 
 #define INFLATE_OK 0
-// error = 1 is reserved
-#define INFLATE_ERROR_NUM_TOO_LARGE 2
 #define INFLATE_ERROR_PARAMS 2
-
-#define INFLATE_ERROR_DATA 4
-#define INFLATE_ERROR_LEN_TOO_LARGE (INFLATE_ERROR_DATA)
-#define INFLATE_ERROR_USED_TOO_LARGE (INFLATE_ERROR_DATA)
-#define INFLATE_ERROR_BUFFER 5
+#define INFLATE_ERROR_DATA 3
+#define INFLATE_ERROR_BUFFER 4
+#define INFLATE_ERROR_INVALID_INTERNAL_STATE 5
 #define INFLATE_ERROR_DEST 6
 #define INFLATE_ERROR_NOT_IMPLEMENTED 7
 
 #define INFLATE_BUILD_FIXED_TREES_ALGO 0
 
-#define UI64_REPEAT(C) ((C) | ((C) << 16) | ((C) << 32) | ((C) << 48))
-#define UI64_REPEAT_INC(C) ((C) | ((C + 1UL) << 16) | ((C + 2UL) << 32) | ((C + 3UL) << 48))
-#define ADD1 UI64_REPEAT(4UL)
-#define ADD0_INC UI64_REPEAT_INC(0UL)
+#define INFLATE_UI64_REPEAT(C) ((C) | ((C) << 16) | ((C) << 32) | ((C) << 48))
+#define INFLATE_UI64_REPEAT_INC(C) ((C) | ((C + 1UL) << 16) | ((C + 2UL) << 32) | ((C + 3UL) << 48))
+#define INFLATE_UI64_ADD1 INFLATE_UI64_REPEAT(4UL)
+#define INFLATE_ADD0_INC INFLATE_UI64_REPEAT_INC(0UL)
 
-#ifndef INFLATE_SKIP_CHECK_FOR_ERRORS
-#define INFLATE_SKIP_CHECK_FOR_ERRORS 0
-#else
-#ifdef INFLATE_DO_CHECK_FOR_ERRORS
-#error "INFLATE_DO_CHECK_FOR_ERRORS and INFLATE_SKIP_CHECK_FOR_ERRORS defined. Define only one of them!"
-#endif
-#endif
-
-#ifndef INFLATE_DO_CHECK_FOR_ERRORS
-#if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
-#define INFLATE_DO_CHECK_FOR_ERRORS 1
-#else
-#define INFLATE_DO_CHECK_FOR_ERRORS 0
-#endif
-#else
-#ifdef INFLATE_SKIP_CHECK_FOR_ERRORS
-#error "INFLATE_DO_CHECK_FOR_ERRORS and INFLATE_SKIP_CHECK_FOR_ERRORS defined. Define only one of them!"
-#endif
-#endif
-
-#ifndef SKIP_OVERFLOW_TEST
-#define SKIP_OVERFLOW_TEST 0
-#define DO_OVERFLOW_TEST 1
-#endif
-
-#ifndef GLOBAL_DATA_STRUCTS
-#define GLOBAL_DATA_STRUCTS 1
-#endif
 
 #if INFLATE_BUILD_FIXED_TREES_ALGO == 3
 static const uint64_t inflate_adds[] = {
@@ -122,11 +98,6 @@ struct inflate_state
   unsigned char *destination;       /*!< current pointer to result data */
   unsigned char *destination_end;   /*!< limit pointer to result data */
 };
-
-#define IS_INVALID_DEST(D) (D->destination >= D->destination_end)
-
-// unsigned int inflate_read_stream_bits(unsigned char *stream, unsigned int *bits_done, unsigned long *pValBuf, int *inc, unsigned int count);
-#include <assert.h>
 
 #include "../test_string_buffer.h"
 
@@ -241,6 +212,7 @@ static const unsigned short dist_base[30] = {
     33, 49, 65, 97, 129, 193, 257, 385, 513, 769,
     1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
 
+/* Precomputed trees for fixed case. */
 static const inflate_tree_pair inflate_fixed_pc = {
     .both = {
         /* length tree */
@@ -267,7 +239,7 @@ static const inflate_tree_pair inflate_fixed_pc = {
 static inflate_tree_pair fixed;
 static int fixed_done = 0;
 
-#if GLOBAL_DATA_STRUCTS
+#if INFLATE_USE_GLOBAL_DATA_STRUCTS
 static inflate_tree_pair dynamic;
 
 static struct inflate_state state;
@@ -417,7 +389,7 @@ static void inflate_build_fixed_trees()
     for (; s != 0; s--)
     {
       *pUI64 = a;
-      a += ADD1;
+      a += INFLATE_UI64_ADD1;
       ++pUI64;
     }
     ++pA;
@@ -460,7 +432,7 @@ static void inflate_build_fixed_trees()
   for (; i < 8; i++)
   {
     *pUI64 = a;
-    a += ADD1;
+    a += INFLATE_UI64_ADD1;
     ++pUI64;
   }
 #else
@@ -488,7 +460,7 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
 #if INFLATE_DO_CHECK_FOR_ERRORS
   if (num > 288)
   {
-    return INFLATE_ERROR_PARAMS;
+    return INFLATE_ERROR_DATA;
   }
 #endif
   inflate_init_tree(t);
@@ -523,7 +495,7 @@ static int inflate_build_tree(struct inflate_tree *t, const unsigned char *lengt
 
     INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_BT_USED_AVAIL, used, available, "");
 
-#if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
+#if INFLATE_DO_CHECK_FOR_ERRORS
     /* Check length contains no more codes than available */
     if (used > available)
     {
@@ -790,9 +762,10 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
     lengths[my_clcidx[i]] = (unsigned char)clen;
   }
 
+  int res;
   /* Build code length tree (in literal/length tree to save space) */
 #if INFLATE_DO_CHECK_FOR_ERRORS
-  int res = inflate_build_tree(lt, lengths, 19);
+  res = inflate_build_tree(lt, lengths, 19);
 
   if (res != INFLATE_OK)
   {
@@ -955,7 +928,7 @@ int inflate_block_data(struct inflate_state *d, struct inflate_tree *len_tree,
       break;
     }
 
-    if (IS_INVALID_DEST(d))
+    if (d->destination >= d->destination_end)
     {
       result = INFLATE_ERROR_DEST;
       break;
@@ -980,9 +953,9 @@ int inflate_block_data(struct inflate_state *d, struct inflate_tree *len_tree,
 
       sym -= 257;
 
-#define CL 1
+#define INFLATE_AIO_COMPUTE_LENGTH 1
 
-#if CL
+#if INFLATE_AIO_COMPUTE_LENGTH
       int length = sym + 3;
 #else
       int length = length_base[sym];
@@ -1001,14 +974,14 @@ int inflate_block_data(struct inflate_state *d, struct inflate_tree *len_tree,
         if (sym == 28)
         {
           sym = 0;
-#if CL
+#if INFLATE_AIO_COMPUTE_LENGTH
           length = 258;
 #endif
         }
         else
         {
           sym -= 8;
-#if CL
+#if INFLATE_AIO_COMPUTE_LENGTH
 #if 1
           // Added already: length=sym+3, so just add the missing part...
           /* 28, 29, 30, 31 */
@@ -1177,7 +1150,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
   unsigned int cur_length = 0;
   unsigned int temp;
 
-#if GLOBAL_DATA_STRUCTS == 0
+#if INFLATE_USE_GLOBAL_DATA_STRUCTS == 0
 
   struct inflate_tree_pair dynamic;
 
@@ -1210,7 +1183,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
     INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_GET_BITS_RESULT, ((bits << 1) | last), "NEW-STATE");
     INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_CHANGE_TO, bits, "");
 
-#if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
+#if INFLATE_DO_CHECK_FOR_ERRORS
     if (bits == 3)
     {
       error = -1;
@@ -1240,7 +1213,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
       //  skip current bytes
       const unsigned char *pData = state.source;
 
-#if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
+#if INFLATE_DO_CHECK_FOR_ERRORS
       cur_length = *(unsigned int *)pData;
       // printf("CL: %x\n", cur_length);
       temp = ((unsigned int)((cur_length >> 16) & 0xFFFF));
@@ -1250,7 +1223,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
       cur_length = *(unsigned short *)in_data;
 #endif
 
-#if INFLATE_SKIP_CHECK_FOR_ERRORS == 0
+#if INFLATE_DO_CHECK_FOR_ERRORS
       if (temp != cur_length)
       {
         // printf("EXP:%u | %u , %x\n", cur_length, temp, temp);
@@ -1262,7 +1235,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
 
       state.source += 4;
 
-#if SKIP_OVERFLOW_TEST == 0
+#if INFLATE_DO_CHECK_FOR_ERRORS
       // Overflows?
       if (cur_length > out_size - done_bytes || in_done >= in_size || in_done + cur_length > in_size)
       {

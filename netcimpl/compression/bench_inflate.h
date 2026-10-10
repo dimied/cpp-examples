@@ -67,7 +67,7 @@ union a
       {
         // printf("SA:%lx \n", a);
         *pUI64 = a;
-        a += ADD1;
+        a += INFLATE_UI64_ADD1;
         // printf("INC: %d\n", j);
         ++pUI64;
       }
@@ -86,7 +86,7 @@ union a
       {
         // printf("SA:%lx \n", a);
         *pUI64 = a;
-        a += ADD1;
+        a += INFLATE_UI64_ADD1;
         // printf("INC: %d\n", j);
         ++pUI64;
       }

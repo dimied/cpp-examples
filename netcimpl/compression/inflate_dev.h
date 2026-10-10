@@ -175,6 +175,11 @@ void add_algo_step_no_value(int type)
     {                                                   \
     } while (0)
 
+#define INFLATE_ALGO_STEP_UI32_PTR_VALUE(T, V1, PTR, N) \
+    do                                                  \
+    {                                                   \
+    } while (0)
+
 #define INFLATE_ALGO_STEP_PTR(T, P, N) \
     do                                 \
     {                                  \
