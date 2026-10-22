@@ -326,8 +326,14 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
     struct inflate_tree *dt = &dynamic.both.distance_tree;
     struct inflate_tree *cur_tree = lt;
 
+#define COMPACT_H 0
+
+#if COMPACT_H
+    int hvalues = 0;
+#else
     /* vars for the header of dynamic tree */
     int hlit = 0, hdist = 0, hclen = 0;
+#endif
 
 #define LENGTH_SIZE 320
 #define OFFSETS_SIZE 32
@@ -572,6 +578,26 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         /* -- */
         case INFLATE_AIO_STATE_DECODE_TREES_STEP1:
         {
+
+#define HDIST_SHIFT 9
+#define HDIST_MASK 0x3F
+#define HLIT_MASK 0x1FF
+#define HCLEN_SHIFT 15
+
+#if COMPACT_H
+            // hvalues = in_bits;
+
+            /* 5 bits for HLIT (257-286) # of Literal/Length codes  */
+            register int hlit = ((unsigned int)(in_bits & 0x1F)) + 257;
+            in_bits >>= 5;
+            /* 5 bits for HDIST (1-32) # of Distance codes */
+            register int hdist = ((unsigned int)(in_bits & 0x1F)) + 1;
+            in_bits >>= 5;
+            /* 4 bits for HCLEN (4-19) # of Code Length codes */
+            register int hclen = in_bits + 4;
+            hvalues = hlit | (hdist << HDIST_SHIFT) | (hclen << HCLEN_SHIFT);
+#else
+
             /* 5 bits for HLIT (257-286) # of Literal/Length codes  */
             hlit = ((unsigned int)(in_bits & 0x1F)) + 257;
             in_bits >>= 5;
@@ -580,6 +606,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             in_bits >>= 5;
             /* 4 bits for HCLEN (4-19) # of Code Length codes */
             hclen = in_bits + 4;
+#endif
 
             INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_GET_BITS_RESULT, hlit, "hlit");
             INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_GET_BITS_RESULT, hdist, "hdist");
@@ -657,7 +684,11 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 
             register const unsigned char *pSrc = state_source;
             register int itemp = state_bitcount;
+#if COMPACT_H
+            const int limit = hvalues >> HCLEN_SHIFT;
+#else
             const int limit = hclen;
+#endif
             temp = state_bitbuf;
 
             for (; i < limit; ++i)
@@ -710,16 +741,28 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
              * of offs and add one more bit to it.
              */
             // int d = hlit + hdist - decode_trees_idx;
+
             // printf("CHECK: %d < %d => %d\n", decode_trees_idx, hlit + hdist , d > 0 ? 1 : 0);
+#if COMPACT_H
+            int hlimit = (hvalues & HLIT_MASK);
+            hlimit += (hvalues >> HDIST_SHIFT) & HDIST_MASK;
+            if (decode_trees_idx < hlimit)
+            {
+#else
             if (decode_trees_idx < hlit + hdist)
             {
+#endif
                 cur_tree = lt;
                 comp_state = INFLATE_AIO_STATE_COMBINE2(INFLATE_AIO_STATE_DECODE_TREES_STEP3, INFLATE_AIO_STATE_BLOCK_DATA);
                 comp_state = INFLATE_AIO_STATE_COMBINE3(INFLATE_AIO_DECODE_SYMBOL, INFLATE_AIO_STATE_DECODE_TREES_STEP3_SYM, comp_state);
             }
             else
             {
+#if COMPACT_H
+                INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, decode_trees_idx, hlimit, "");
+#else
                 INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_ITER_END, decode_trees_idx, hlit + hdist, "");
+#endif
                 /* Is end-of-block symbol present? */
 #if INFLATE_DO_CHECK_FOR_ERRORS
                 if (inflate_aio_lengths[256] == 0)
@@ -730,7 +773,12 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
 #endif
                 cur_tree = lt;
                 p_build_tree_len = inflate_aio_lengths;
+
+#if COMPACT_H
+                build_tree_size = hvalues & HLIT_MASK;
+#else
                 build_tree_size = hlit;
+#endif
                 comp_state = INFLATE_AIO_STATE_COMBINE2(
                     INFLATE_AIO_STATE_BLOCK_DATA, INFLATE_AIO_STATE_NEW_STATE);
 
@@ -868,8 +916,16 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             INFLATE_ALGO_STEP_I32_I32_VALUE(ALGO_STEP_DT_SYM2, sym, length, "");
 
 #if INFLATE_DO_CHECK_FOR_ERRORS
+
+#if COMPACT_H
+            int hlimit = (hvalues & HLIT_MASK);
+            hlimit += ((hvalues >> HDIST_SHIFT) & HDIST_MASK);
+            if (length > hlimit - num)
+            {
+#else
             if (length > hlit + hdist - num)
             {
+#endif
                 INFLATE_ALGO_STEP_I32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_BUFFER, "DT3-SYM: length >...");
                 return INFLATE_ERROR_DATA;
             }
@@ -900,8 +956,15 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         case INFLATE_AIO_STATE_BUILD_TREE_DT:
         {
             cur_tree = dt;
+
+#if COMPACT_H
+            p_build_tree_len = inflate_aio_lengths + (int)(hvalues & HLIT_MASK);
+            build_tree_size = (int)(hvalues >> HDIST_SHIFT) & HDIST_MASK;
+#else
             p_build_tree_len = inflate_aio_lengths + hlit;
             build_tree_size = hdist;
+#endif
+
             comp_state = INFLATE_AIO_STATE_COMBINE3(
                 INFLATE_AIO_STATE_BUILD_TREE,
                 INFLATE_AIO_STATE_BLOCK_DATA, INFLATE_AIO_STATE_NEW_STATE);
@@ -1485,74 +1548,74 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
             inflate_set_inc(pS, 112, 144);
 
 #elif INFLATE_BUILD_FIXED_TREES_ALGO == 3
-            uint64_t *pUI64 = lt->symbols.ui64;
+        uint64_t *pUI64 = lt->symbols.ui64;
 
 #define EX_ENCODE 0
 
 #if EX_ENCODE
-            /* 256,0,280,144 -> /8 = 32,0,35,18 = 6 bits  required */
-            /* 6,36,2,28 -> 3,18,1,14 : 5 bits required */
-            /* Hard to pack, so use 64 bits */
-            uint64_t sizes_and_offsets = ((6UL) | (256UL << 6) | (36UL << 16) | (0) | (2UL << 32) | (280UL << 38) | (28UL << 48) | (144UL << 56));
-            while (sizes_and_offsets != 0)
+        /* 256,0,280,144 -> /8 = 32,0,35,18 = 6 bits  required */
+        /* 6,36,2,28 -> 3,18,1,14 : 5 bits required */
+        /* Hard to pack, so use 64 bits */
+        uint64_t sizes_and_offsets = ((6UL) | (256UL << 6) | (36UL << 16) | (0) | (2UL << 32) | (280UL << 38) | (28UL << 48) | (144UL << 56));
+        while (sizes_and_offsets != 0)
+        {
+            itemp = (int)(sizes_and_offsets & 0x3F);
+            sizes_and_offsets >>= 6;
+
+            register uint64_t a = (sizes_and_offsets & 0x3FF);
+            sizes_and_offsets >>= 10;
+            a |= (a << 16);
+            a |= (a << 32);
+            a += INFLATE_ADD0_INC; /* |= also possible, all 'short parts' have 3 lowest bits 0 */
+
+            for (; itemp != 0; itemp--)
             {
-                itemp = (int)(sizes_and_offsets & 0x3F);
-                sizes_and_offsets >>= 6;
-
-                register uint64_t a = (sizes_and_offsets & 0x3FF);
-                sizes_and_offsets >>= 10;
-                a |= (a << 16);
-                a |= (a << 32);
-                a += INFLATE_ADD0_INC; /* |= also possible, all 'short parts' have 3 lowest bits 0 */
-
-                for (; itemp != 0; itemp--)
-                {
-                    *pUI64 = a;
-                    a += INFLATE_UI64_ADD1;
-                    ++pUI64;
-                }
-
-                temp >>= 8;
+                *pUI64 = a;
+                a += INFLATE_UI64_ADD1;
+                ++pUI64;
             }
+
+            temp >>= 8;
+        }
 #else
-            const uint64_t *pA = inflate_adds;
-            register unsigned int temp = (6 | (36 << 8) | (2 << 16) | (28 << 24));
+        const uint64_t *pA = inflate_adds;
+        register unsigned int temp = (6 | (36 << 8) | (2 << 16) | (28 << 24));
 
-            while (temp != 0)
+        while (temp != 0)
+        {
+            register uint64_t a = *pA;
+            ++pA;
+            register int itemp = (int)(temp & 0xFF);
+
+            for (; itemp != 0; itemp--)
             {
-                register uint64_t a = *pA;
-                ++pA;
-                register int itemp = (int)(temp & 0xFF);
-
-                for (; itemp != 0; itemp--)
-                {
-                    *pUI64 = a;
-                    a += INFLATE_UI64_ADD1;
-                    ++pUI64;
-                }
-
-                temp >>= 8;
+                *pUI64 = a;
+                a += INFLATE_UI64_ADD1;
+                ++pUI64;
             }
+
+            temp >>= 8;
+        }
 #endif
 #else
-            unsigned short *pS = lt->symbols.us16;
-            int i;
-            for (i = 0; i < 24; ++i)
-            {
-                pS[i] = 256 + i;
-            }
-            for (i = 0; i < 144; ++i)
-            {
-                pS[24 + i] = i;
-            }
-            for (i = 0; i < 8; ++i)
-            {
-                pS[24 + 144 + i] = 280 + i;
-            }
-            for (i = 0; i < 112; ++i)
-            {
-                pS[24 + 144 + 8 + i] = 144 + i;
-            }
+        unsigned short *pS = lt->symbols.us16;
+        int i;
+        for (i = 0; i < 24; ++i)
+        {
+            pS[i] = 256 + i;
+        }
+        for (i = 0; i < 144; ++i)
+        {
+            pS[24 + i] = i;
+        }
+        for (i = 0; i < 8; ++i)
+        {
+            pS[24 + 144 + i] = 280 + i;
+        }
+        for (i = 0; i < 112; ++i)
+        {
+            pS[24 + 144 + 8 + i] = 144 + i;
+        }
 #endif
             dt->max_sym = 29;
             /* Build fixed distance tree */
@@ -1573,10 +1636,10 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
                 ++pUI64;
             }
 #else
-            for (i = 0; i < 32; ++i)
-            {
-                dt->symbols.us16[i] = i;
-            }
+        for (i = 0; i < 32; ++i)
+        {
+            dt->symbols.us16[i] = i;
+        }
 #endif
             ++fixed_done;
         }

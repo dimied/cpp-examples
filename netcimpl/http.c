@@ -138,19 +138,11 @@ char buffer[1024];
 
 #define UINT64_TYPE(C) (C##ul)
 
-#include "compression/bench_inflate.h"
-#include "compression/inflate_test.h"
-#include "compression/gzip.h"
-
-extern int inflate_asm_x64();
 
 int main()
 {
-    int ar = inflate_asm_x64();
-    printf("RES:%d\n", ar);
-    return 0;
-    test_inflate();
-    return 0;
+    
+    // return 0;
     signal(SIGINT, signalHandler);
 
     // testParseIp();

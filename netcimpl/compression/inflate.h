@@ -1,7 +1,7 @@
 #ifndef INFLATE_INCLUDED
 #define INFLATE_INCLUDED
 
-#define USE_ALGO_STEP_LOGGING 1
+#define USE_ALGO_STEP_LOGGING 0
 
 #ifndef INFLATE_DO_CHECK_FOR_ERRORS
 #define INFLATE_DO_CHECK_FOR_ERRORS 1
@@ -47,7 +47,7 @@ static const uint64_t inflate_adds[] = {
 
 struct inflate_tree
 {
-  int max_sym;
+  int64_t max_sym;
   union
   {
     uint64_t ui64[4];
@@ -213,7 +213,7 @@ static const unsigned short dist_base[30] = {
     1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
 
 /* Precomputed trees for fixed case. */
-static const inflate_tree_pair inflate_fixed_pc = {
+const inflate_tree_pair inflate_fixed_pc = {
     .both = {
         /* length tree */
         {
@@ -251,15 +251,9 @@ void inflate_nullify(void *p, size_t size)
   memset(p, 0, size);
 }
 
-void inflate_clearmem(void *p, size_t len)
-{
-  inflate_nullify(p, len);
-}
-
 static void inflate_init_tree(struct inflate_tree *t)
 {
-  memset(t, 0, sizeof(struct inflate_tree));
-  // inflate_clearmem(t, sizeof(struct inflate_tree));
+  inflate_nullify(t, sizeof(struct inflate_tree));
   t->max_sym = -1;
 }
 
@@ -288,7 +282,7 @@ unsigned short *inflate_set_inc(unsigned short *p, int len, int offset)
 void inflate_print_tree_dev(struct inflate_tree *t)
 {
 
-  printf("{\n%d,\n", t->max_sym);
+  printf("{\n%ld,\n", t->max_sym);
   printf("{");
   size_t sz = sizeof(t->code_counts.us16) / sizeof(t->code_counts.us16[0]);
   unsigned short *pValues = t->code_counts.us16;
@@ -1157,7 +1151,7 @@ int inflate(unsigned char *out_data, unsigned int out_size, unsigned char *in_da
   struct inflate_data state;
 #endif
 
-  inflate_clearmem(&state, sizeof(state));
+  inflate_nullify(&state, sizeof(state));
 
   INFLATE_ALGO_STEP_PTR(ALGO_STEP_START_IN_PTR, in_data, "");
   INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_START_IN_SIZE, in_size, "");

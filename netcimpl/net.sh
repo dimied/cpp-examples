@@ -1,7 +1,7 @@
 #!/bin/bash
 
-
-as compression/inflate_asm.s -o inflate_asm.o
+cp compression/inflate_asm.asm compression/inflate_asm.s
+as --64 compression/inflate_asm.s -o inflate_asm.o
 r=$?
 
 if [ $r -ne 0 ]; then
@@ -13,7 +13,9 @@ fi
 
 #
 #must be at the end: -lssl -lcrypto
-gcc -Wall -Wextra -Wundef -pedantic -ggdb -Wno-variadic-macros http.c ./compression/inflate_asm.s   -lssl -lcrypto
+
+gcc -Wall -Wextra -Wundef -pedantic -fPIE -ggdb -Wno-variadic-macros ./compression/inflate_asm.s http.c -lssl -lcrypto
+# gcc -Wall -Wextra -Wundef -pedantic -fPIE -ggdb -Wno-variadic-macros http.c -lssl -lcrypto
 
 r=$?
 echo "COMPILE-RES: "$r
@@ -27,6 +29,8 @@ if [ $r -eq 0 ]; then
 wc -c ./a.out
 
 echo ""
+
+ulimit -c unlimited
 
 if [ "$1" = "tofile" ]; then
 

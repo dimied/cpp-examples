@@ -18,16 +18,6 @@
 
 #include "../print_util.h"
 
-unsigned char dec[128];
-
-unsigned char no_compression[] = {0x4, 0x4, 0x0, 0xFB, 0xFF, 0x21, 0x56, 0x76, 0xF2};
-unsigned char no_compression_result[4];
-
-char *b = "eJzzSM3JyVcoyUgFABBxA1Y=";
-
-CompressionResult compRes;
-
-unsigned char gz_result[200];
 
 struct gzip_TestCase
 {
@@ -42,14 +32,28 @@ struct gzip_TestCase gzip_test_cases[] = {
     GZIP_TEST_CASE("testdata/html1.html.gz", "testdata/html1.html"),
 };
 
-#define GZIP_TEST_CASE_RESULT_SIZE (0x1 << 20)
+#define GZIP_TEST_CASE_RESULT_SIZE (0x1 << 16)
 
-unsigned char gzip_tc_result[GZIP_TEST_CASE_RESULT_SIZE];
+CompressionResult compRes;
+
+static unsigned char gzip_tc_result[GZIP_TEST_CASE_RESULT_SIZE];
+
+unsigned char gz_result[200];
+
+unsigned char dec[128];
+
+unsigned char no_compression[] = {0x4, 0x4, 0x0, 0xFB, 0xFF, 0x21, 0x56, 0x76, 0xF2};
+unsigned char no_compression_result[4];
+
+char *b = "eJzzSM3JyVcoyUgFABBxA1Y=";
 
 void prepare_comp_res(void *data, int gzSize)
 {
+    printf("MS: CRES\n");
     memset(&compRes, 0, sizeof(compRes));
+    printf("MS: RES\n");
     memset(gzip_tc_result, 0, GZIP_TEST_CASE_RESULT_SIZE);
+    printf("MS: BUF\n");
     memset(gzip_buffer, 0, sizeof(gzip_buffer));
 
     compRes.in_data = data;
