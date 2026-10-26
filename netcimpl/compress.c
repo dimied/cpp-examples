@@ -27,8 +27,8 @@ uint64_t test_data64[16];
 
 union
 {
-    uint64_t ui64[25];
-    unsigned char ui8[1280];
+    uint64_t ui64[260];
+    unsigned char ui8[260*8];
 } asm_buffer;
 
 unsigned int mem_sizes[32];
@@ -41,6 +41,7 @@ char *mem_sizes_names[32] = {
     "RAW_JUMP",
     "FIXED_JUMP",
     "DYN_JUMP",
+    "NEW_STATE",
     "MODE_ADDRS",
     0
 };
@@ -79,6 +80,10 @@ extern void inflate_asm_x64_fixed_addr(void* p);
 void *pAddr = 0;
 
 int main() {
+    uint64_t sv = ((6UL) | (256UL << 6) | (36UL << 16) | (0) | (2UL << 32) | (280UL << 38) | (28UL << 48) | (144UL << 54));
+
+    printf("V: %lu\n", sv);
+
     // test_inflate();
     // test_clear();
     memset(mem_sizes, 0, sizeof(mem_sizes));

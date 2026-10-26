@@ -1556,7 +1556,7 @@ int inflate_aio(unsigned char *out_data, unsigned int out_size, unsigned char *i
         /* 256,0,280,144 -> /8 = 32,0,35,18 = 6 bits  required */
         /* 6,36,2,28 -> 3,18,1,14 : 5 bits required */
         /* Hard to pack, so use 64 bits */
-        uint64_t sizes_and_offsets = ((6UL) | (256UL << 6) | (36UL << 16) | (0) | (2UL << 32) | (280UL << 38) | (28UL << 48) | (144UL << 56));
+        uint64_t sizes_and_offsets = ((6UL) | (256UL << 6) | (36UL << 16) | (0) | (2UL << 32) | (280UL << 38) | (28UL << 48) | (144UL << 54));
         while (sizes_and_offsets != 0)
         {
             itemp = (int)(sizes_and_offsets & 0x3F);

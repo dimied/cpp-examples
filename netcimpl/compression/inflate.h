@@ -757,7 +757,7 @@ static int inflate_decode_trees(struct inflate_state *d, struct inflate_tree *lt
   }
 
   int res;
-  /* Build code length tree (in literal/length tree to save space) */
+  /* Build code length tree */
 #if INFLATE_DO_CHECK_FOR_ERRORS
   res = inflate_build_tree(lt, lengths, 19);
 
