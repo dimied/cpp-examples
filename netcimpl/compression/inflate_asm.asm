@@ -787,6 +787,7 @@ inflate_asm_x64:
 	jne .block_data_loop_not_end
 	# new iteration!
 	mov %edx, ASM_INFLATE_STATE_NEW_STATE
+	movd %xmm7, %edx
 	jmp .loop_start_edx
 	#
 .block_data_loop_not_end:
@@ -1340,6 +1341,8 @@ inflate_asm_x64:
 	je .block_data_loop_got_symbol
 	cmp %r14b, 2
 	je .block_data_loop_got_dt_symbol
+	cmp %r14b, 3
+	je .build_trees_after
 	#
 	jmp .error_state_4
 	#
@@ -1523,12 +1526,227 @@ inflate_asm_x64:
 	shr %ecx, 8
 	mov %ax, %cx # hlit
 	#
-	
 	# Build length tree
-	mov %edx, DYN_TREE_SEQUENCE
-	movd %xmm7, %edx
-	jmp .loop_start
+	mov %rdi, %r13
+	xor %rcx, %rcx
+	mov %rsi, %rdi
+	add %rdi, 384 # ptr to tree
+	add %rsi, 64 # ptr to length
+	mov %cx, 19 # length size
+	#
+	call .build_tree
+	#
+	test %eax, %eax
+	jnz .error_state
+	#
+	#
+	mov %rdi, %r13
+	mov %rsi, %rdi
+	add %rdi, 384
+	mov %ax, [%rdi]
+	cmp %ax, 0
+	jl .error_state
+	#
+	#
+	# / * Decode code lengths for the dynamic trees * / 
+	#
+	mov %ecx, [%rbp - HLIT_HDIST_HCLEN]
+	mov %eax, %ecx
+	shr %ecx, 8
+	shr %eax, 16
+	and %cx, 0xFF
+	movzx %ecx, %cl
+	add %ecx, %eax # ecx = hlit + hdist
+	
+	xor %rdx, %rdx # dx = num
+	#
+	# for (num = 0               ; num < hlit + hdist;)
+	# {
+.loop_num_hlit_hdist:
+	# int sym = inflate_decode_symbol(d, lt);
+	mov %rdi, %r13
+	# mov %rsi, %rdi
+	mov %r14w, 3 # state after
+	add %rdi, 384 # length tree
+	jmp .inflate_aio_decode_symbol
+.build_trees_after:
+	# eax = result
+	# #if INFLATE_DO_CHECK_FOR_ERRORS
+	# if (sym > lt_max_sym)
+	# {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	# #endif
+	mov %rdi, %r13
+	add %rdi, 384 # length tree
+	mov %ebx, [%rdi]
+	cmp %eax, %ebx
+	ja .error_state
+	#
+	# unsigned int length = 1    ;
+	xor %ebx, %ebx
+	
+	inc %bx # length 1
+# default:
+	# / * Values 0 - 15 represent the actual code lengths * / 
+	# / / length = 1             ;
+	# break                      ;
+	# }
+	#
+	# switch (sym)
+	# {
+	cmp %ax, 16
+	jne .sym_not_16
+# case 16:
+	# / * Copy previous code length 3 - 6 times (read 2 bits) * / 
+	# #if INFLATE_DO_CHECK_FOR_ERRORS
+	# if (num == 0)
+	# {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	# #endif
+	test %dx, %dx
+	jz .error_state
+	#
+	#
+	mov %rdi, %r13
+	add %rdi, 64 # length array
+	#
+	
+	dec %dx
+	xor %ax, %ax
+	add %rdi, %rdx
+	inc %dx
+	# sym = lengths[num - 1]     ;
+	mov %al, [%rdi]
+	# length = inflate_getbits(d, 2, 3);
+	mov %bx, 0x203
+	# break                      ;
+	jmp .sym_switch_end
+.sym_not_16:
+	cmp %ax, 17
+	je .sym_is_17
+	cmp %ax, 18
+	je .sym_is_18
+.sym_is_17:
+# case 17:
+	# / * Repeat code length 0 for 3 - 10 times (read 3 bits) * / 
+	# sym = 0                    ;
+	xor %ax, %ax
+	# length = inflate_getbits(d, 3, 3);
+	mov %bx, 0x303
+	# break
+	jmp .sym_switch_end
+.sym_is_18:
+# case 18:
+	# / * Repeat code length 0 for 11 - 138 times (read 7 bits) * / 
+	# sym = 0                    ;
+	xor %ax, %ax
+	# length = inflate_getbits(d, 7, 11);
+	mov %bx, 0x70B
+	# break
+	#
+.sym_switch_end:
+	mov %r14w, %ax # store sym
+	shl %r14d, 16
+	or %r14d, %edx # count
+	
+	cmp %bx, 1
+	je .dont_compute_length
+	mov %ax, %bx
+	and %bx, 0xF
+	shr %ax, 8
+	#
+	mov %dl, 100
+	jmp .get_bits
+.build_after_get_bits:
+	mov %bx, %ax # bx = length
+.dont_compute_length:
+	#
+	# #if INFLATE_DO_CHECK_FOR_ERRORS
+	# if (length > hlit + hdist - num)
+	# {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	# #endif
+	#
+	mov %dx, %r14w # restore count
+	sub %cx, %dx
+	cmp %bx, %cx
+	jg .error_state
+	#
+	add %cx, %dx
+	mov %eax, %r14d
+	shr %eax, 16 # al = sym
+	#
+	#
+	mov %rdi, %r13
+	add %rdi, 64 # length array
+	add %rdi, %rdx
+	xchg %cx, %bx # cx = length
+	# while (length - - != 0)
+	# {
+	# lengths[num + + ] = sym    ;
+	# }
+	cld
+	rep stosb
+	#
+	xchg %cx, %bx # cx = limit
+	#
+	inc %dx # for next loop iteration
+	#
+	cmp %dx, %cx
+	jb .loop_num_hlit_hdist
+	# }
+	#
+	mov %rdi, %r13
+	mov %rsi, %r13
+	
+	# Is end_of_block present ?
+	add %rsi, (64 + 256)
+	mov %al, [%rsi]
+	test %eax, %eax
+	jz .error_state
+	#
+	mov %ecx, [%rbp - HLIT_HDIST_HCLEN]
+	sub %rsi, 256 # length ptr
+	shr %ecx, 16 # cx = hlit
+	add %rdi, 384 # rdi = len tree ptr
+	#
+	call .build_tree
+	#
+	test %eax, %eax
+	jnz .error_state
+	#
+	xor %rax, %rax
+	mov %rdi, %r13
+	mov %eax, [%rbp - HLIT_HDIST_HCLEN]
+	xor %rcx, %rcx
+	mov %rsi, %rdi
+	mov %cl, %ah # cl = ah = hdist
+	add %rdi, (384 + 640) # distance tree
+	shr %eax, 16 # ax = hlit
+	add %rsi, %rax # length + hlit
+	#
+	call .build_tree
+	#
+	test %eax, %eax
+	jnz .error_state
+	#
+	jmp .inflate_aio_block_data
+	#
+	#
 	# jmp .error_state
+	# mov %edx, DYN_TREE_SEQUENCE
+	# movd %xmm7, %edx
+	# jmp .loop_start
+	# jmp .error_state
+	#
+.build_tree:
+	# rdi = tree ptr
+	# rsi = length array ptr
+	# cx = length of length array
+	ret
 	#
 	#
 	.if USE_CLEAR_REGS
