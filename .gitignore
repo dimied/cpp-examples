@@ -51,6 +51,7 @@ linux_epoll
 pthreads_test
 net_codegen
 a.out
+*_asm.s
 
 # debug information files
 *.dwo

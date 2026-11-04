@@ -7,109 +7,66 @@
 	#
 	.equ ASM_INFLATE_STATE_ERROR, 3
 	#
-	.equ ASM_INFLATE_STATE_NEW_STATE, 4
-	.equ ASM_INFLATE_STATE_GET_BITS, 5
-	.equ ASM_INFLATE_STATE_READ_HEADER, 6
-	.equ ASM_INFLATE_STATE_READ_HEADER_AFTER, 7
-	.equ ASM_INFLATE_STATE_B_LT1, 8 # build length tree 1
-	.equ ASM_INFLATE_STATE_L_LT, 9 # get lengths for length tree
-	.equ ASM_INFLATE_STATE_B_LT, 10 # build length tree
-	.equ ASM_INFLATE_STATE_B_DT, 11 # build data tree
-	.equ ASM_INFLATE_STATE_BLD, 12 # block data
-	
-	
-	.equ ASM_INFLATE_STATE_GET_SYMBOL, 8
-	.equ ASM_INFLATE_STATE_GET_BITS_GET_SYMBOL, 9
-	.equ ASM_INFLATE_STATE_GET_BITS_BLOCK_DATA, 10
-	.equ ASM_INFLATE_STATE_GET_BITS_DATA_OFFSET, 11
-	.equ ASM_INFLATE_STATE_GET_BITS_BUILD_TREES, 12
-	.equ ASM_INFLATE_STATE_GET_BITS_LENGTH_LOOP, 13
-	.equ ASM_INFLATE_STATE_GET_BITS_LENGTH_LOOP_FIRST, 14
-	.equ ASM_INFLATE_STATE_LAST_VALID, 14
-	.equ ASM_INFLATE_BITSHIFT, 5
-	.equ ASM_INFLATE_BITSHIFT2, 10
-	.equ ASM_INFLATE_BITSHIFT3, 15
-	.equ ASM_INFLATE_BITSHIFT4, 20
-	.equ ASM_INFLATE_BITMASK, 0x1F
-	#
-	#
-	.equ DYN_TREE_SEQUENCE, (ASM_INFLATE_STATE_B_LT1|(ASM_INFLATE_STATE_L_LT<<ASM_INFLATE_BITSHIFT)|(ASM_INFLATE_STATE_B_LT<<ASM_INFLATE_BITSHIFT2)|(ASM_INFLATE_STATE_B_DT<<ASM_INFLATE_BITSHIFT3)|(ASM_INFLATE_STATE_BLD<<ASM_INFLATE_BITSHIFT4))
-	#
 	#
 	# STACK POSITIONS
-	.equ IN_SIZE, 4
-	.equ OUT_SIZE, 8
-	.equ IN_AVAIL, 12
-	.equ OUT_AVAIL, 16
-	.equ IN_DATA, 24
-	.equ OUT_DATA, 32
+	.equ RSP_BACKUP, 8
+	# some space in - between
+	.equ IN_SIZE, 20
+	.equ OUT_SIZE, 24
+	# .equ IN_AVAIL, 28
+	# .equ OUT_AVAIL, 32
 	#
-	.equ SRC_START, 40
-	.equ DST_START, 48
+	.equ IN_DATA, 40
+	.equ OUT_DATA, 48
 	#
-	.equ FIRST_TO_ZERO_POS, 64 # 72
-	# .equ FIRST_TO_ZERO, - 72
+	.equ SRC_START, 56
+	.equ DST_START, 64
+	#
+	.equ FIRST_TO_ZERO_POS, 72
 	.equ LAST_FLAG, (FIRST_TO_ZERO_POS)
-	.equ RAX_BACKUP, (FIRST_TO_ZERO_POS + 8)
-	.equ RBX_BACKUP, (FIRST_TO_ZERO_POS + 16)
-	.equ RCX_BACKUP, (FIRST_TO_ZERO_POS + 24)
-	.equ RDX_BACKUP, (FIRST_TO_ZERO_POS + 32)
+	# .equ IN_BITS, (FIRST_TO_ZERO_POS + 8)
+	.equ HLIT_HDIST_HCLEN, (FIRST_TO_ZERO_POS + 8)
+	# .equ RAX_BACKUP, (FIRST_TO_ZERO_POS + 8)
+	# .equ RBX_BACKUP, (FIRST_TO_ZERO_POS + 16)
+	.equ RCX_BACKUP, (FIRST_TO_ZERO_POS + 16)
+	.equ RDX_BACKUP, (FIRST_TO_ZERO_POS + 24)
+	.equ RDI_BACKUP, (FIRST_TO_ZERO_POS + 32)
 	.equ RSI_BACKUP, (FIRST_TO_ZERO_POS + 40)
-	# .equ RDI_BACKUP, (FIRST_TO_ZERO_POS + 48)
-	.equ LAST_BACKUP, (RSI_BACKUP)
-	# .equ R12_BACKUP, (FIRST_TO_ZERO_POS + 56)
-	# .equ R13_BACKUP, (FIRST_TO_ZERO_POS + 64)
-	# .equ LAST_BACKUP, (R13_BACKUP)
 	#
-	.equ LOCAL_VAR_OFFSET, (LAST_BACKUP + 8)
-	.equ IN_BITS, (LOCAL_VAR_OFFSET + 8)
-	# .equ LAST_SYM, (LOCAL_VAR_OFFSET + 16)
-	# .equ CUR_TREE, (LOCAL_VAR_OFFSET + 24)
-	.equ LENGTH_PTR, (LOCAL_VAR_OFFSET + 16)
-	.equ OFFSETS_PTR, (LOCAL_VAR_OFFSET + 24)
-	.equ BUILD_TREE_LEN_PTR, (LOCAL_VAR_OFFSET + 32)
-	.equ BUILT_TREE_SIZE, (LOCAL_VAR_OFFSET + 40)
 	# 3 short values, 4.th value is sum
-	.equ HLIT_HDIST_HCLEN, (LOCAL_VAR_OFFSET + 48)
-	.equ BLOCK_DATA_LEN, (LOCAL_VAR_OFFSET + 56)
-	.equ DECODE_TREE_IDX, (LOCAL_VAR_OFFSET + 64)
-	
-	.equ LAST_TO_ZERO, (DECODE_TREE_IDX)
-	.equ NUM_TO_ZERO, (LAST_TO_ZERO - FIRST_TO_ZERO_POS)
+	# .equ LAST_TO_ZERO, (HLIT_HDIST_HCLEN)
+	.equ LAST_TO_ZERO, (RSI_BACKUP)
+	# .equ NUM_TO_ZERO, (LAST_TO_ZERO - FIRST_TO_ZERO_POS)
+	.equ NUM_TO_ZERO, (LAST_TO_ZERO)
 	.equ NUM_TO_ZERO_8, (NUM_TO_ZERO / 8)
 	#
+	.equ OFFSETS_LEN, 32
+	.equ LENGTH_ARRAY_OFFSET, 64
+	.equ LENGTH_ARRAY_SIZE, 320
 	.equ LENGTH_TREE_OFFSET, 384
 	.equ TREE_SIZE, 640
 	.equ DISTANCE_TREE_OFFSET, (LENGTH_TREE_OFFSET + TREE_SIZE)
+	.equ BUFFER_LEN, (LENGTH_TREE_OFFSET + (2 * TREE_SIZE))
+	.equ BUFFER_LEN_8, (BUFFER_LEN) / 8
 	#
-	.equ HLIT_ADD, 257
-	.equ HDIST_ADD, 1
-	.equ HCLEN_ADD, 4
-	.equ LENGTH_LEN, 320
-	.equ OFFSETS_OFFSET, LENGTH_LEN
-	.equ OFFSETS_LEN, 32
+	#
 	#
 	.section .text
-	
+	#
 	.globl inflate_asm_x64
 	.globl inflate_asm_x64_diffs
-	.globl inflate_asm_x64_clear
-	.globl inflate_asm_x64_fixed_addr
+	#
 	.type inflate_asm_x64, @function
 	.type inflate_asm_x64_diffs, @function
-	.type inflate_asm_x64_clear, @function
-	.type inflate_asm_x64_fixed_addr, @function
-	
 	#
 	# Parameters
-# xDI : 1st, xSI : 2nd, xDX : 3rd, xCX : 4th, r8 : 5th
+	# xDI = 1st, xSI = 2nd, xDX = 3rd, xCX = 4th, r8 = 5th
 	#
-# From search engine:
-	# Register Preservation Rules
-# - Caller - Saved (Volatile) Registers:
+	# Register Preservation Rules for Linux
+# Caller - Saved (Volatile) Registers:
 	# - %rax, %rcx, %rdx, %rsi, %rdi, %r8, %r9, %r10, %r11
 	# - (can be overwritten by the callee).
-# - Callee - Saved (Non - Volatile) Registers:
+# Callee - Saved (Non - Volatile) Registers:
 	# - %rbx, %rsp, %rbp, %r12, %r13, %r14, %r15
 	# - (must be restored by the callee if used)
 	#
@@ -126,12 +83,15 @@
 # - %r12 : bit - buffer, lowest byte is the bit count
 # - %r13 : buffer ptr
 # - %r14 : temp reg
+# - %r14 : decode_sym temp
 # - %r15 : temp reg
 	#
 	# And we can use also XMM registers (XMM0 - XMM7), 
 	# because all 64 - bit processors support XMM0.
 	# And we don't need to deal with MMX - FP87 aliasing
 # - xmm0 : temp
+# - xmm0 : block data temp
+	#
 # - xmm1 : get bits temp 1
 # - xmm2 : get bits temp 2
 # - xmm3 : get bits temp 3
@@ -144,12 +104,11 @@
 	# - movq r64, xmm # movq xmm, r64
 	#
 	.equ FUNC_LEN, (_inflate_asm_x64_end - inflate_asm_x64)
-	.equ GET_BITS_LEN, (.get_bits_end - .get_bits)
-	.equ RAW_JUMP, (.raw_mode - .inflate_aio_jmp_start_3)
-	.equ FIXED_JUMP, (.fixed_mode - .inflate_aio_jmp_start_3)
-	.equ DYN_JUMP, (.dyn_mode - .inflate_aio_jmp_start_3)
-	.equ NEW_STATE_JUMP, (.new_state - .inflate_aio_jmp_start_3)
-	.equ MODE_ADDRS, (RAW_JUMP | (FIXED_JUMP<<8) | (DYN_JUMP<<16))
+	# .equ RAW_JUMP, (.raw_mode - .inflate_aio_jmp_start_3)
+	# .equ FIXED_JUMP, (.fixed_mode - .inflate_aio_jmp_start_3)
+	# .equ DYN_JUMP, (.dyn_mode - .inflate_aio_jmp_start_3)
+	# .equ NEW_STATE_JUMP, (.new_state - .inflate_aio_jmp_start_3)
+	# .equ MODE_ADDRS, (RAW_JUMP | (FIXED_JUMP<<8) | (DYN_JUMP<<16))
 	#
 	.equ MMX_SUPPORT_BIT, 23
 	# clear reg flags
@@ -182,9 +141,9 @@
 	# nop
 	#
 	#
-	
 	.intel_syntax
-	
+	#
+	#
 inflate_asm_x64:
 	.ifndef INFLATE_ASM_CHECK_ERRORS
 	.equ INFLATE_ASM_CHECK_ERRORS, 1
@@ -214,213 +173,375 @@ inflate_asm_x64:
 	.equ INFLATE_ASM_NULLIFY_STACK, 1
 	.endif
 	#
-	.ifndef CHECK_MEMORY_UNDERFLOW
-	.equ CHECK_MEMORY_UNDERFLOW, 0
-	.endif
-	#
-	.ifndef COMP_JUMP_ADDRESS
-	.equ COMP_JUMP_ADDRESS, 0
-	.endif
 	# for raw values
 	.ifndef CHECK_RAW_SIZES
 	.equ CHECK_RAW_SIZES, 1
 	.endif
 	# algo prop for fixed
 	.ifndef COMPACT_IMPL
-	.equ COMPACT_IMPL, 0
+	.equ COMPACT_IMPL, 1
 	.endif
 	# algo prop for fixed
 	.ifndef COMPACT_IMPL2
-	.equ COMPACT_IMPL2, 1
+	.equ COMPACT_IMPL2, 0
 	.endif
 	# algo prop for fixed
 	.ifndef COMPACT_IMPL_MUL
-	.equ COMPACT_IMPL_MUL, 1
+	.equ COMPACT_IMPL_MUL, 0
+	.endif
+	.ifndef FIXED_LOOP_IMPL
+	.equ FIXED_LOOP_IMPL, 0
 	.endif
 	# use functions to clear registers?
 	.ifndef USE_CLEAR_REGS
 	.equ USE_CLEAR_REGS, 1
 	.endif
 	#
-	# experiment
-	.equ DADA, 0
 	#
-	.if INFLATE_ASM_STACK_PTR_CHECK
-	cmp %rsp, 512 # unrealistic stack having so small address, but still...
-	ja .enough_stack
-	jmp .error_state_not_supported_range
-.enough_stack:
+	.ifndef GET_BITS_BACKUP_ON_STACK
+	.equ GET_BITS_BACKUP_ON_STACK, 0
 	.endif
 	#
+	.ifndef GET_BITS_64B_STORE
+	.equ GET_BITS_64B_STORE, 1
+	.endif
+	#
+	#
+	xor %rax, %rax
+	#
+	.if INFLATE_ASM_STACK_PTR_CHECK
+	mov %ax, 512
+	# unrealistic stack having so small stack address, 
+	cmp %rsp, %rax
+	# but still ...
+	ja .inflate_asm_x64_enough_stack
+	shr %ax, 6 # div by 64. i.e. ax = 8
+	ret
+.inflate_asm_x64_enough_stack:
+	.endif
+	#
+	.equ INFLATE_ASM_CHECK_SSSE3, 0
+	
+	.if INFLATE_ASM_CHECK_SSE2
+	.equ INFLATE_ASM_CHECK_CPUID, 1
+	.else
+	.if INFLATE_ASM_CHECK_SSSE3
+	.equ INFLATE_ASM_CHECK_CPUID, 1
+	.else
+	.equ INFLATE_ASM_CHECK_CPUID, 0
+	.endif
+	.endif
+	#
+	# SSE2 ?
+	.if INFLATE_ASM_CHECK_CPUID
+	#
+	push %rdx
+	push %rcx
+	mov %ax, 1
+	cpuid
+# edx : 4 TSC
+# edx : 8 CMPXCHG8B
+# edx : 15 CMOV
+# edx : 19 CLFLUSH
+# edx : 25 SSE
+# edx : 26 SSE2
+# ecx : 0 SSE3
+# ecx : 9 SSSE3 (e.g. PSHUFB)
+# ecx : 13 CMPXCHG16B
+# ecx : 19 SSE4.1
+# ecx : 20 SSE4.2
+# ecx : 23 POPCNT
+# ecx : 28 AVX
+	.if INFLATE_ASM_CHECK_SSSE3
+	mov %eax, %edx
+	shr %eax, 26
+	shl %ecx, 1
+	or %eax, %ecx
+	pop %rcx
+	pop %rdx
+	bt %eax, 0 # 26.th bit for SSE2 - support
+	jc .inflate_sse2_supported
+	xor %rax, %rax
+	mov %al, 7
+	ret
+	.else
+	mov %eax, %edx # clears upper bits
+	pop %rcx
+	pop %rdx
+	bt %eax, 26 # 26.th bit for SSE2 - support
+	jc .inflate_sse2_supported
+	# xor %rax, %rax
+	mov %al, 7
+	ret
+	.endif
+	#
+.inflate_sse2_supported:
+	.endif
+	#
+	#
 	push %rbp # callee saved
+	#
 	push %rbx # callee saved
+	push %r11 # callee saved
 	#
 	push %r12 # callee saved
 	push %r13 # callee saved
 	#
+	xor %rax, %rax
+	#
 	push %r14 # callee saved
 	push %r15 # callee saved
+	# 2 zeros to check later
+	# whether something was called or jumped to
 	#
-	# Test MMX - Support
-	.if INFLATE_ASM_CHECK_SSE2
+	push %rax
+	push %rax
 	#
-	push %rdx
-	push %rcx
-	mov %eax, 1
-	cpuid
-	mov %eax, %edx
-	pop %rcx
-	pop %rdx
-	bt %eax, 26 # 26.th bit for SSE2 - support
-	jnc .error_state_not_implemented_mmx
 	#
-	.endif
+	mov %rbp, %rsp
+	#
+	# Now stack is 16 - byte aligned
+	#
 	#
 	# Validate inputs
 	#
 	test %rdi, %rdi # dst addr
-	jz .error_state_invalid_params
+	jz .error_state_invalid_params2
 	test %rdx, %rdx # src addr
-	jz .error_state_invalid_params
+	jz .error_state_invalid_params2
 	test %ecx, %ecx # in size
-	jz .error_state_invalid_params
+	jz .error_state_invalid_params2
 	test %esi, %esi # out size
-	jz .error_state_invalid_params
+	jz .error_state_invalid_params2
 	test %r8, %r8 # valid buffer ptr
-	jz .error_state_invalid_params
+	jz .error_state_invalid_params2
+	#
+	jmp .inputs_not_zero
+	
+.error_state_invalid_params2: #for shorter jumps
+	jmp .error_state_invalid_params
 	#
 	#
+.inputs_not_zero:
 	# Make some room on stack, just for the case ...
-	mov %rbp, %rsp
+	# this also also allows calls to functions
+	# without adjusting rsp before calls
+	# xchg %rcx, %rbx
+	.if 0
+	mov [%rbp - 8], %rax
+	mov [%rbp - 16], %rax
+	mov [%rbp - 24], %rax
+	mov [%rbp - 32], %rax
+	mov [%rbp - 32], %rax
+	mov [%rbp - 40], %rax
+	mov [%rbp - 48], %rax
+	mov [%rbp - 56], %rax
 	sub %rbp, 64
+	.else
+	xchg %rcx, %rbx
+	xor %rcx, %rcx
+	mov %cl, 8
+	sub %rbp, %rcx
+	#
+.lala1:
+	mov [%rbp], %rax
+	sub %rbp, 8
+	loopnz .lala1
+	#
+	xchg %rcx, %rbx
+	.endif
 	#
 	# Limit ranges to 2^32 - 1
 	#
 	xor %rbx, %rbx
-	dec %rbx # minus 1, i.e. all bits sets
+	.if INFLATE_ASM_STACK_64B_ALIGNED
+	# make our 'private stack'(=rbp) be 64 - byte aligned
+	mov %rax, %rbp
+	.endif
+	# dec %rbx # minus 1, i.e. all bits sets
+	dec %ebx
+	.if INFLATE_ASM_STACK_64B_ALIGNED
+	and %ax, 63
+	.endif
 	shr %rbx, 32 # rbx should be now 2^32 - 1
+	# mov %ebx, %ebx # zero high 32 bits
+	#
+	.if INFLATE_ASM_STACK_64B_ALIGNED
+	movzx %rax, %ax
+	.endif
+	#
 	and %rcx, %rbx # in count
 	and %rsi, %rbx # out count
 	#
 	.if INFLATE_ASM_STACK_64B_ALIGNED
-	# make our 'private stack'(=rbp) be 64 - byte aligned
-	mov %rax, %rbp
-	and %ax, 63
 	test %ax, %ax
 	jz .inputs_on_stack_aligned # only 0 bits
-	movzx %rax, %ax
 	sub %rbp, %rax # adjust
 .inputs_on_stack_aligned:
 	.endif
 	#
-	xor %rax, %rax
 	#
 	# Validate ranges | paranoia ; - ) |
 	# We store end pointers to make range check shorter
 	# I.e. if addr + size >= end of address space, then it's an error
 	# We also check for any overlaps with the stack space
-	sub %rbp, 256
-	.if INFLATE_ASM_RANGE_CHECK
 	#
-	mov %rax, %rdx
-	add %rax, %rcx # unsigned add, i.e. carry flag for unsigned overflow
-	jc .error_state_not_supported_range
-	#
-	.if INFLATE_STACK_OVERLAP_CHECK
-	cmp %rdx, %rsp
-	ja .stack_below_src
-	cmp %rax, %rbp # data overlaps with stack?
-	ja .error_state_not_supported_range # overlap with the stack?
-.stack_below_src:
-	.endif
-	#
-	mov %rax, %rdi
-	add %rax, %rsi # unsigned add, i.e. carry flag for unsigned overflow
-	jc .error_state_not_supported_range
-	#
-	.if INFLATE_STACK_OVERLAP_CHECK
-	cmp %rdi, %rsp
-	ja .stack_below_dest
-	cmp %rax, %rbp # data overlaps with stack?
-	ja .error_state_not_supported_range # overlap with the stack?
-.stack_below_dest:
-	.endif
-	#
-	.endif
-	#
-	add %rbp, 256
-	
 	.if INFLATE_ASM_NULLIFY_STACK
-	xor %ebx, %ebx
+	mov %r14, %rcx # backup in size
 	xor %rax, %rax
-	mov %ebx, %ecx
-	mov %r15, %rdi
-	mov %cx, 32
-	mov %rdi, %rbp
-	movzx %rcx, %cx
-	sub %rdi, %rcx
+	xor %rcx, %rcx
+	mov %r15, %rdi # backup dest ptr
+	.if NUM_TO_ZERO_8 < 128
+	mov %cl, NUM_TO_ZERO_8
+	.else
+	mov %cx, NUM_TO_ZERO_8
+	.endif
+	lea %rdi, [%rbp - 8]
+	# mov %rdi, %rbp
+	# sub %rdi, %rcx # rdi = ptr to low end of out stack
+	# shr %cl, 3 # we clear 8 bytes at once
 	#
-	std
+	std # decrement rdi
 	rep stosq
 	#
-	mov %ecx, %ebx
-	mov %rdi, %r15
+	mov %rcx, %r14 # restore in size
+	mov %rdi, %r15 # restore dest ptr
+	#
+	.else
+	#
+	xor %rax, %rax
+	#
 	.endif
 	#
 	#
 .inputs_on_stack:
-	xor %rax, %rax
-	xor %rbx, %rbx
+	#
+	.if INFLATE_ASM_RANGE_CHECK
+	.equ INFLATE_ASM_RANGE_ERROR, 1
+	.endif
+	#
+	.if INFLATE_STACK_OVERLAP_CHECK
+	.ifndef INFLATE_ASM_RANGE_ERROR
+	.equ INFLATE_ASM_RANGE_ERROR, 1
+	.endif
+	.endif
+	#
+	.if INFLATE_STACK_OVERLAP_CHECK
+	# mov %rbx, %rbp
+	# sub %rbx, 256
+	lea %rbx, [%rbp - 256]
+	.endif
+	#
+	#
+	mov %rax, %rdx # src
+	add %rax, %rcx # unsigned add, i.e. carry flag for unsigned overflow
+	#
+	.if INFLATE_ASM_RANGE_CHECK
+	jc .error_state_not_supported_range2
+	.endif
+	#
+	.if INFLATE_STACK_OVERLAP_CHECK
+	cmp %rdx, %rsp #
+	ja .stack_below_src
+	cmp %rax, %rbx # data overlaps with stack?
+	ja .error_state_not_supported_range2 # overlap with the stack?
+.stack_below_src:
+	.endif
+	#
+	movq %xmm5, %rax # input end ptr
+	#
+	mov %rax, %rdi # dest
+	add %rax, %rsi # unsigned add, i.e. carry flag for unsigned overflow
+	#
+	.if INFLATE_ASM_RANGE_CHECK
+	jc .error_state_not_supported_range2
+	.endif
+	#
+	.if INFLATE_STACK_OVERLAP_CHECK
+	cmp %rdi, %rsp
+	ja .stack_below_dest
+	cmp %rax, %rbx # data overlaps with stack?
+	ja .error_state_not_supported_range2 # overlap with the stack?
+.stack_below_dest:
+	.endif
+	#
+	movq %xmm6, %rax # output end ptr
+	# store rsp to be able to
+	# jump out of functions to error clauses
+	mov [%rbp - RSP_BACKUP], %rsp
+	#
+	jmp .store_inputs
+	#
+	.if INFLATE_ASM_RANGE_ERROR
+.error_state_not_supported_range2:
+	jmp .error_state_not_supported_range # longer jump to real error
+	.endif
+	#
+	#
+.inflate_update_avail_error:
+	mov %rsp, [%rbp - RSP_BACKUP]
+	jmp .error_state
+	#
+	#
+.inflate_update_avail_values:
+	#
+	movq %xmm4, %rax
+	#
+	movq %rax, %xmm5
+	sub %rax, %r8
+	jc .inflate_update_avail_error
+	mov %r10, %rax # in bytes available
+	#
+	movq %rax, %xmm6
+	sub %rax, %r9
+	jc .inflate_update_avail_error
+	mov %r11, %rax # out bytes available
+	#
+	movq %rax, %xmm4
+	#
+	ret
+	#
+	#
+.store_inputs:
+	#
+	mov %ecx, %ecx
+	mov %esi, %esi
+	#
+	mov %r13, %r8 # ptr to buffer
 	#
 	mov [%rbp - IN_SIZE], %ecx
 	mov [%rbp - OUT_SIZE], %esi
-	mov [%rbp - IN_AVAIL], %ecx
-	mov [%rbp - OUT_AVAIL], %esi
+	# mov [%rbp - IN_AVAIL], %ecx
+	# mov [%rbp - OUT_AVAIL], %esi
 	#
 	mov [%rbp - IN_DATA], %rdx # ptr to in data
 	mov [%rbp - OUT_DATA], %rdi # ptr to out data
-	xor %r14, %r14
 	xor %r12, %r12 # clear bit buffer
 	#
 	mov [%rbp - SRC_START], %rdx # ptr to in data
 	mov [%rbp - DST_START], %rdi # backup for dest
-	xor %r15, %r15
 	#
-	mov %eax, %ecx # in size
-	mov %ebx, %esi # out size
-	mov %r13, %r8 # ptr to buffer
-	
-	#
-	add %rax, %rdx # rax = src end ptr
-	.if INFLATE_ASM_CHECK_ERRORS
-	jc .error_state_not_supported_range
-	.endif
-	add %rbx, %rdi # rbx = dst end ptr
-	.if INFLATE_ASM_CHECK_ERRORS
-	jc .error_state_not_supported_range
-	.endif
 	mov %r8, %rdx # src data ptr
 	mov %r9, %rdi # dst data ptr
 	#
 	mov %r10, %rcx # in - avail
 	mov %r11, %rsi # out - avail
 	#
-	movq %xmm5, %rax # input end ptr
-	movq %xmm6, %rbx # output end ptr
-	#
-	xor %rdx, %rdx
 	#
 	# set all variables to 0
 	.if USE_CLEAR_REGS
-	mov %al, (CLR_RAX|CLR_RBX|CLR_RCX|CLR_RDX)
-	call .clear_regs
+	# mov %al, (CLR_RAX|CLR_RBX|CLR_RCX|CLR_RDX)
+	call .clear_base_regs
 	.else
 	xor %rax, %rax
 	xor %rbx, %rbx
 	xor %rcx, %rcx
 	xor %rdx, %rdx
 	.endif
-	
+	#
+	# No real need to clear xmm registers here.
+	#
+	.if 0
 	# nullify MMX registers
 	# movq %xmm0, %rax
 	pxor %xmm0, %xmm0
@@ -433,19 +554,14 @@ inflate_asm_x64:
 	pxor %xmm3, %xmm3
 	# movq %xmm4, %rax
 	pxor %xmm4, %xmm4
-	#
+	.endif
 	#
 .algo_start:
-	mov %dl, ASM_INFLATE_STATE_NEW_STATE
-	# movzx %rdx, %dl
-	movd %xmm7, %edx # store comp state
-	jmp .loop_start_edx
-	#
-	#
-.loop_start:
-	movd %rdx, %xmm7 # load comp state into edx
 	#
 .loop_start_edx:
+	#
+	#
+	.if 0
 	xor %r10, %r10
 	xor %r11, %r11
 	#
@@ -453,616 +569,186 @@ inflate_asm_x64:
 	movq %rbx, %xmm6 # dest end ptr
 	#
 	sub %rax, %r8
+	.if INFLATE_ASM_CHECK_ERRORS
+	jc .error_at_loop_start
+	.endif
 	sub %rbx, %r9
+	.if INFLATE_ASM_CHECK_ERRORS
+	jc .error_at_loop_start
+	.endif
 	#
-	mov %ecx, %edx # command
 	mov %r10d, %eax # in_bytes left
 	# mov [%rbp - IN_AVAIL], %eax # stack backup
 	mov %r11d, %ebx # out_bytes avail
 	# mov [%rbp - OUT_AVAIL], %ebx # stack backup
+	.else
+	call .inflate_update_avail_values
+	.endif
 	#
-	# Not sizes are checked
 	# And we process the command
 	#
-	and %dl, ASM_INFLATE_BITMASK # current command to do
-	shr %ecx, ASM_INFLATE_BITSHIFT # next command for next iteration
-	movzx %edx, %dl # just to make comparison with (e)dx possible
-	# movl %ecx, COMP_STATE(%rbp)
-	movd %xmm7, %ecx # store comp state for the next iteration
-	
-	# Invalid command?
-	cmp %dl, ASM_INFLATE_STATE_LAST_VALID
-	jae .error_state
-	# header = 3? I.e. error
-	cmp %dl, ASM_INFLATE_STATE_ERROR
-	je .error_state
+.new_state:
+	mov %ax, [%rbp - LAST_FLAG]
+	bt %ax, 0 # test 0.th bit, if bit set, then carry flag also set
+	jc .ok_state # then we just processed the last block
 	#
+	call .inflate_update_avail_values
+	#
+	xor %rbx, %rbx
+	mov %al, 3
+	# set next command after get_bits
+	call .get_bits_func
+	#
+	mov [%rbp - LAST_FLAG], %al # don't need to filter out just the lowest bit
+	xor %rbx, %rbx
+	shr %al, 1
 	xor %rcx, %rcx
 	#
-	.if COMP_JUMP_ADDRESS
-	cmp %dl, ASM_INFLATE_STATE_DYN
-	ja .inflate_aio_jmp_start_2
-	#
-	mov %cl, %dl
-	mov %ebx, MODE_ADDRS
-	shl %cl, 3 # mul by 8
-	shr %ebx, %cl
-	movzx %ebx, %bl
-	call .getrip
-	.endif
-.inflate_aio_jmp_start_3:
-	.if COMP_JUMP_ADDRESS
-	add %rax, %rbx
-	jmp %rax
-	.else
-	# Here we begin with valid commands
-	cmp %dl, ASM_INFLATE_STATE_RAW
+	cmp %al, ASM_INFLATE_STATE_RAW
 	je .raw_mode
-	cmp %dl, ASM_INFLATE_STATE_FIXED
+	cmp %al, ASM_INFLATE_STATE_FIXED
 	je .fixed_mode
-	cmp %dl, ASM_INFLATE_STATE_DYN
+	cmp %al, ASM_INFLATE_STATE_DYN
 	je .dyn_mode
-	.endif
 	#
-.inflate_aio_jmp_start_2:
-	# error already checked
-	cmp %dl, ASM_INFLATE_STATE_NEW_STATE
-	je .new_state
-	cmp %dl, ASM_INFLATE_STATE_GET_BITS
-	je .get_bits
-	# cmp %dl, ASM_INFLATE_STATE_READ_HEADER
-	# je .read_header
-	cmp %dl, ASM_INFLATE_STATE_READ_HEADER_AFTER
-	je .read_header_after
-	#
-	#
-.inflate_aio_jmp_start_2b:
+.inflate_error1:
 	jmp .error_state
-	#
 	#
 	#
 .raw_mode:
 	#
-	xor %rax, %rax
-	xor %rcx, %rcx
 	mov %rsi, %r8 # rsi = src ptr
 	mov %cl, 4
-	xor %r12d, %r12d # reset bit buffer
+	xor %r12, %r12 # reset bit buffer
 	#
-	# cmp %r10d, %ecx # enough bytes to check the length?
-	# jb .error_state
 	sub %r10d, %ecx # in_avail minus 4
-	jc .error_state
-	mov %edx, [%rsi]
-	mov %eax, %edx
-	add %rsi, %rcx # adjust input ptr(r8)
+	.if INFLATE_ASM_CHECK_ERRORS
+	jc .inflate_error1
+	.endif
+	cld
+	lodsd # rsi also incremented here
+	#
+	mov %ecx, %eax
 	#
 	.if CHECK_RAW_SIZES
 	# simple validity check, low 16 bits =?= high 16 bits negated
-	shr %edx, 16
-	movzx %eax, %ax
-	not %dx
-	cmp %dx, %ax # equal high / low 16 - bits ?
-	jne .error_state
+	not %eax
+	movzx %ecx, %cx
+	shr %eax, 16
+	#
+	cmp %cx, %ax # equal high / low 16 - bits ?
+	jne .inflate_error1
+	#
+	.else
+	movzx %ecx, %cx
+	#
 	.endif
 	#
-	cmp %r10d, %eax # enough input data ?
-	jb .error_state
-	mov %ecx, %eax # ecx = counter for copying
-	cmp %r11d, %eax # enough output space ?
-	jb .error_state
-	#
-	jecxz .raw_mode_jmp_new_state # can't jump too far ...
-	#
 	mov %rdi, %r9 # rdi = dest ptr
-.raw_mode_copy_bytes:
-	cld # forward copy!
-	repnz movsb
-.raw_mode_copy_done:
-	sub %r10d, %eax # in - avail
-	mov %r8, %rsi # update src ptr(r8)
+	#
+	# jecxz .raw_mode_jmp_new_state # can't jump too far ...
 	#
 	# no jump to main loop, can adjust in / out available counts here
-	sub %r11d, %eax # out - avail
-	mov %r9, %rdi # update dst ptr(r9)
+	.if INFLATE_ASM_CHECK_ERRORS
+	cmp %r10d, %ecx # enough input data ?
+	jb .inflate_error1 # underflow?
+	.endif
+	#
+	.if INFLATE_ASM_CHECK_ERRORS
+	cmp %r11d, %ecx # enough output space ?
+	jb .inflate_error1 # underflow?
+	.endif
+	#
+.raw_mode_copy_bytes:
+	# call .copy_bytes
+	# cld # forward copy! already set
+	rep movsb
+.raw_mode_copy_done:
+	mov %r8, %rsi # update src ptr
+	mov %r9, %rdi # update dest ptr
 .raw_mode_jmp_new_state:
 	jmp .new_state
+.raw_mode_end:
+	#
 	#
 	#
 .fixed_mode:
-	jmp .fixed_mode_build_trees
-.fixed_mode_process:
-	jmp .inflate_aio_block_data
-	#
-.dyn_mode:
-	nop
-	#
-	jmp .error_state_not_implemented
-	#
-	#
-# .inflate_copy_data:
-	# jecxz .inflate_copy_data_done
-	# cld
-	# rep movsb
-# .inflate_copy_data_done:
-	# ret
-	#
-	#
-.new_state:
-	mov %ax, [%rbp - LAST_FLAG]
-	xor %edx, %edx
-	# cmp $1, %al # last bit set ?
-	bt %ax, 0 # test 0.th bit, if bit set, then carry flag also set
-	jc .ok_state # then we just processed the last block
-# .read_header:
-	xor %rdx, %rdx
-	xor %eax, %eax
-	xor %ebx, %ebx
-	# set next command after get_bits
-	mov %dl, ASM_INFLATE_STATE_READ_HEADER_AFTER
-	mov %al, 3 # 3 bits for the block header, actually it's 1 bit and then 2
-	movd %xmm7, %edx
-	#
-# eax: #bits, %ebx: offset
-.get_bits:
-	.ifndef GET_BIT_BACKUP_ON_STACK
-	.equ GET_BIT_BACKUP_ON_STACK, 0
-	.endif
-	#
-	.ifndef GET_BIT_USE_SHIFTS
-	.equ GET_BIT_USE_SHIFTS, 1
-	.endif
-	#
-	movzx %eax, %ax
-	#
-	test %ax, %ax # any bits ?
-	jz .get_bits_no_bits
-	#
-	cmp %ax, 24 # more than 24 bits ?
-	ja .error_state_4
-	
-	# backup values
-	.if GET_BIT_BACKUP_ON_STACK
-	mov [%rbp - RDX_BACKUP], %edx
-	mov [%rbp - RCX_BACKUP], %ecx
-	.else
-	#
-	.if GET_BIT_USE_SHIFTS
-	movq %xmm2, %rdx
-	movq %xmm3, %rcx
-	psllq %xmm2, 64
-	por %xmm2, %xmm3
-	.else
-	movq %xmm1, %rdx
-	movq %xmm2, %rcx
-	.endif
-	#
-	.endif
-	
-	mov %edx, %r12d # packed bitbuf and count
-	#
-	.if GET_BIT_BACKUP_ON_STACK
-	mov [%rbp - RSI_BACKUP], %rsi
-	.else
-	#
-	movq %xmm3, %rsi
-	movq %xmm4, %rdi
-	#
-	.endif
-	#
-	#
-	#
-	movzx %ecx, %dl # cl = dl, i.e. cl = bit count
-	shr %edx, 8 # now edx contains the real bits
-	cmp %al, %cl # enough bits in the bit buffer?
-	jbe .get_bits_ok
-	#
-	# fill more bits!
-	#
-	mov %edi, %ebx # ebx = temp
-	#
-	xor %ebx, %ebx
-	#
-.get_bits_more:
-	test %r10d, %r10d # enough available
-	jz .error_state_no_bits
-.get_bits_more_2:
-	mov %bl, [%r8] # single byte
-	dec %r10d # avail - 1
-	shl %edx, 8 # bit buf <<
-	add %cl, 8 # inc bit buf count
-	inc %r8 # next addr
-	mov %dl, %bl # new byte to bit buf
-	cmp %al, %cl # enough in the bit buffer ?
-	ja .get_bits_more # repeat if not
-	#
-	mov %ebx, %edi
-	# mov [%rbp - IN_DATA], %r8 # src data
-	#
-.get_bits_ok:
-	xor %esi, %esi
-	mov %edi, %edx # bit buf
-	inc %si
-	xchg %al, %cl # cl = requested bits
-	#
-	shl %esi, %cl # << in_bits
-	dec %esi # => esi = ((1<<in_bits) - 1)
-	and %edx, %esi # use bitmask to get the bits
-	add %ebx, %edx # add to offset
-	#
-	cmp %cl, %al
-	ja .error_state_no_bits
-	jb .get_bits_pack
-	# equal means, bitbuf is empty
-	xor %r12d, %r12d # empty bit buffer!
-	jmp .get_bits_pack_store_end
-	#
-.get_bits_pack:
-	mov %edx, %edi
-	sub %cl, %al # reduce bit count
-	shr %edx, %cl # remove consumed bits
-	shl %edx, 8 # pack bit buf
-	or %dl, %al # pack bit count
-.get_bits_pack_store:
-	mov %r12d, %edx # store bitbuf and bit count
-.get_bits_pack_store_end:
-	mov %eax, %ebx # eax = result
-	mov [%rbp - IN_BITS], %ebx
-	
-	.if GET_BIT_BACKUP_ON_STACK
-	mov %edx, [%rbp - RDX_BACKUP]
-	movq %rsi, [%rbp - RSI_BACKUP]
-	mov %ecx, [%rbp - RCX_BACKUP]
-	.else
-	#
-	.if GET_BIT_USE_SHIFTS
-	movq %rcx, %xmm2
-	movq %rsi, %xmm3
-	psrlq %xmm2, 64 # rdx is stored in high quadword
-	movq %rdi, %xmm4
-	movq %rdx, %xmm2
-	.else
-	movq %rdx, %xmm1
-	movq %rcx, %xmm2
-	movq %rsi, %xmm3
-	movq %rdi, %xmm4
-	.endif
-	#
-	.endif
-	#
-.get_bits_no_bits:
-	movd %ebx, %xmm7 # ebx = comp state
-	# maybe called from other places ...
-	cmp %dl, ASM_INFLATE_STATE_GET_BITS_BLOCK_DATA
-	je .after_get_bits_block_data
-	cmp %dl, ASM_INFLATE_STATE_GET_BITS_DATA_OFFSET
-	je .after_get_bits_data_offset
-	#
-	#
-	cmp %dl, ASM_INFLATE_STATE_GET_BITS_BUILD_TREES
-	je .after_get_bits_build_trees
-	#
-	.if DADA
-	cmp %dl, ASM_INFLATE_STATE_GET_BITS_LENGTH_LOOP_FIRST
-	je .after_get_bits_length_loop_first
-	.endif
-	#
-	cmp %dl, ASM_INFLATE_STATE_GET_BITS_LENGTH_LOOP
-	je .after_get_bits_length_loop
-	
-	cmp %bl, ASM_INFLATE_STATE_READ_HEADER_AFTER
-	jne .loop_start
-	
-	mov %edx, %eax
-	jmp .read_header_after_edx
-.get_bits_end:
-	# now eax contains the required bits
-	# jmp .loop_start
-.read_header_after:
-	mov %edx, [%rbp - IN_BITS]
-.read_header_after_edx:
-	mov [%rbp - LAST_FLAG], %edx # don't need to filter out just the lowest bit
-	shr %dx, 1
-	jmp .loop_start_edx
-	#
-	#
-	#
-.inflate_aio_block_data:
-	#
-	# mov %esi, [%rbp - OUT_AVAIL]
-	xor %rcx, %rcx
-	#
-.block_data_loop_start:
-	# decode symbol
-	#
-	# mov %cx, 256
-	mov %rdi, %r13
-	add %rdi, 384 # length tree
-	mov %r14w, 1
-	# int sym = inflate_decode_symbol(d, len_tree);
-	jmp .inflate_aio_decode_symbol
-.block_data_loop_got_symbol:
-	#
-	cmp %ax, 256 # end of block?
-	jne .block_data_loop_not_end
-	# new iteration!
-	mov %edx, ASM_INFLATE_STATE_NEW_STATE
-	movd %xmm7, %edx
-	jmp .loop_start_edx
-	#
-.block_data_loop_not_end:
-	test %r11, %r11
-	jz .error_state_4 # no bytes available to write
-	#
-	cmp %ax, 256 # literal 0..255 ?
-	ja .block_data_loop_not_literal
-	#
-	mov [%r9], %al
-	inc %r9
-	dec %r11d
-	jmp .block_data_loop_start
-.block_data_loop_not_literal:
-	mov %bx, [%rdi]
-	cmp %ax, %bx # sym > len_tree_max_sym
-	ja .error_state_4
-	mov %dx, [%rdi + 640]
-	cmp %dx, ( - 1) # distance tree empty ?
-	je .error_state_4
-	#
-	# for easier indexing
-	#
-	sub %ax, 257 # sym - 257
-	#
-	# / * Extra bits and base tables for length codes * / 
-	# / / static const unsigned char length_bits[29] = {
-	# / / 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 
-	# / / 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 
-	# / / 4, 4, 4, 4, 5, 5, 5, 5, 0};
-	#
-	# ax = sym, %bx = length
-	#
-	mov %cl, 8
-	mov %bx, %ax
-	add %bl, 3
-	cmp %al, %cl
-	ja .sym_greater8
-	xor %ax, %ax #
-	jmp .sym_check
-.sym_greater8:
-	cmp %al, 28
-	jne .sym_not28
-	xor %ax, %ax
-	mov %bx, 258
-	jmp .sym_check
-.sym_not28:
-	#
-	sub %al, 8 # sym minus 8
-	cmp %al, 16
-	jae .ae16
-	# if (sym < 16)
-	cmp %al, 8
-	jae .ae8
-	# if (sym < 8)
-	# {
-	# v = INFLATE_CHARS_AS_UINT64(1, 2, 3, 4ul, (7ul), (10ul), (13ul), (16ul));
-	mov %rdx, (1| (2<<8)|(3<<16)|(4<<24)|(7<<32)|(10<<40)|(13<<48)|(16<<56))
-	# }
-	jmp .comp
-.ae8:
-	# else
-	# {
-	# / * 20, 21, 22, 23, 24, 25, 26, 27 * / 
-	# v = INFLATE_CHARS_AS_UINT64(23, 30, 37ul, 44, (59ul), (74ul), (89ul), (104ul));
-	mov %rdx, (23| (30<<8)| (37<<16)|(44<<24)|(59<<32)|(74<<40)|(89<<48)|(104<<56))
-	# }
-	
-	jmp .comp
-.ae16:
-	# / * 28, 29, 30, 31 * / 
-	# uint64_t v = INFLATE_CHARS_AS_UINT64(135, 166, 197, 227ul, 0ul, 0ul, 0ul, 0ul);
-	mov %rdx, (135| (166<<8)| (197<<16)| (227<<24))
-.comp:
-	#
-	# unsigned int s = (sym & 0x7) << 3;
-	# length + = (v >> s)        ;
-	movzx %ecx, %ax
-	and %cx, 0x7
-	# sym >>= 2
-	shr %ax, 2 # we have lengths in 4 - value sequences
-	shl %cx, 3 # times 8 to shift by bytes
-	inc %ax # sym increment
-	shr %rdx, %cl
-	#
-	and %dx, 0xFF # need a single byte value
-	add %bx, %dx # bx = length
-	jmp .sym_check_not_zero
-	#
-.sym_check:
-	mov %r15d, %ebx # length
-	test %ax, %ax
-	jz .sym_check_skip
-.sym_check_not_zero:
-# here: ax = sym, bx = length
-	# / * Possibly get more bits from length code * / 
-	# length = inflate_getbits(d, sym, length);
-	mov %dx, ASM_INFLATE_STATE_GET_BITS_BLOCK_DATA
-	jmp .get_bits
-.after_get_bits_block_data:
-	mov %r15d, %eax # length after get bits with sym and length
-	mov %ebx, %eax
-.sym_check_skip:
-	mov %rdi, %r13
-	add %rdi, 384 + 640 # distance tree
-	# int dist = inflate_decode_symbol(d, distance_tree);
-	#
-	mov %r14w, 2
-	jmp .inflate_aio_decode_symbol
-.block_data_loop_got_dt_symbol:
-	
-	# #if INFLATE_DO_CHECK_FOR_ERRORS
-	# / * dist is within range? (dist 30, 31 are invalid) * / 
-	# if (dist > 29 || dist > distance_tree - >max_sym)
-	# {
-	# result = INFLATE_ERROR_DATA;
-	# break                      ;
-	# }
-	mov %rdi, %r13
-	add %rdi, 384 + 640
-	cmp %ax, 29
-	ja .error_state_4
-	mov %bx, [%rdi] # bx = max_sym
-	cmp %ax, %bx # sym > max_sym ?
-	jg .error_state_4 # signed comparison!
-	#
-# We try to compute the following tables:
-	# static const unsigned char dist_bits[30] = {
-	# 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 
-	# 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 
-	# 9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
-	# static const unsigned short dist_base[30] = {
-	# 1, 2, 3, 4, 
-	# 5, 7, 9, 13, 
-	# 17, 25, 33, 49, 
-	# 65, 97, 129, 193, 
-	# 257, 385, 513, 769, 
-	# 1025, 1537, 2049, 3073, 
-	# 4097, 6145, 8193, 12289, 16385, 24577
-	cmp %ax, 4
-	ja .dist_ge4
-	# less or equal 4
-	mov %bx, %ax # bx = data offset
-	xor %ax, %ax
-	inc %bx
-	jmp .has_data_offset
-	#
-.dist_ge4:
-	# dist - = 4                 ;
-	# sub %ax, 4
-	mov %dx, %ax
-	# const unsigned int o = dist & 0x1;
-	# dist >>= 1                 ;
-	shr %ax, 1
-	# and %dx, 0x1
-	# dist + +                   ;
-	dec %ax # sub 2 plus 1
-	# inc %ax
-	#
-	xor %ebx, %ebx # data offset
-	#
-	# data_offset = dist + 1     ;
-	mov %cx, %ax
-	mov %bl, 1
-	inc %cx
-	# data_offset = 0x1 << data_offset;
-	shl %ebx, %cl
-	# data_offset |= (data_offset >> o);
-	bt %dx, 0 # need to perform OR with shifted values?
-	jnc .dist_no_shift
-	mov %edx, %ebx
-	shr %edx, 1
-	or %ebx, %edx
-.dist_no_shift:
-	# data_offset + +            ;
-	inc %ebx
-	xor %edx, %edx
-	#
-	# / * Possibly get more bits from distance code * / 
-	# data_offset = inflate_getbits(d, dist, data_offset);
-	mov %dx, ASM_INFLATE_STATE_GET_BITS_DATA_OFFSET
-	jmp .get_bits
-	#
-.after_get_bits_data_offset:
-.has_data_offset:
-	# eax = data offset
-	# check space left
-	#
-	# int64_t addr_dist = (d - >destination - d - >destination_start);
-	# / * Possible to go back? * / 
-	# if (data_offset > (int)addr_dist)
-	# {
-	# return INFLATE_ERROR_DATA  ; ;
-	# }
-	mov %ecx, %r15d # data length
-	cmp %eax, 0x7FFF
-	ja .error_state_4
-	mov %esi, %r11d # esi = dest space avail
-	movzx %rax, %ax
-	mov %rbx, %r9 # rdi = dst ptr
-	mov %rdx, [%rbp - DST_START]
-	mov %rdi, %rbx
-	cmp %rbx, %rdx
-	jb .error_state_internal_2 # should be impossible
-	sub %rbx, %rdx # rbx = bytes written
-	cmp %rax, %rbx # out of range ?
-	ja .error_state_4
-	#
-	# addr_dist = (d - >destination_end - d - >destination);
-	# if ((int)addr_dist < length)
-	# {
-	# return INFLATE_ERROR_BUFFER; ;
-	# }
-	#
-	cmp %esi, %ecx # enough space left to write?
-	jb .error_state_4
-	#
-	#
-	mov %rsi, %rdi # src = dst
-	sub %rsi, %rax # src = dst - data_offset
-	# mov %eax, %ecx # store count
-	cld
-	rep movsb # copy rcx bytes
-	mov %r9, %rdi # save dst ptr
-	jmp .block_data_loop_start
-	#
-	#
 .fixed_mode_build_trees:
 	call .clear_buffer
-	# jmp .clear_buffer
 	#
-	#
-.fixed_mode_build_trees_2:
 	.if USE_CLEAR_REGS
-	mov %al, (CLR_RAX| CLR_RBX|CLR_RCX)
-	call .clear_regs
+	# mov %al, (CLR_RAX|CLR_RBX|CLR_RCX)
+	call .clear_base_regs
 	.else
-	xor %rbx, %rbx
 	xor %rax, %rax
+	xor %rbx, %rbx
+	# mov %ebx, %eax
 	xor %rcx, %rcx
+	# mov %ecx, %eax
 	.endif
 	#
-	mov %rdi, %r13 # buffer ptr
-	mov %bx, LENGTH_TREE_OFFSET
+	cld
+	lea %rdi, [%r13 + LENGTH_TREE_OFFSET]
 	mov %ax, 285 # max symbol
-	# 64 bytes for offsets, 320 for lengths
-	add %rdi, %rbx # skip area before, s.t. trees starts at this offset
+	stosq
+	# rdi = code counts
+	mov %eax, ((152)|(112<<16)) # 2 shorts
+	add %rdi, 16 # offset for code count 8, 9
+	mov %bl, 24
 	#
-	mov %ecx, ((152)|(112<<16)) # 2 shorts
-	shr %bx, 4 # div by 16
-	mov [%rdi], %rax # store max symbol for length tree
-	# mov %al, %cl
-	# shr %ecx, 8
-	mov [%rdi + 8 + 7 * 2], %bx
-	# shr %cx, 8
-	mov [%rdi + 8 + 8 * 2], %ecx
-	# mov [%rdi + 8 + 9 * 2], %cl
+	stosd # rdi = + 20 after
 	#
-	xor %ax, %ax
-	add %rdi, 40 # 8 + 16 * 2
-	xor %bx, %bx
-	xor %rcx, %rcx
+	mov [%rdi - 6], %bx # code count
+	#
+	add %rdi, 12 # rdi = symbols
 	#
 	#
+.fixed_mode_compact_start:
 	.if COMPACT_IMPL
-	.if COMPACT_IMPL2
+	# xor %ax, %ax
 	#
-	# pairs of counts&offsets packed into a single 64 - bit value
+	# pairs of counts&offsets packed
+	#
+	# counters
+	mov %ebx, (24|(144<<8)|(8<<16)|(112<<24))
+	# base values, need to multiply by 2
+	# mov %edx, (128|(140<<16)|(72<<24))
+	mov %rax, (256|(280<<32)|(144<<48))
+	#
+	# cld
+	#
+.fixed_mode_compact_loop_start:
+	# movzx %eax, %dl # to avoid xor ax, ax
+	# mov %ax, %dx # to avoid xor ax, ax
+	mov %cl, %bl
+	# shl %ax, 1 # times 2
+	#
+.fixed_mode_compact_loop_inner:
+	stosw # increments rdi by 2
+	inc %ax
+	loopnz .fixed_mode_compact_loop_inner
+	shr %ebx, 8
+	# shr %edx, 8
+	# shr %rdx, 16
+	shr %rax, 16
+	test %bl, %bl
+	jnz .fixed_mode_compact_loop_start
+	#
+	.endif
+.fixed_mode_compact_end:
+	#
+	#
+.fixed_mode_compact2_start:
+	.if COMPACT_IMPL2
+	# xor %eax, %eax
+	# xor %rcx, %rcx
 	mov %r15, ((6)|(256<<6)|(36<<16)|(2<<32)|(280<<38)|(28<<48)|(144<<54))
 	mov %r14, 0x3000200010000 # offsets for the start
 	mov %rsi, 0x4000400040004 # increment for every iteration
 	#
-.compact2_start:
+.fixed_mode_compact2_loop_start:
 	test %r15d, %r15d
-	jz .compact2_end
+	jz .fixed_mode_compact2_end
 	#
 	movzx %rax, %r15w
 	movzx %rcx, %r15w
@@ -1088,693 +774,1540 @@ inflate_asm_x64:
 	#
 	add %rax, %r14 # add offsets for 1.st iteration
 	
-.compact2_inner:
-	mov [%rdi], %rax
+.fixed_mode_compact2_inner:
+	# mov [%rdi], %rax
+	stosq
 	add %rax, %rsi # add 0x4...4...4...4 on every iteration
-	add %rdi, 8
-	loopnz .compact2_inner
+	# add %rdi, 8
+	loopnz .fixed_mode_compact2_inner
 	shr %r15, 16
 	test %r15d, %r15d
-	jnz .compact2_start
-.compact2_end:
-	#
-	.else
-	#
-	mov %si, 2
-	mov %ebx, (24|(144<<8)|(8<<16)|(112<<24))
-	mov %edx, (128|(140<<16)|(72<<24)) # need to multiply by 2
-	movzx %rsi, %si
-	#
-	xor %ax, %ax
-.compact_start:
-	mov %al, %dl
-	mov %cl, %bl
-	shl %ax, 1 # times 2
-	#
-.compact_start_inner:
-	mov [%rdi], %ax
-	inc %ax
-	add %rdi, %rsi
-	loopnz .compact_start_inner
-	shr %ebx, 8
-	shr %edx, 8
-	xor %ax, %ax
-	test %bl, %bl
-	jnz .compact_start
-.compact_end:
-	#
+	jnz .fixed_mode_compact2_loop_start
 	.endif
+.fixed_mode_compact2_end:
 	#
-	.else # else for COMPACT version
+	#
+.fixed_mode_fixed_set_start:
+	.if FIXED_LOOP_IMPL # else for COMPACT version
 	#
 	xor %rax, %rax
-	xor %rsi, %rsi
+	# xor %rbx, %rbx
 	mov %cl, 24
 	mov %ax, 256
-	mov %si, 2
+	# mov %bl, 2
+	cld
 	# loops
 .fixed_set_1:
-	mov [%rdi], %bx
-	add %rdi, %rsi
+	stosw
 	inc %ax
 	loopnz .fixed_set_1
 	#
 	xor %ax, %ax
 	mov %cl, 144
 .fixed_set_2:
-	mov [%rdi], %ax
-	add %rdi, %rsi
+	stosw
 	inc %ax
 	loopnz .fixed_set_2
 	#
 	mov %ax, 280
 	mov %cl, 8
 .fixed_set_3:
-	mov [%rdi], %ax
-	add %rdi, %rsi
+	stosw
 	inc %ax
 	loopnz .fixed_set_3
 	#
 	mov %ax, 144
 	mov %cl, 122
 .fixed_set_4:
-	mov [%rdi], %ax
-	add %rdi, %rsi
+	stosw
 	inc %ax
 	loopnz .fixed_set_4
 	#
 	.endif
+.fixed_mode_fixed_set_end:
 	#
+	# Now the distance tree
 	#
+	# xor %rax, %rax
+	mov %eax, %eax
+	xor %cx, %cx
 	#
-	.if USE_CLEAR_REGS
-	mov %al, (CLR_RAX|CLR_RCX|CLR_RSI)
-	call .clear_regs
-	.else
-	xor %rsi, %rsi
-	xor %rax, %rax
-	xor %rcx, %rcx
-	.endif
-	mov %rdi, %r13
-	mov %si, 40
-	add %rdi, 384 + 640
-	mov %ax, 29 # max symbol
+	mov %al, 29 # max symbol
+	.if 1
+	lea %rdi, [%r13 + LENGTH_TREE_OFFSET + TREE_SIZE]
 	mov %cl, 32 # only 32 symbols
-	mov [%rdi], %rax
-	mov [%rdi + 8 + 5 * 2], %cx # for counts at [5]
-	xor %ax, %ax
-	# add %rdi, 40
-	add %rdi, %rsi
-	sub %si, 38 # si = 2
-.fixed_set_5: # for (i = 0|i < 32|i_inc ) { symbols.us16[i] = i; }
-	mov [%rdi], %ax
-	inc %ax
-	add %rdi, %rsi
+	.else
+	mov %cx, 1024 # only 32 symbols
+	lea %rdi, [%r13 + %rcx]
+	shr %cx, 5
+	.endif
+	stosq # set max sym
+	#
+	mov [%rdi + 10], %cl # for counts at [5]
+	#
+	add %rdi, 32 # %rbx
+	#
+	# for (i = 0|i < 32|i_inc ) { symbols.us16[i] = i; }
+	#
+	.if 1
+	xor %al, %al
+.fixed_set_5:
+	stosw # we save words
+	inc %al
 	loopnz .fixed_set_5
-	jmp .fixed_mode_process
+	#
+	.else
+	#
+	shr %cl, 3
+	mov %rax, 0x3000200010000
+	mov %rbx, 0x1000100010001
+.fixed_set_5b:
+	stosq
+	add %rax, %rbx
+	loopnz .fixed_set_5b
+	.endif
+	#
+	#
+	jmp .inflate_aio_block_data
+.fixed_mode_build_trees_end:
+	#
+.dyn_mode:
+	nop
+	#
+	jmp .error_state_not_implemented
+	#
+	#
+	#
+# eax : #bits, %ebx: offset
+	.equ GB_CHECK_0, 1
+	#
+.get_bits_func:
+	movzx %rbx, %bx
+	#
+	bts %r12, 63 # mark buffer to use offset
+	jmp ._get_bits_func_with_base
+	#
+.get_bits_func_no_base:
+	btr %r12, 63 # mark buffer to use no offset
+._get_bits_func_with_base:
+	#
+	movzx %rax, %ax
+	#
+	.if GB_CHECK_0
+	# any bits requested ?
+	test %ax, %ax
+	jnz .get_bits_has_bits
+	#
+	btr %r12, 63
+	jnc ._get_bits_no_bits
+	mov %rax, %rbx # plus offset
+._get_bits_no_bits:
+	ret
+	.endif
+	#
+.get_bits_has_bits:
+	# We only have 57 bits in bit buffer
+	# 1 bit for param, 6 bits for length, and the buffer
+	cmp %ax, 57
+	ja .get_bits_error
+	# jbe .get_bits_backup_regs
+.get_bits_backup_regs:
+	# backup values
+	#
+	.if GET_BITS_BACKUP_ON_STACK
+	mov [%rbp - RDX_BACKUP], %rdx
+	mov [%rbp - RCX_BACKUP], %rcx
+	.else
+	movq %xmm2, %rdx
+	movq %xmm1, %rcx
+	#
+	.endif
+	#
+	mov %rdx, %r12 # packed bitbuf and count
+	#
+	.if GET_BITS_BACKUP_ON_STACK
+	mov [%rbp - RDI_BACKUP], %rdi
+	mov [%rbp - RSI_BACKUP], %rsi
+	.else
+	movq %xmm3, %rsi
+	movq %xmm4, %rdi
+	#
+	.endif
+	#
+	btr %rdx, 63 # remove offset bit
+	# jmp .get_bits_backup_regs_end
+	
+	#
+.get_bits_backup_regs_end:
+	#
+	#
+	movzx %rcx, %dl # cl = dl, i.e. cl = bit count
+	#
+	shr %rdx, 6 # now rdx contains the real bits
+	#
+	and %cl, 0x3F # only 6 bits for buffer length
+	#
+	cmp %al, %cl # enough bits in the bit buffer?
+	jbe .get_bits_enough
+	#
+	call .inflate_update_avail_values
+	#
+	# fill more bits!
+	#
+	mov %rdi, %rbx # backup rbx
+	# bl = num of requested bits
+	movzx %rbx, %al
+	jmp .get_bits_get_more_loop
+.get_bits_error:
+	# we jump directly to error clause
+	# to avoid any error checks in calling functions
+	mov %rsp, [%rbp - RSP_BACKUP]
+	# jmp .error_state_no_bits
+	mov %al, 3
+	jmp .restore_and_return
+	#
+.get_bits_get_more_loop:
+	# test %r10d, %r10d # enough available
+	# jz .get_bits_error
+	#
+	xor %rax, %rax
+	#
+	dec %r10d # avail - 1
+	js .get_bits_error # underflow ?
+	#
+	mov %al, [%r8] # single byte
+	# lodsb
+	#
+	shl %rax, %cl # shift
+	#
+	inc %r8 # next addr
+	# inc %rsi
+	add %cl, 8 # inc bit buf count
+	#
+	jc .get_bits_error # should never happen
+	#
+	or %rdx, %rax # prepend the bit buffer
+	#
+	cmp %bl, %cl # enough in the bit buffer ?
+	ja .get_bits_get_more_loop # repeat if not
+	#
+	movzx %rax, %bl # al = requested num of bits
+	# mov %r8, %rsi
+	mov %rbx, %rdi # restore rbx
+	#
+	#
+.get_bits_enough:
+	#
+	xor %rsi, %rsi
+	mov %rdi, %rdx # rdi = bit buf
+	#
+	# cl = requested bits, al = bits in buffer
+	xchg %al, %cl
+	#
+	sub %al, %cl # reduce bit count after
+	#
+	jc .get_bits_error # should never happen
+	#
+	# now al = num of rest bits
+	#
+	inc %si
+	#
+	shl %rsi, %cl # << in_bits
+	shr %rdx, %cl # remove from buffer
+	#
+	dec %rsi # esi = ((1<<in_bits) - 1)
+	#
+	mov %cl, %al # rest bits
+	and %rdi, %rsi # use bitmask to get the bits
+	#
+	mov %rax, %rdi
+	#
+	btr %r12, 63
+	jnc ._get_bit_add_no_offset
+	# has offset!
+	add %rax, %rbx
+._get_bit_add_no_offset:
+	# pack buffer
+	shl %rdx, 6
+	or %rdx, %rcx
+	mov %r12, %rdx
+	#
+.get_bits_stored:
+	# mov [%rbp - IN_BITS], %rax
+	#
+	.if GET_BITS_BACKUP_ON_STACK
+	movq %rcx, [%rbp - RCX_BACKUP]
+	movq %rdx, [%rbp - RDX_BACKUP]
+	movq %rdi, [%rbp - RDI_BACKUP]
+	movq %rsi, [%rbp - RSI_BACKUP]
+	.else
+	#
+	movq %rcx, %xmm1
+	movq %rdx, %xmm2
+	movq %rsi, %xmm3
+	movq %rdi, %xmm4
+	#
+	.endif
+	#
+	ret
+	#
+.get_bits_end:
+	#
+	#
+	#
+.inflate_aio_block_data:
+	#
+	#
+	lea %rdi, [%r13 + LENGTH_TREE_OFFSET]
+	#
+	movq %xmm0, %rdi
+	#
+.block_data_loop_start:
+	# decode symbol
+	#
+	call .inflate_update_avail_values
+	#
+	movq %rdi, %xmm0
+	# int sym = inflate_decode_symbol(d, len_tree);
+	call .inflate_decode_symbol_func
+	#
+.block_data_loop_got_symbol:
+	#
+	cmp %ax, 256 # end of block?
+	jne .block_data_loop_not_end
+	# new iteration!
+	jmp .loop_start_edx
+	#
+.block_data_loop_not_end:
+	#
+	# call .inflate_update_avail_values
+	#
+	test %r11, %r11
+	jz .block_data_error_1 # no bytes available to write
+	#
+	cmp %ax, 256 # literal 0..255 ?
+	ja .block_data_loop_not_literal
+	#
+	movq %rdi, %xmm6
+	cmp %r9, %rdi
+	jae .block_data_error_1
+	mov [%r9], %al # store literal
+	inc %r9 # dest ptr
+	dec %r11 # write avail
+	jmp .block_data_loop_start
+	#
+.block_data_loop_not_literal:
+	movq %rdi, %xmm0 # rdi = length tree
+	#
+# TODO : check in get symbol to avoid this check
+	#
+	cmp %ax, [%rdi] # sym > len_tree_max_sym
+	jg .block_data_error_1 # signed compare
+	# cmp %ax, %bx # sym > len_tree_max_sym
+	# jle .block_data_error_1 # signed compare
+	#
+	mov %dx, [%rdi + 640]
+	# mov %dx, [%rdi + %rcx]
+	# cmp %dx, 0 # distance tree empty ?
+	test %dx, %dx
+	js .block_data_error_1
+	#
+	# xchg %ax, %bx
+	#
+	# for easier indexing
+	#
+	xor %rcx, %rcx
+	sub %ax, 257 # sym - 257
+	#
+	# Extra bits and base tables for length codes
+	# static const unsigned char length_bits[29] = {
+	# 0, 0, 0, 0, 0, 0, 0, 0, 
+	# 1, 1, 1, 1, 2, 2, 2, 2, 
+	# 3, 3, 3, 3, 4, 4, 4, 4, 
+	# 5, 5, 5, 5, 0}             ;
+	# static const unsigned short length_base[30] = {
+	# 3, 4, 5, 6, 7, 8, 9, 10, 
+	# 11, 13, 15, 17, 
+	# 19, 23, 27, 31, 
+	# 35, 43, 51, 59, 
+	# 67, 83, 99, 115, 
+	# 131, 163, 195, 227, 258, 0} ;
+	#
+	# ax = sym, %bx = length
+	#
+	# We try to compute values
+# Instead of :
+	# num_bits = length_bits[sym]
+	# length = length_base[sym]
+	# nop
+	
+.block_data_gen_values:
+	#
+	# xor %bx, %bx
+	mov %rbx, %rcx
+	mov %rdx, %rcx
+	# xor %dx, %dx
+	jmp .block_data_no_error_1
+.block_data_error_1: # just a "jump gate"
+	jmp .error_state # far jump ...
+.block_data_no_error_1:
+	#
+	cmp %al, 28
+	jb .bd_gv
+	ja .bd_gv_end
+	mov %bx, 258 # length offset
+	xor %al, %al # num bits
+	jmp .bd_gv_end
+	#
+.bd_gv:
+	cmp %al, 8
+	# jnc .block_data_sym_ge8
+	jae .block_data_sym_ge8
+	# add %bl, %al
+	mov %bl, %al
+	xor %al, %al # num bits
+	jmp .bd_gv_end_1
+.block_data_sym_ge8:
+# example: al = 13
+	# minus 8 = 5
+	# a. rest after 'and' with 0x3 = 1
+	# b. after shift by 2 = 1
+	# shift a.rest by (1 + 1) = 1 << 2 = 4
+	# shift b by (2 + 2) = 1 << 4 = 16
+	# result = 16 + 4 + (3 offset) = 23
+	sub %al, 8
+	inc %bl # 0x1 for shifting
+	mov %cl, %al
+	and %al, 0x3 # only 2 bits of interest
+	shr %cl, 2 # we are only interested in 4 - tuples
+	mov %dl, %cl # for length bits later
+	#
+	inc %cl
+	shl %al, %cl # shift by one - forth
+	add %cl, 2 # e.g. 11, 13, 15, 17 minus 3, base is 8
+	shl %bl, %cl # now we know 8, 16, 32, 64, 128
+	add %bl, %al # result
+	#
+	mov %al, %dl
+	#
+	inc %al
+.bd_gv_end_1:
+	add %bl, 3
+.bd_gv_end:
+.block_data_gen_values_end:
+	
+.sym_check:
+	# mov %r15d, %ebx # length
+	#
+	test %ax, %ax
+	jz .sym_check_skip
+.sym_check_not_zero:
+# here: ax = sym, bx = length
+	# Possibly get more bits from length code
+	# length = inflate_getbits(d, sym, length);
+	#
+	call .get_bits_func
+	#
+	mov %ebx, %eax
+.sym_check_skip:
+	mov %r15d, %ebx # length
+	movq %rdi, %xmm0
+	add %rdi, 640 # rdi = distance tree
+	# int dist = inflate_decode_symbol(d, distance_tree);
+	call .inflate_decode_symbol_func
+	#
+.block_data_loop_got_dt_symbol:
+	# dist is within range? (dist 30, 31 are invalid)
+	# if (dist > 29 || dist > dt_max_sym)
+	# {
+	# result = INFLATE_ERROR_DATA;
+	# break                      ;
+	# }
+	movq %rdi, %xmm0
+	add %rdi, 640 # rdi = distance tree
+	#
+	cmp %ax, 29
+	jbe .block_data_dist_valid
+.block_data_error_3:
+	jmp .block_data_error_1
+.block_data_dist_valid:
+	#
+	# mov %bx, [%rdi] # bx = max_sym
+	#
+	cmp %ax, [%rdi] # sym > max_sym ?
+	jg .block_data_error_3 # signed comparison!
+	#
+	# We try to compute the following tables
+	# static const unsigned char dist_bits[30] = {
+	# 0, 0, 0, 0, 1, 1, 2, 2, 3, 3, 
+	# 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 
+	# 9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
+	# static const unsigned short dist_base[30] = {
+	# 1, 2, 3, 4, 
+	# 5, 7, 9, 13, 
+	# 17, 25, 33, 49, 
+	# 65, 97, 129, 193, 
+	# 257, 385, 513, 769, 
+	# 1025, 1537, 2049, 3073, 
+	# 4097, 6145, 8193, 12289, 16385, 24577
+	
+.block_data_dist_comp:
+	# movzx %rax, %al
+	# al = dist bits
+	# bx = data offset
+	lea %ebx, [%eax + 1]
+	#
+	cmp %al, 4
+	jb .has_data_offset
+	#
+.dist_ge4:
+	# dist - = 4
+	sub %al, 4
+	mov %bl, 1
+	movzx %edx, %al
+	# const unsigned int o = dist & 0x1;
+	# dist >>= 1                 ;
+	shr %al, 1
+	# dist + +                   ;
+	inc %al
+	#
+	# data_offset = dist + 1     ;
+	lea %ecx, [%eax + 1]
+	#
+	# and %dl, 0x1 # single bit
+	and %dl, %bl # single bit
+	# inc %cl
+	# data_offset = 0x1 << data_offset;
+	shl %bx, %cl
+	# data_offset |= (data_offset >> o);
+	# bt %dx, 0 # need to perform OR with shifted values?
+	# jnc .dist_no_shift
+	mov %cl, %dl
+	mov %dx, %bx
+	# shorter even if maybe a bit slower
+	shr %dx, %cl # not necessary shift if dl=cl=0
+	or %bx, %dx # not necessary shift if dl=cl=0
+	# lea %ebx, [%edx + %ebx]
+.dist_no_shift:
+	# data_offset + +            ;
+	inc %ebx
+	xor %rdx, %rdx
+	xor %rcx, %rcx
+	#
+	# Possibly get more bits from distance code
+	# data_offset = inflate_getbits(d, dist, data_offset);
+	call .get_bits_func
+	#
+	mov %ebx, %eax
+.block_data_dist_comp_end:
+	#
+.has_data_offset:
+	# ebx = data offset
+	# check space left
+	#
+	# int64_t addr_dist = (d - >destination - d - >destination_start);
+	# Possible to go back?
+	# if (data_offset > (int)addr_dist) {
+	# return INFLATE_ERROR_DATA  ; ;
+	# }
+	mov %ecx, %r15d # data length
+	#
+	cmp %ebx, 0x7FFF # 15 bits offset
+	ja .block_data_error_3
+	#
+	movzx %rbx, %bx
+	#
+	# enough space left to write?
+	cmp %ecx, %r11d
+	ja .block_data_error_3
+	#
+	mov %rax, %r9
+	#
+	mov %rdx, [%rbp - DST_START] # src start
+	#
+	mov %rsi, %r9
+	#
+	#
+	sub %rax, %rdx # rax = bytes written
+	jc .block_data_error_3 # underflow ?
+	jz .block_data_error_3 # no bytes written ?
+	#
+	# data_offset > bytes_written ?
+	cmp %rbx, %rax
+	ja .block_data_error_3
+	#
+	sub %rsi, %rbx # src = dst - data_offset
+	mov %rdi, %r9 # rdi = dst ptr
+	#
+	# Copy bytes
+	cld
+	rep movsb # copy rcx bytes
+	mov %r9, %rdi # save dst ptr
+	jmp .block_data_loop_start
+# .block_data_error_2:
+.inflate_aio_block_data_end:
+	#
 	#
 	#
 .clear_buffer:
-	.if USE_CLEAR_REGS
-	mov %al, (CLR_RAX|CLR_RCX)
-	call .clear_regs
-	.else
 	xor %rcx, %rcx
 	xor %rax, %rax
-	.endif
 	#
 	mov %rdi, %r13 # buffer ptr
-	mov %cl, 210
+	mov %cl, BUFFER_LEN_8
 	cld
 	rep stosq
 	#
-	# Sets max symbols to - 1
+	# Sets max symbols to - 1 for trees
 	#
-	mov %cx, TREE_SIZE
-	# xor %rax, %rax
-	mov %rdi, %r13 # buffer ptr
-	dec %rax # now it's minus 1
-	add %rdi, 384
-	mov [%rdi], %ax
+	lea %rdi, [%r13 + LENGTH_TREE_OFFSET] # rdi = l_tree ptr
+	dec %ax # now it's minus 1
+	mov %cx, (TREE_SIZE - 2) # - 2, because of stosw
+	# mov [%rdi], %ax
+	stosw
 	add %rdi, %rcx
-	mov [%rdi], %ax
+	stosw
+	# mov [%rdi], %ax
 	ret
-	# .if 0
-	# cmp %dl, 1
-	# je .fixed_mode_build_trees_2
-	# cmp %dl, 2
-	# je .dyn_mode_build_trees_2
-	# jmp .error_state
-	# .endif
 	#
+	.equ INFLATE_DECODE_SYMBOL_GET_BITS, 1
 	#
-	
-.inflate_aio_decode_symbol:
-	# r14w = next step after decode symbol
+.inflate_decode_symbol_func:
+	# r14 = temp
 	# rdi = tree start
 	# eax = result
 	# ebx = offset
+	# edx = base
+	#
 	# int base = 0, offs = 0, len;
-	.if USE_CLEAR_REGS
-	mov %al, (CLR_RAX|CLR_RBX|CLR_RCX|CLR_RDX)
-	call .clear_regs
-	.else
-	xor %rcx, %rcx
+	#
+# for : len = 1 ... 16 : inc len {
+	#
+	# start at 1
+	lea %rsi, [%rdi + 8 + 2] # rsi = code counts ptr
+	#
+	.if INFLATE_DECODE_SYMBOL_GET_BITS
+	mov %rax, %r12 # rax = bitbuffer|count
+	movzx %rcx, %r12b
+	movq %r10, %xmm5 # r10 = end ptr
+	movq %xmm4, %r15 # temp store
+	#
+	shr %rax, 6 # %rax = bit buffer
+	#
+	sub %r10, %r8 # r10 = data avail
+	jc .decode_symbol_error # overflow ?
+	#
+	test %cl, 0x38 # more than 7 bits ?
+	jae .decode_symbol_error
+	#
+	# more than 8 bits in buffer?
+	cmp %rax, 0x7F
+	ja .decode_symbol_error
+	#
+	movq %xmm4, %r15 # temp store
+	and %cl, 0x7 # cl = bit buffer counter
+	cld
+	xor %rbx, %rbx
 	xor %rdx, %rdx
-	xor %eax, %eax
-	xor %ebx, %ebx
+	mov %r15b, 1
+	#
+	.else
+	#
+	xor %rcx, %rcx
+	xor %rax, %rax
+	xor %rbx, %rbx
+	xor %rdx, %rdx
+	#
+	# mov %cl, 15 # len
+	inc %cl
 	.endif
-	#
-	add %rdi, 8 # rdi = ptr to code counts
-	#
-	# for (len = 1               ; len < 16; + + len)
-	# {
-	mov %cl, 2 # len
-	movq %r15, %xmm5 # src end ptr
-	mov %rsi, %rdi # rsi = code counts ptr
-	#
 	# ebx = offset
 	# eax = temp
 	# edx = base
 	# cx = loop counter
 .decode_symbol_loop_start:
 	# offs = (offs << 1) | inflate_getbits(d, 1, 0);
-	shl %ebx, 1
-	
-	# get bits
-	mov %dl, %r12b # bit count
-	mov %eax, %r12d # full bit buffer
-	test %dl, %dl
-	jnz .get_bit_for_symbol
-	# get more bits
-	# mov %rsi, %r8
-	xor %dx, %dx
-	xor %eax, %eax
-	cmp %r8, %r15
-	jae .error_state # overflow
-	mov %al, [%r8] # single byte
-	mov %dl, 8 # 8 bits for bit buffer count
-	shl %ax, 8
-	inc %r8 # new src ptr
-	or %ax, %dx
-	# mov %r8, %rsi
+	shl %bx, 1
 	#
-.get_bit_for_symbol:
-	bt %eax, 8
-	jnc .get8bits_for_symbol_no_bit
-	inc %ebx # if lowest bit in bit buffer is set
+	.if INFLATE_DECODE_SYMBOL_GET_BITS
+	test %cl, %cl # bit buffer empty ?
+	jnz .decode_symbol_has_bits
+	# any bytes available to read?
+	test %r10, %r10
+	jz .decode_symbol_error
 	#
-.get8bits_for_symbol_no_bit:
-	shr %eax, 1 # remove 1 bit from buffer
-	dec %dl
-	mov %al, %dl # now 1.st byte count and rest the buffer
-	# get bits end
+	mov %al, [%r8]
+	mov %cl, 8
+	dec %r10
+	inc %r8
+.decode_symbol_has_bits:
+	dec %cl
+	shr %ax, 1
+	adc %bx, 0 # add carry flag from shift
 	#
-	# const int c = t - >code_counts.us16[len];
-	# if (offs < c)
-	# {
+	.else
+	mov %al, 1
+	#
+	sub %rsp, 8
+	call .get_bits_func_no_base
+	add %rsp, 8
+	#
+	cld
+	#
+	shr %al, 1
+	adc %bx, 0 # add carry flag from shift
+	.endif
+	#
+	#
+	lodsw # ax = code count and rsi + = 2
+	#
+	# const int c = t_code_counts.us16[len];
+	# if (offs < c) {
 	# break                      ;
 	# }
 	# base + = c                 ;
 	# offs - = c                 ;
-	# shl %cl, 1 # len offset
-	mov %r12d, %eax # set new bit buffer
-	add %rsi, %rcx
-	# xor %eax, %eax # no need, bit buffer + bit count at most 15 bits
-	mov %ax, [%rsi]
-	# shr %cl, 1
-	cmp %ebx, %eax # offset less than code count?
+	#
+	bt %bx, 15 # overflow?
+	jc .decode_symbol_error
+	# clc
+	# sub %dx, %ax # offset minus code count
+	# jc .decode_symbol_loop_offset_less
+	cmp %bx, %ax # offset less than code count?
 	jb .decode_symbol_loop_end
-	add %edx, %eax # base plus code count
-	add %cl, 2
-	sub %ebx, %eax # offset minus code count
-	# inc %cl
-	cmp %cl, 32
-	jb .decode_symbol_loop_start # next iteration
-	jmp .error_state # overflow!
-	# }
+	#
+	.if INFLATE_DECODE_SYMBOL_GET_BITS
+	inc %r15b
+	.else
+	inc %cl
+	.endif
+	#
+	sub %bx, %ax
+	#
+	add %dx, %ax # base plus code count
+	jc .decode_symbol_error
+	# next iteration!
+	.if INFLATE_DECODE_SYMBOL_GET_BITS
+	cmp %r15b, 16
+	jb .decode_symbol_loop_start
+	.else
+	# loopnz .decode_symbol_loop_start
+	cmp %cl, 16
+	jb .decode_symbol_loop_start
+	.endif
+	# otherwise error (too many bits)
+.decode_symbol_error:
+	mov %rsp, [%rbp - RSP_BACKUP]
+	jmp .error_state # overflow or bit buffer error!
 .decode_symbol_loop_end:
+	# }
+	#
+	.if INFLATE_DECODE_SYMBOL_GET_BITS
+	# pack bits into bit buffer
+	movzx %r12, %al # rest bits
+	add %ebx, %edx # offset + = base
+	shl %r12, 6
+	movq %r15, %xmm4
+	or %r12, %rcx # and the bit buffer count
+	.else
+	add %ebx, %edx # offset + = base
+	.endif
+	#
+	
+	# jc .decode_symbol_error # overflow?
 	# / / assert(base + offs >= 0 && base + offs < 288);
+	lea %rsi, [%rdi + %rbx * 2 + (32 + 8)]
 	# base + = offs              ;
 	# if (base < 0 || base > 287)
 	# {
-	# return 300
+	# return INFLATE_ERROR
 	# }
-	add %edx, %ebx
-	js .error_state
-	# cmp %edx, 0
-	# jl .error_state
-	cmp %edx, 287
-	ja .error_state
+	# js .decode_symbol_error
+	cmp %ebx, 287 # out_of_range ?
+	ja .decode_symbol_error
 	#
 	# return t - >symbols.us16[base];
-	# add %rdi, 32 # rdi = symbols
-	shl %dx, 1 # for shorts
-	add %dx, 32 # offset for symbols
-	add %rdi, %rdx
-	mov %ax, [%rdi] # ax = symbol
-# sym > 285 : error
-	cmp %ax, 285
-	ja .error_state
-	# decide which way to go next
-	cmp %r14b, 1
-	je .block_data_loop_got_symbol
-	cmp %r14b, 2
-	je .block_data_loop_got_dt_symbol
-	cmp %r14b, 3
-	je .build_trees_after
+	# shl %dx, 1 # for shorts
+	lodsw # ax = symbol
+	# error for sym > 285 !
+	cmp %ax, 285 # invalid symbol ?
+	ja .decode_symbol_error
 	#
-	jmp .error_state_4
+	cmp %ax, [%rdi] # symbol greater than tree's max sym
+	ja .decode_symbol_error
+	#
+	# pop %r14
+	ret
+.inflate_decode_symbol_func_end:
 	#
 	#
 	#
 .dyn_mode_build_trees:
-	# jmp .clear_buffer
-	call .clear_buffer
-.dyn_mode_build_trees_2:
-	# Decode trees
-	 / * Get 5 bits HLIT (257 - 286) * / 
-	# unsigned int hlit = inflate_getbits(d, 5, 257);
-	
-	# / * Get 5 bits HDIST (1 - 32) * / 
-	# unsigned int hdist = inflate_getbits(d, 5, 1);
-	
-	# / * Get 4 bits HCLEN (4 - 19) * / 
-	# unsigned int hclen = inflate_getbits(d, 4, 4);
-	xor %rax, %rax
-	xor %rbx, %rbx
-	mov %al, 14 #
-	jmp .get_bits
-.after_get_bits_build_trees:
-	.ifdef CHECK_GET_BITS_OVERFLOW
-	.if CHECK_GET_BITS_OVERFLOW
-	xor %rbx, %rbx
-	inc %bx
-	shl %bx, 14
-	cmp %rax, %rbx
-	jae .error_state
-	.endif
-	.endif
-	# ax = hlit
-	# bx = hdist
-	# dx = hclen
-	mov %edx, %eax
-	mov %ebx, %eax
-	
-	and %ax, 0x1F
-	shr %bx, 5
-	shr %dx, 10
-	and %bx, 0x1F
-	and %dl, 0xF
-	add %ax, 257
-	inc %bx
-	add %dl, 4
 	#
-	# if (hlit > 286 || hdist > 30)
-	# {
-	# INFLATE_ALGO_STEP_UI32_VALUE(ALGO_STEP_ERROR, INFLATE_ERROR_DATA, "(hlit > 286 || hdist > 30)");
+	call .clear_buffer
+	#
+	# Decode trees
+	# 5 bits for HLIT (257 - 286) + offset 257
+	# 5 bits for HDIST (1 - 32) + offset 1
+	# 4 bits for HCLEN (4 - 19) + offset 4
+	#
+	call .inflate_update_avail_values
+	#
+	mov %rdx, %r12
+	movzx %rcx, %r12b
+	xor %rbx, %rbx
+	xor %r14, %r14 # temp
+	xor %r15, %r15 # temp
+	test %rdx, %rdx
+	jz .dyn_mode_build_bit_buffer_empty
+	# invalid count ? too many bits in buffer?
+	# should never happen and means corrupted bit buffer
+	test %cl, 0x38 # 0x38 = xx11.1000
+	jz .dyn_mode_build_bits_count_ok
+.dyn_mode_build_bits_error:
+	jmp .error_state
+.dyn_mode_build_bits_count_ok:
+	#
+	shr %rdx, 6
+	and %cl, 0x7
+	#
+	# too many bits in buffer?
+	# should never happen and means corrupted bit buffer
+	cmp %rdx, 0x7F # 0x7F = 7 bits set
+	ja .dyn_mode_build_bits_error
+	#
+.dyn_mode_build_bit_buffer_empty:
+	#
+	# We need at least 26 bits
+	# 14 bits for the header
+	# at least 12 bits for the hclen
+	mov %r14b, (26)
+	#
+	# This part is now internal "get bits function"
+.dyn_mode_build_trees_bits_loop_start:
+	cld
+	mov %rsi, %r8
+.dyn_mode_build_trees_bits_loop:
+	xor %rax, %rax
+	test %r10, %r10
+	jz .dyn_mode_build_bits_error
+	#
+	lodsw
+	#
+	dec %r10
+	shl %rax, %cl
+	add %cl, 8
+	or %rdx, %rax # prepend to bit buffer
+	#
+	# Using only a byte of r14!
+	cmp %cl, %r14b
+	jb .dyn_mode_build_trees_bits_loop
+.dyn_mode_build_trees_head_loop_end:
+	#
+	mov %r8, %rsi
+	mov %r12, %rdx # r12 = full buffer
+	#
+	btr %r14w, 9
+	jae .dyn_mode_build_trees_after_hclen4
+	#
+	#
+	mov %r12, %rdx # r12 = full buffer
+	movzx %rax, %dx # ?|hclen|hdist|hlit
+	#
+	movzx %rbx, %dx # ?|hclen|hdist|hlit
+	movzx %rdx, %dx # ?|hclen|hdist|hlit
+	# xor %r14, %r14
+	shr %bx, 10 # ?|hclen, 6 bits
+	shr %dx, 5 # ?|hclen|hdist, 11 bits
+	#
+	and %ax, 0x1F # al = hlit
+	and %bl, 0xF # bl = hclen
+	and %dx, 0x1F # dl = hdist
+	#
+	# Checks before adding offsets
+	# if (hlit > 286 || hdist > 30) {
 	# return INFLATE_ERROR_DATA  ;
 	# }
-	cmp %ax, 286
-	ja .error_state
-	cmp %bx, 30
-	ja .error_state
+	cmp %al, 29 # hlit ?
+	ja .dyn_mode_build_trees_error
 	#
-	# Now we need to use the lengths array
+	cmp %dl, 29 # hdist ?
+	ja .dyn_mode_build_trees_error
 	#
+	add %ax, 257 # hlit
+	inc %dl # hdist
+	add %bl, 4 # hclen
 	#
-	xor %rcx, %rcx
-	mov %cx, %ax # hlit
-	shl %ecx, 16
-	or %ecx, %ebx # hdist
-	shl %rcx, 8
-	or %ecx, %edx # hclen
-	#
-	mov [%rbp - HLIT_HDIST_HCLEN], %ecx
-	#
+	shl %eax, 16 # hlit shifted
+	shl %edx, 8 # hdist shifted
+	or %eax, %ebx # add hclen
+	or %eax, %edx # add hdist
 	
-	movq %xmm0, %r14 # backup temp
-	# mov %cx, %dx
-	xor %rcx, %rcx
-	movzx %r14, %dx
+	mov [%rbp - HLIT_HDIST_HCLEN], %eax
+	mov %r15, %rax
+	#
+	# xor %r15, %r15
+	# ax = hlit, dx = hdist, bx = hclen
+	# r12 = bit buffer, cl = bit buffer count
+	#
+	# rdi = lengths array ptr!
+	lea %rdi, [%r13 + LENGTH_ARRAY_OFFSET + 16]
+	#
+	sub %cl, 14 # we consume 14 bits
+	jc .dyn_mode_build_bits_error
+	shr %r12, 14 # r12 = now 12 bits at least for hclen
+	cmp %cl, 14
+	jb .dyn_mode_build_bits_error
+	#
+	# Now we need to set lengths based on hclen
+	# First 4 will be assigned anyway
 	# static const unsigned char my_clcidx[19] = {
-	# 16, 17, 18, 
-	# 0, 8, 7, 9, 
-	# 6, 10, 5, 11, 
-	# 4, 12, 3, 13, 
-	# 2, 14, 1, 15}
-	.if DADA
-	# backjump value for get_bits
-	mov %dl, ASM_INFLATE_STATE_GET_BITS_LENGTH_LOOP_FIRST
+	# 16, 17, 18, 0, 
+	# 8, 7, 9, 6, 
+	# 10, 5, 11, 4, 
+	# 12, 3, 13, 2, 
+	# 14, 1, 15 }
+	movzx %rax, %r12b
+	movzx %rbx, %r12b
+	movzx %rdx, %r12w
+	and %al, 0x7 # 3 bits
+	and %bl, (0x7<<3) # 0x38 # 3 bits
+	and %dx, (0x7<<6) # 0x1C # 3 bits
+	shr %bl, 3 # adjust for index 17
+	shl %dx, 10 # adjust for index 18
+	mov %ah, %bl # ax = for index 16, 17
+	shr %r12, 9
+	or %eax, %edx
+	#
+	stosd # set values for index 16, 17, 18
+	#
+	sub %cl, 12 # reduce bit count
+	jc .dyn_mode_build_bits_error
+	#
 	xor %ebx, %ebx
-	mov %al, 12
-	jmp .get_bits
-.after_get_bits_length_loop_first:
-	mov %rdi, %r13
-	xor %ebx, %ebx
-	xor %ecx, %ecx
-	add %rdi, 64 # offset for lengths in buffer
-	.if 0
-	mov %cl, 3
-.after_get_bits_length_loop_first2:
-	mov %dx, %ax
-	shl %ebx, 8
-	and %dx, 0x7
-	shr %ax, 3
-	or %ebx, %edx
-	loopnz .after_get_bits_length_loop_first2
-	bswap %ebx
-	shr %edx, 8
-	mov [%rdi + 16], %ebx
-	mov [%rdi], %al
-	.else
-	mov %bx, %ax
+	movzx %eax, %r12b
+	sub %rdi, 20 # go to length start
+	# lea %rdi, [%r13 + LENGTH_ARRAY_OFFSET]
+	and %al, 0x7 # 3 bits
 	xor %edx, %edx
-	mov %cx, %ax
-	and %bx, 0x7 # bits 0 - 2
-	and %cx, 0x1C # bits 3, 4, 5
-	shr %ax, 6
-	shl %cx, 5
-	mov %dx, %ax
-	or %bx, %cx #
-	and %dx, 0x1C # bits 9, 10, 11
-	and %ax, 0x7 # bits 6, 7, 8
-	shl %ebx, 8
-	shr %dx, 3
-	# or %ax, %dx
-	or %ebx, %eax #
-	
-	mov [%rdi + 16], %ebx
-	mov [%rdi], %dl
-	.endif
-	mov %cl, 3
-	.else
-	.endif
+	shr %r12, 3
+	#
+	stosb
+	#
+	# dec %rdi
+	#
+	# now we need to process (hclen - 4) rest 3 bit values
+	cmp %r15b, 4
+	je .dyn_mode_build_trees_hclen_done
+	#
+.dm_btl_1:
+	#
+	mov %dl, 3
+	movzx %rax, %r15b # = hclen
+	sub %al, 4
+	jc .dyn_mode_build_bits_error # should never happen
+	jz .dyn_mode_build_trees_hclen_done
+	#
+	mul %dl
+	xor %rbx, %rbx
+	movzx %r14, %al
+	xor %rdx, %rdx
+	# mark to jump to label afer
+	bts %r14w, 9 # or %r14w, 0x200
+	#
+	jmp .dyn_mode_build_trees_bits_loop_start
+	#
+.dyn_mode_build_trees_after_hclen4:
+	#
+# Here : cl = bit count, %r12 = bit buffer
+	movzx %rax, %r14b # al = requested bits
+	# movzx %rdx, %dl
+	mov %rbx, %r12 # rbx = bits in bit buffer
+	xor %r14, %r14
+	#
+	xchg %al, %cl # cl = requested, al = all bits
+	#
+	shr %r12, %cl
+	#
+	sub %al, %cl
+	jc .dyn_mode_build_bits_error
+	#
+	shl %r12, 6
+	# cl = requested bits
+	movzx %rcx, %r15b # = hclen
+	xor %rdx, %rdx
+	or %r12b, %al
 	# pack 16 nibbles
-	mov %rsi, (0|(8<<4)|(7<<8)|(9<<12)|(6<<16)|(10<<20)|(5<<24)|(11<<28)|(4<<32)|(12<<36)|(3<<40)|(13<<44)|(2<<48)|(14<<52)|(1<<56)|(15<<60))
-	# backjump value for get_bits
-	mov %dl, ASM_INFLATE_STATE_GET_BITS_LENGTH_LOOP
-.build_trees_length_loop:
+	# mov %rsi, ((8)|(7<<4)|(9<<8)|(6<<12)|(10<<16)|(5<<20)|(11<<24)|(4<<28)|(12<<32)|(3<<36)|(13<<40)|(2<<44)|(14<<48)|(1<<52)|(15<<56))
+	xor %rax, %rax
+	mov %dl, 8
+	sub %cl, 4
+	lea %r14, [%r13 + LENGTH_ARRAY_OFFSET]
+	#
 	# for (i = 0                 ; i < hclen; + + i)
 	# {
-	# / * Get 3 bits code length (0 - 7) * / 
-	# unsigned int clen = inflate_getbits(d, 3, 0);
-	xor %ebx, %ebx
-	mov %al, 3
-	jmp .get_bits
-.after_get_bits_length_loop:
-	mov %rdi, %r13
-	xor %rbx, %rbx
-	add %rdi, 64 # offset for lengths in buffer
-	.if DADA
-	.else
-	cmp %cx, 3
-	jae .length_loop_i_ge3
-	mov %bx, %cx
-	add %bx, 16 # 16, 17, 18
-	jmp .length_loop_has_index
-.length_loop_i_ge3:
-	.endif
-	# get the right nibble
-	mov %rbx, %rsi
-	shl %cx, 3
-	shr %rbx, %cl
-	shr %cx, 3
-	and %bx, 0xF # single nibble
-	movzx %rbx, %bx
+.dyn_mode_build_trees_length_loop:
+	test %dl, %dl
+	jz .dyn_mode_build_trees_error
+	#
+	# 3 bits code length (0 - 7)
+	#
+	# mov %dx, %si
+	mov %al, %bl # get from buffer
+	#
+	# and %dx, 0xF # we need a nibble
+	#
+	and %al, 0x7 # 3 bits
+	# shr %rsi, 4 # for next iteration
+	#
+	# add %rdx, %rdi
+	lea %rdi, [%r14 + %rdx]
+	shr %rbx, 3
 	#
 	# lengths[my_clcidx[i]] = (unsigned char)clen;
-	# }
-.length_loop_has_index:
-	# or %bl, 64 # add offset for lengths
-	add %rbx, %rdi
-	mov [%rbx], %al # store the byte
-	inc %cx
-	cmp %cx, %r14w
-	jb .build_trees_length_loop
-	# loopnz .build_trees_length_loop
 	#
-	movq %r14, %xmm0
-	xor %edx, %edx
+	stosb
+	#
+	test %rbx, %rbx # any other bits set?
+	jz .dyn_mode_build_trees_hclen_done
+	#
+	xor %dl, 0xF
+	bt %dx, 3
+	adc %dl, 0
+	#
+	loopnz .dyn_mode_build_trees_length_loop
+	# }
+	#
+	jmp .dyn_mode_build_trees_hclen_done
+.dm_btl_1_end:
+	#
+.dyn_mode_build_trees_error:
+	jmp .error_state
+	#
+.dyn_mode_build_trees_hclen_done:
+	#
+	#
 	# restore values
-	mov %ecx, [%rbp - HLIT_HDIST_HCLEN]
-	xor %ebx, %ebx
-	xor %eax, %eax
-	# mov %dl, %cl # hclen
-	shr %ecx, 8
-	mov %bl, %cl # hdist
-	shr %ecx, 8
-	mov %ax, %cx # hlit
 	#
 	# Build length tree
-	mov %rdi, %r13
-	xor %rcx, %rcx
-	mov %rsi, %rdi
-	add %rdi, 384 # ptr to tree
-	add %rsi, 64 # ptr to length
+	# xor %rcx, %rcx
+	# rdi = l_tree ptr
+	lea %rdi, [%r13 + LENGTH_TREE_OFFSET]
+	# rsi = lengths ptr
+	lea %rsi, [%r13 + LENGTH_ARRAY_OFFSET]
+	xor %rbx, %rbx
+	movq %xmm0, %rdi
 	mov %cx, 19 # length size
 	#
 	call .build_tree
 	#
-	test %eax, %eax
-	jnz .error_state
 	#
+	# lea %rsi, [%r13 + LENGTH_TREE_OFFSET]
+	movq %rsi, %xmm0
 	#
-	mov %rdi, %r13
-	mov %rsi, %rdi
-	add %rdi, 384
-	mov %ax, [%rdi]
-	cmp %ax, 0
-	jl .error_state
+	lodsw # load max sym
 	#
+	cmp %ax, 18
+	ja .dyn_mode_build_trees_error
 	#
-	# / * Decode code lengths for the dynamic trees * / 
+	# Decode code lengths for the dynamic trees
 	#
-	mov %ecx, [%rbp - HLIT_HDIST_HCLEN]
-	mov %eax, %ecx
-	shr %ecx, 8
-	shr %eax, 16
-	and %cx, 0xFF
-	movzx %ecx, %cl
-	add %ecx, %eax # ecx = hlit + hdist
-	
-	xor %rdx, %rdx # dx = num
+	mov %eax, [%rbp - HLIT_HDIST_HCLEN]
+	xor %rcx, %rcx
+	#
+	# xor %rbx, %rbx
+	mov %cl, %ah
+	xor %rdx, %rdx
+	shr %eax, 16 # eax = hlit
+	add %cx, %ax # ecx = hlit + hdist
+	#
+	cmp %cx, (258 + (2 * 29))
+	ja .dyn_mode_build_trees_error
+	#
+	pxor %xmm0, %xmm0 # num
 	#
 	# for (num = 0               ; num < hlit + hdist;)
+	#
+	movzx %r14, %cx # r14 = limit
+	mov %rsi, LENGTH_TREE_OFFSET
+	#
 	# {
 .loop_num_hlit_hdist:
 	# int sym = inflate_decode_symbol(d, lt);
-	mov %rdi, %r13
-	# mov %rsi, %rdi
-	mov %r14w, 3 # state after
-	add %rdi, 384 # length tree
-	jmp .inflate_aio_decode_symbol
-.build_trees_after:
-	# eax = result
-	# #if INFLATE_DO_CHECK_FOR_ERRORS
+	lea %rdi, [%r13 + %rsi]
+	#
+	call .inflate_decode_symbol_func
+	# ax = result
 	# if (sym > lt_max_sym)
 	# {
 	# return INFLATE_ERROR_DATA  ;
 	# }
-	# #endif
-	mov %rdi, %r13
-	add %rdi, 384 # length tree
-	mov %ebx, [%rdi]
-	cmp %eax, %ebx
-	ja .error_state
+	# xor %rbx, %rbx
 	#
-	# unsigned int length = 1    ;
-	xor %ebx, %ebx
-	
-	inc %bx # length 1
-# default:
-	# / * Values 0 - 15 represent the actual code lengths * / 
-	# / / length = 1             ;
-	# break                      ;
-	# }
+	movzxw %rbx, [%r13 + %rsi]
+	#
+	# should not be required, but check anyway
+	cmp %bx, 18
+	ja .dyn_mode_build_trees_error
+	#
+	cmp %ax, %bx
+	ja .dyn_mode_build_trees_error
+	#
+	xor %bx, %bx
+	#
 	#
 	# switch (sym)
 	# {
-	cmp %ax, 16
-	jne .sym_not_16
-# case 16:
-	# / * Copy previous code length 3 - 6 times (read 2 bits) * / 
-	# #if INFLATE_DO_CHECK_FOR_ERRORS
-	# if (num == 0)
-	# {
-	# return INFLATE_ERROR_DATA  ;
-	# }
-	# #endif
-	test %dx, %dx
-	jz .error_state
-	#
-	#
-	mov %rdi, %r13
-	add %rdi, 64 # length array
-	#
-	
-	dec %dx
-	xor %ax, %ax
-	add %rdi, %rdx
-	inc %dx
-	# sym = lengths[num - 1]     ;
-	mov %al, [%rdi]
-	# length = inflate_getbits(d, 2, 3);
-	mov %bx, 0x203
+# default:
+	# Values 0 - 15 represent the actual code lengths
+	# length = 1                 ;
 	# break                      ;
-	jmp .sym_switch_end
-.sym_not_16:
-	cmp %ax, 17
-	je .sym_is_17
-	cmp %ax, 18
-	je .sym_is_18
-.sym_is_17:
-# case 17:
-	# / * Repeat code length 0 for 3 - 10 times (read 3 bits) * / 
-	# sym = 0                    ;
-	xor %ax, %ax
-	# length = inflate_getbits(d, 3, 3);
-	mov %bx, 0x303
-	# break
-	jmp .sym_switch_end
-.sym_is_18:
-# case 18:
-	# / * Repeat code length 0 for 11 - 138 times (read 7 bits) * / 
-	# sym = 0                    ;
-	xor %ax, %ax
-	# length = inflate_getbits(d, 7, 11);
-	mov %bx, 0x70B
-	# break
+	# }
 	#
-.sym_switch_end:
-	mov %r14w, %ax # store sym
-	shl %r14d, 16
-	or %r14d, %edx # count
-	
-	cmp %bx, 1
+	inc %bl # length 1
+	#
+	movd %ecx, %xmm0 # cx = num
+	#
+.s2:
+	cmp %al, 16
+	jb .switch_sym_end # keep symbol, length = 1
+	ja .switch_sym_not_16
+# here : sym = 16
+	# test, %cx, %cx
+	# jz .dyn_mode_build_trees_error
+	dec %cx
+	js .dyn_mode_build_trees_error
+	lea %rsi, [%r13 + %rcx + 64]
+	# xchg %al, %bl
+	#
+	lodsb # sym = get value at length[num - 1]
+	#
+	mov %bl, 0x23 # for get_bits (2, 3)
+	inc %cx
+	jmp .switch_sym_end
+	#
+.switch_sym_not_16:
+	.if 1
+	mov %cl, %al
+	mov %bx, 0x7B33 # (3, 3) for 17, (7, 11) for 18
+	dec %cl # now 0 for 17, 1 for 18
+	xor %al, %al
+	shl %cl, 3 # to shift bytes
+	shr %bx, %cl
+	.else
+	bt %ax, 0
+	jnc .switch_sym_not_16_1
+	mov %bl, 0x33
+	jmp .switch_sym_not_16_2
+.switch_sym_not_16_1:
+	mov %bl, 0x7B
+.switch_sym_not_16_2:
+	.endif
+.switch_sym_end:
+	mov %r15w, %ax # store sym
+	# compute length ?
+	cmp %bl, 1
 	je .dont_compute_length
-	mov %ax, %bx
-	and %bx, 0xF
-	shr %ax, 8
+	mov %al, %bl
+	and %bl, 0xF
+	shr %al, 4
 	#
-	mov %dl, 100
-	jmp .get_bits
-.build_after_get_bits:
-	mov %bx, %ax # bx = length
+	call .get_bits_func
+	#
+	mov %bl, %al
+	#
+.s2_end:
+	
 .dont_compute_length:
-	#
-	# #if INFLATE_DO_CHECK_FOR_ERRORS
-	# if (length > hlit + hdist - num)
-	# {
+	# if (length > hlit + hdist - num) {
 	# return INFLATE_ERROR_DATA  ;
 	# }
-	# #endif
 	#
-	mov %dx, %r14w # restore count
-	sub %cx, %dx
-	cmp %bx, %cx
-	jg .error_state
+	movq %rcx, %xmm0
 	#
-	add %cx, %dx
-	mov %eax, %r14d
-	shr %eax, 16 # al = sym
+	movzx %rax, %r14w # max length available
 	#
+	sub %ax, %cx # calc rest length
+	# jc .dyn_mode_build_trees_error # overflow ?
 	#
-	mov %rdi, %r13
-	add %rdi, 64 # length array
-	add %rdi, %rdx
-	xchg %cx, %bx # cx = length
-	# while (length - - != 0)
-	# {
+	cmp %bx, %ax
+	jg .dyn_mode_build_trees_error_2 # overflow ?
+	#
+	xor %ax, %ax
+	# length at index num
+	lea %rdi, [%r13 + %rcx + 64]
+	#
+	mov %al, %r15b # al = sym
+	#
+	cld
+	#
+	.if 0
+	cmp %bx, 1
+	jb .dyn_mode_build_trees_error_2
+	ja .loop_num_hlit_hdist_many
+	#
+	stosb
+	inc %cx
+	jmp .loop_num_hlit_hdist_store
+.loop_num_hlit_hdist_many:
+	.endif
+	#
+	add %cx, %bx # cx = num + copy length
+	#
+	# cx = copy length, bx = new num after iterations
+	xchg %cx, %bx
+	#
+	# while (length - - != 0) {
 	# lengths[num + + ] = sym    ;
 	# }
-	cld
 	rep stosb
 	#
-	xchg %cx, %bx # cx = limit
+	mov %cx, %bx # cx = num
 	#
-	inc %dx # for next loop iteration
+.loop_num_hlit_hdist_store:
 	#
-	cmp %dx, %cx
+	movd %xmm0, %ecx # store loop counter
+	#
+	cmp %cx, %r14w
 	jb .loop_num_hlit_hdist
+.loop_num_hlit_hdist_end:
 	# }
 	#
-	mov %rdi, %r13
-	mov %rsi, %r13
-	
+	#
+	lea %rsi, [%r13 + (64 + 256)]
+	#
+	lodsb
+	#
 	# Is end_of_block present ?
-	add %rsi, (64 + 256)
-	mov %al, [%rsi]
-	test %eax, %eax
-	jz .error_state
+	test %al, %al
+	jz .dyn_mode_build_trees_error_2
 	#
 	mov %ecx, [%rbp - HLIT_HDIST_HCLEN]
-	sub %rsi, 256 # length ptr
+	#
+	lea %rdi, [%rsi + 64] # length tree
+	#
+	lea %rsi, [%r13 + 64] # length ptr
+	#
 	shr %ecx, 16 # cx = hlit
-	add %rdi, 384 # rdi = len tree ptr
 	#
 	call .build_tree
 	#
-	test %eax, %eax
-	jnz .error_state
+	# test %eax, %eax
+	# jnz .dyn_mode_build_trees_error_2
 	#
 	xor %rax, %rax
-	mov %rdi, %r13
-	mov %eax, [%rbp - HLIT_HDIST_HCLEN]
 	xor %rcx, %rcx
-	mov %rsi, %rdi
+	# mov %rsi, %r13
+	mov %eax, [%rbp - HLIT_HDIST_HCLEN]
+	lea %rdi, [%r13 + DISTANCE_TREE_OFFSET]
 	mov %cl, %ah # cl = ah = hdist
-	add %rdi, (384 + 640) # distance tree
 	shr %eax, 16 # ax = hlit
-	add %rsi, %rax # length + hlit
+	# add %rsi, %rax # length + hlit
+	lea %rsi, [%r13 + %rax + 64]
 	#
 	call .build_tree
 	#
-	test %eax, %eax
-	jnz .error_state
+	# test %eax, %eax
+	# jnz .dyn_mode_build_trees_error_2
 	#
 	jmp .inflate_aio_block_data
+.dyn_mode_build_trees_error_2:
+	jmp .error_state
+.dyn_mode_build_trees_end:
 	#
 	#
-	# jmp .error_state
-	# mov %edx, DYN_TREE_SEQUENCE
-	# movd %xmm7, %edx
-	# jmp .loop_start
-	# jmp .error_state
-	#
-.build_tree:
+# build_tree:
 	# rdi = tree ptr
 	# rsi = length array ptr
-	# cx = length of length array
+	# cx = num = length of length array
+.build_tree:
+	# if (num > 288) {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	cmp %cx, 288
+	jbe .build_tree_init_tree
+	#
+.build_tree_error:
+	mov %rsp, [%rbp - RSP_BACKUP]
+	jmp .error_state
+	#
+.build_tree_init_tree:
+	# inflate_init_tree(t)
+	movzx %rbx, %cx # num
+	#
+	mov %cx, 80
+	mov %rdx, %rdi # tree ptr
+	movzx %rcx, %cx
+	xor %rax, %rax
+	cld
+	rep stosq # 8 * 80 = 640 bytes / zeros
+	#
+	dec %ax
+	#
+	mov %rdi, %rdx
+	#
+	mov %rcx, %rbx # restore num
+	#
+	stosw
+	#
+	mov %r15w, %ax # r15w = min sym = - 1
+	# init tree end
+	#
+	# unsigned int ms = t - >max_sym;
+	# unsigned short * pC = t - >code_counts.us16;
+	add %rdi, 8 # rdi = code counts
+	# xor %rbx, %rbx # bx = iteration variable
+	# xor %rdx, %rdx # temp
+	.if USE_CLEAR_REGS
+	mov %al, (CLR_RAX| CLR_RBX|CLR_RDX)
+	call .clear_regs
+	.else
+	xor %rax, %rax
+	xor %rbx, %rbx
+	xor %rdx, %rdx
+	.endif
+	#
+.build_tree_loop_start:
+	# Count number of codes having non - zero length
+	# for (i = 0                 ; i < num; + + i)
+	# {
+	# unsigned int l = lengths[i];
+	lodsb
+	#
+	test %al, %al
+	jz .build_tree_loop_len_zero
+	# if (l != 0)
+	# {
+	# if (l > 15)
+	# {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	# ms = i                     ;
+	# pC[l] + +                  ;
+	# }
+	.if INFLATE_ASM_CHECK_ERRORS
+	cmp %al, 15
+	jge .build_tree_error
+	.endif
+	#
+	shl %ax, 1 # we use shorts
+	add %rax, %rdi # rdx = code counts[l]
+	mov %r15w, %bx # max sym
+	incw [%rax]
+.build_tree_loop_len_zero:
+	# }
+	inc %rsi
+	inc %bx
+	xor %rax, %rax # reset
+	#
+	cmp %bx, %cx
+	jb .build_tree_loop_start
+	#
+	sub %rsi, %rcx # rsi = length arr
+	#
+	mov %r14w, %cx # count backup
+	#
+	# t - >max_sym = ms          ;
+	mov [%rdi - 8], %r15w
+	#
+	xor %rcx, %rcx
+	#
+	# rdi = code counts ptr
+	mov %r15, %rdi
+	#
+	# clear offsets
+	mov %cl, 4 # 4 * 8 = 32 bytes = 16 offsets
+	mov %rdi, %r13 # r15 = offsets ptr
+	# rax is already 0
+	cld
+	rep stosq
+	# clear offsets end
+	#
+	mov %rdi, %r15
+	#
+	mov %cl, 32
+	#
+	# unsigned int num_codes = 0, available = 1;
+	mov %r15, %r13 # r15 = offsets ptr
+	movq %xmm3, %rdi # code counts
+	movq %xmm4, %rsi # lengths backup
+	#
+	xor %rdx, %rdx # available
+	mov %rsi, %rdi # rsi = code counts
+	xor %rbx, %rbx # num codes
+	inc %dl
+.build_tree_offset_loop:
+	# Compute offset table for distribution sort
+	# for (i = 0                 ; i < 16; + + i)
+	# {
+	# unsigned int used = t_code_counts.us16[i];
+	# mov %ax, [%rdi]
+	lodsw
+	# #if INFLATE_DO_CHECK_FOR_ERRORS
+	# / * Check length contains no more codes than available * / 
+	# if (used > available)
+	# {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	# #endif
+	#
+	# available = (available - used) << 1;
+	sub %edx, %eax
+	# .if INFLATE_ASM_CHECK_ERRORS
+	jc .build_tree_error
+	# .endif
+	shl %edx, 1
+	mov [%r15], %bx # offsets[i] = num_codes ;
+	add %ebx, %eax # num_codes + = used ;
+	add %rsi, 2 # code counts + 2
+	add %r15, 2 # offsets + 2
+	#
+	loopnz .build_tree_offset_loop
+	# }
+	#
+	# * Check all codes were used, 
+	# or for the special case of only one code that it has length 1
+	#
+	# if ((num_codes > 1 && available > 0)
+	# || (num_codes == 1 && t - >code_counts.us16[1] != 1))
+	# {
+	# return INFLATE_ERROR_DATA  ;
+	# }
+	#
+	# rdi = code counts
+	test %dx, %dx
+	jz .build_tree_check_cc1
+	cmp %bx, 1
+	ja .build_tree_error
+	#
+.build_tree_check_cc1:
+	cmp %bx, 1
+	jne .build_tree_check_ok
+	# mov %ax, [%rdi + 2]
+	# cmp %ax, 1
+	cmpw [%rdi + 2], 1
+	jne .build_tree_error
+	#
+.build_tree_check_ok:
+	#
+	movzx %rcx, %r14w # cx = num
+	#
+	movq %rsi, %xmm4 # rsi = lengths
+	mov %r15w, [%rdi - 8] # r15w = max sym
+	mov %r14d, %ebx # r14 = num_codes
+	#
+	.if USE_CLEAR_REGS
+	mov %al, (CLR_RAX|CLR_RBX|CLR_RDX)
+	call .clear_regs
+	.else
+	xor %rbx, %rbx
+	xor %rax, %rax
+	xor %rdx, %rdx
+	.endif
+	#
+	# rdi = code counts
+	movq %rdi, %xmm3
+	#
+.build_tree_fill_symbols:
+	#
+	# Fill in symbols sorted by code
+	# for (i = 0                 ; i < num; + + i)
+	# {
+	# register unsigned int l = lengths[i];
+	lodsb
+	#
+	test %al, %al
+	jz .build_tree_fill_symbols_len_is_zero
+	# if (l != 0)
+	# {
+	shl %ax, 1 # accessing shorts
+	add %rax, %r13 # add buffer
+	# unsigned short j = offsets[l];
+	# offsets[l] increment
+	mov %bx, [%rax] # offset
+	inc %bx
+	mov [%rax], %bx
+	shl %bx, 1 # accessing shorts
+	# add (16 - 1) * 2, %rdi tree offset + 8
+	lea %rax, [%rdi + %rbx + (32 - 2)]
+	#
+	# t_symbols.us16[j] = i      ;
+	mov [%rax], %dx
+	# }
+.build_tree_fill_symbols_len_is_zero:
+	inc %rsi # length ptr plus 1
+	inc %dx # counter update
+	xor %rbx, %rbx
+	xor %rax, %rax
+	cmp %dx, %cx
+	jb .build_tree_fill_symbols
+	# }
+	#
+.build_tree_fill_symbols_end:
+	#
+	# For the special case of only one code (which will be 0)
+	# add a code 1 which results in a symbol that is too large
+	#
+	# if (num_codes == 1)
+	# {
+	cmp %r14w, 1
+	jne .build_tree_num_codes_ne1
+	#
+	# t_symbols.us16[1] = t_max_sym + 1;
+	inc %r15w
+	inc %r14w
+	mov [%rdi + 34], %r15w
+	#
+	# t_code_counts.us16[1] = 2  ;
+	mov [%rdi + 2], %r14w
+	# }
+.build_tree_num_codes_ne1:    ;
 	ret
+.build_tree_end:
 	#
 	#
 	.if USE_CLEAR_REGS
+.clear_base_regs:
+	mov %al, (CLR_RAX|CLR_RBX|CLR_RCX|CLR_RDX)
+	jmp .clear_base_regs_impl
 .clear_regs: # used to clear regs
 	.ifdef CLR_RDI
-	bt %ax, 5
+	bt %al, CLR_RDI_BIT
 	jnc .clear_regs_no_rdi
 	xor %rdi, %rdi
 .clear_regs_no_rdi:
 	.endif
+	#
+	.ifdef CLR_RSI
 .clear_regs_rsi:
-	bt %ax, 4
+	bt %ax, CLR_RSI_BIT
 	jnc .clear_regs_no_rsi
 	xor %rsi, %rsi
 .clear_regs_no_rsi:
-	bt %ax, 3
+	.endif
+	#
+.clear_base_regs_impl:
+	.ifdef CLR_RDX
+	bt %ax, CLR_RDX_BIT
 	jnc .clear_regs_no_rdx
 	xor %rdx, %rdx
 .clear_regs_no_rdx:
-	bt %ax, 2
+	.endif
+	#
+	.ifdef CLR_RCX
+	bt %ax, CLR_RCX_BIT
 	jnc .clear_regs_no_rcx
 	xor %rcx, %rcx
 .clear_regs_no_rcx:
-	bt %ax, 1
+	.endif
+	#
+	.ifdef CLR_RBX
+	bt %ax, CLR_RBX_BIT
 	jnc .clear_regs_no_rbx
 	xor %rbx, %rbx
 .clear_regs_no_rbx:
-	# bt %ax, 0
+	.endif
+	# bt %ax, 
 	# jnc .clear_regs_no_rax
 	xor %rax, %rax
 .clear_regs_no_rax:
@@ -1788,21 +2321,20 @@ inflate_asm_x64:
 	# return values
 	#
 .error_state:
-.error_state_4:
 	mov %al, 4
 	jmp .restore_and_return
-.error_state_no_bits:
-	mov %al, 3
-	jmp .restore_and_return
+# .error_state_no_bits:
+	# mov %al, 3
+	# jmp .restore_and_return
 .error_state_invalid_params:
 	mov %al, 6
 	jmp .restore_and_return
 .error_state_internal_1:
-.error_state_internal_2:
 	mov %al, 9
 	jmp .restore_and_return
-	# mov %al, 10
-	# jmp .restore_and_return
+.error_state_internal_2:
+	mov %al, 10
+	jmp .restore_and_return
 	#
 	.if INFLATE_ASM_RANGE_CHECK
 .error_state_not_supported_range:
@@ -1810,129 +2342,214 @@ inflate_asm_x64:
 	jmp .restore_and_return
 	.endif
 	#
-.error_state_not_implemented_mmx:
-	mov %al, 7
-	jmp .restore_and_return
 .error_state_not_implemented:
 	mov %al, 5
 	jmp .restore_and_return
+	#
+.getrip:
+	mov %rax, [%rsp]
+	ret
+	#
 .ok_state:
 	xor %eax, %eax
 .restore_and_return:
 	movzx %eax, %al
+	#
+	# 2 dummies with 2 zeros
+	pop %r11
+	pop %rbx
+	#
+	#
 	pop %r15
 	pop %r14
 	#
 	pop %r13
 	pop %r12
 	#
+	pop %r11
 	pop %rbx
+	#
 	pop %rbp
 	ret
-.getrip:
-	mov %rax, [%rsp]
-	ret
-inf_get_bits:
-	ret
-_inflate_asm_x64_end:
-	ret
 	
+_inflate_asm_x64_end:
+	#
+	.equ RAW_MODE_SIZE, (.raw_mode_end - .raw_mode)
+	.equ GET_BITS_SIZE, (.get_bits_end - .get_bits_func)
+	.equ BUILD_TREE_SIZE, (.build_tree_end - .build_tree)
+	.equ BD_GV, (.block_data_gen_values_end - .block_data_gen_values)
+	
+inflate_store_xmm_registers:
+	# movups instead of movaps, because memory can be unaligned
+	movups [%rdi], %xmm0
+	movups [%rdi + 16], %xmm1
+	#
+	movups [%rdi + 32], %xmm2
+	movups [%rdi + 48], %xmm3
+	#
+	movups [%rdi + 64], %xmm4
+	movups [%rdi + 80], %xmm5
+	#
+	movups [%rdi + 96], %xmm6
+	movups [%rdi + 112], %xmm7
+	ret
+.inflate_store_xmm_registers_end:
+	
+inflate_restore_xmm_registers:
+	movups %xmm0, [%rdi]
+	movups %xmm1, [%rdi + 16]
+	#
+	movups %xmm2, [%rdi + 32]
+	movups %xmm3, [%rdi + 48]
+	#
+	movups %xmm4, [%rdi + 64]
+	movups %xmm5, [%rdi + 80]
+	#
+	movups %xmm6, [%rdi + 96]
+	movups %xmm7, [%rdi + 112]
+	ret
+.inflate_restore_xmm_registers_end:
+	
+.mem_copy_asm:
+	test %ecx, %ecx
+	jz .mem_copy_asm_end
+	#
+	cmp %rdi, %rsi
+	je .mem_copy_asm_end
+	#
+	lea %eax, [%esi + %edi]
+	#
+	test %rsi, %rsi
+	jz .mem_copy_asm_error_end
+	or %al, %cl
+	#
+	test %rdi, %rdi
+	jz .mem_copy_asm_error_end
+	#
+	cmp %al, 64
+	jb .mem_copy_asm_copy_bytes
+	# shr %al, 1
+	test %al, 0x3
+	jnz .mem_copy_asm_copy_bytes
+	#
+	test %al, 0x4
+	jnz .mem_copy_asm_copy_dwords
+	#
+	shr %ecx, 3 # 8 bytes at once
+	rep movsq
+	# jmp .mem_copy_asm_end
+.mem_copy_asm_copy_dwords:
+	shr %ecx, 2 # 4 bytes at once
+	rep movsd
+	# jmp .mem_copy_asm_end
+.mem_copy_asm_copy_bytes:
+	rep movsb
+	# nop
+	jmp .mem_copy_asm_end
+.mem_copy_asm_error_end:
+	xor %rax, %rax
+.mem_copy_asm_end:
+	
+	.equ STORE_XMM_LEN, (.inflate_store_xmm_registers_end - inflate_store_xmm_registers)
+	.equ RESTORE_XMM_LEN, (.inflate_restore_xmm_registers_end - inflate_restore_xmm_registers)
 	
 inflate_asm_x64_diffs:
 	push %rbp # callee saved
-	mov %rbp, %rsp
-	
-	mov %eax, FUNC_LEN
-	mov [%rdi], %eax
-	add %rdi, 4
 	#
-	mov %eax, GET_BITS_LEN
-	mov [%rdi], %eax
-	add %rdi, 4
+	mov %rbp, %rsp
+	cld
+	#
+	mov %eax, FUNC_LEN
+	stosd
+	#
+	mov %eax, GET_BITS_SIZE
+	stosd
+	#
+	mov %eax, BUFFER_LEN
+	stosd
+	mov %eax, BUFFER_LEN_8
+	stosd
+	#
+	mov %eax, BUILD_TREE_SIZE
+	stosd
+	#
+	mov %eax, (.dyn_mode_build_trees_end - .dyn_mode_build_trees)
+	stosd
+	#
+	mov %eax, BD_GV
+	stosd
 	#
 	mov %eax, NUM_TO_ZERO
-	mov [%rdi], %eax
-	add %rdi, 4
+	stosd
 	#
 	mov %eax, NUM_TO_ZERO_8
-	mov [%rdi], %eax
-	add %rdi, 4
+	stosd
 	#
 	mov %eax, LAST_TO_ZERO
-	neg %eax
-	mov [%rdi], %eax
-	add %rdi, 4
+	stosd
 	#
-	mov %eax, RAW_JUMP
-	mov [%rdi], %eax
-	add %rdi, 4
+	mov %eax, (.mem_copy_asm_end - .mem_copy_asm)
+	stosd
 	#
-	mov %eax, FIXED_JUMP
-	mov [%rdi], %eax
-	add %rdi, 4
+	mov %eax, STORE_XMM_LEN
+	stosd
 	#
-	mov %eax, DYN_JUMP
-	mov [%rdi], %eax
-	add %rdi, 4
+	mov %eax, RESTORE_XMM_LEN
+	stosd
 	#
-	mov %eax, NEW_STATE_JUMP
-	mov [%rdi], %eax
-	add %rdi, 4
+	mov %eax, RAW_MODE_SIZE
+	stosd
 	#
-	mov %eax, MODE_ADDRS
-	mov [%rdi], %eax
-	add %rdi, 4
+	mov %eax, (.dm_btl_1_end - .dm_btl_1)
+	stosd
+	#
+	.if 0
+	mov %eax, (.dm_btl_2_end - .dm_btl_2)
+	stosd
+	#
+	mov %eax, (.dm_btl_3_end - .dm_btl_3)
+	stosd
+	.endif
+	#
+	mov %eax, (.get_bits_error - .get_bits_func)
+	stosd
+	#
+	mov %eax, (.inflate_aio_block_data_end - .inflate_aio_block_data)
+	stosd
+	#
+	mov %eax, (.block_data_error_1 - .inflate_aio_block_data)
+	stosd
+	#
+	.if 0
+	mov %eax, (.block_data_error_2 - .inflate_aio_block_data)
+	stosd
+	#
+	mov %eax, (.inflate_aio_block_data_end - .block_data_error_2)
+	stosd
+	.endif
+	#
+	mov %eax, (.inflate_aio_block_data_end - .block_data_error_3)
+	stosd
+	#
+	mov %eax, (.block_data_dist_comp_end - .block_data_dist_comp)
+	stosd
+	#
+	mov %eax, (.fixed_mode_build_trees_end - .fixed_mode_build_trees)
+	stosd
+	#
+	mov %eax, (.fixed_mode_compact_end - .fixed_mode_compact_start)
+	stosd
+	#
+	.if 0
+	mov %eax, (.fixed_mode_compact2_end - .fixed_mode_compact2_start)
+	stosd
+	#
+	mov %eax, (.fixed_mode_fixed_set_end - .fixed_mode_fixed_set_start)
+	stosd
+	.endif
+	#
+	mov %eax, (.inflate_decode_symbol_func_end - .inflate_decode_symbol_func)
+	stosd
 	#
 	pop %rbp
 	ret
-	
-# 1st = %rdi : address        ; 2nd = %esi : count
-inflate_asm_x64_clear:
-	pushq %rcx
-	mov %ecx, %esi
-	xorq %rax, %rax
-	std
-	repnz stosq
-	popq %rcx
-	ret
-	
-supports_64_bit:
-	mov %eax, 0x80000001
-	cpuid
-	mov %eax, %edx
-	bt %eax, 29
-	jc .supports_64_bit_end
-	xor %eax, %eax
-	ret
-.supports_64_bit_end:
-	mov %eax, 1
-	
-	ret
-	
-inflate_asm_x64_fixed_addr:
-	# mov %eax, somedata
-	# mov [%rdi], %eax
-	ret
-	
-	#
-	# .ifdef RAW_MODE_COPY_8
-	# .if RAW_MODE_COPY_8
-	# mov %ebx, %r8d # ebx = src ptr
-	
-	#
-	# cmp %cx, 16
-	# jbe .raw_mode_copy_bytes
-	#
-	# or %bx, %di # mix bits
-	# test %cx, 0x7 # 8 - byte - aligned?
-	# jnz .raw_mode_copy_bytes
-	# alignment checks, maybe we can copy larger chunks per "rep movsX" - iteration
-	# test %bx, 0x7 # 8 - byte - aligned si|di ?
-	# jnz .raw_mode_copy_bytes
-	# shr %ecx, 3 # i.e div by 8
-	# cld # forward copy!
-	# repnz movsq
-	# jmp .raw_mode_copy_done
-	#
-	# .endif
-	# .endif

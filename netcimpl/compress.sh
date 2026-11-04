@@ -2,17 +2,27 @@
 #
 #
 cp compression/inflate_asm.asm compression/inflate_asm.s
+cp compression/other_asm.asm compression/other_asm.s
+#
 as --64 compression/inflate_asm.s -o inflate_asm.o
 r=$?
 
 if [ $r -ne 0 ]; then
-echo "Assembler failed"
-
+echo "Assembler failed. inflate_asm"
 exit 0
-
 fi
+echo "inflate_asm: OK"
 
-gcc -Wall -Wextra -Wundef -pedantic -fPIE -ggdb -Wno-variadic-macros compress.c ./compression/inflate_asm.s
+as --64 compression/other_asm.s -o other_asm.o
+r=$?
+
+if [ $r -ne 0 ]; then
+echo "Assembler failed. other_asm"
+exit 0
+fi
+echo "other_asm: OK"
+
+gcc -Wall -Wextra -Wundef -pedantic -fPIE -ggdb -Wno-variadic-macros compress.c ./compression/inflate_asm.s ./compression/other_asm.s
 # gcc -Wall -Wextra -Wundef -pedantic -fPIE -ggdb -Wno-variadic-macros -c compress.c
 r=$?
 echo "COMPILE-RES: "$r
